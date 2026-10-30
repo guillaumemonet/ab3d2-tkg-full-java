@@ -31,7 +31,10 @@ public final class LevelReader {
     private static final int PLR2_ZONE = 10;
     private static final int NUM_CONTROL_POINTS = 12;
     private static final int NUM_POINTS = 14;
+    private static final int NUM_ZONES = 16;
     private static final int OFFSET_POINTS = 22;
+    /** Les aretes commencent la, et courent jusqu'aux entites. */
+    private static final int OFFSET_EDGES = 26;
     private static final int OFFSET_OBJECTS = 30;
     private static final int OFFSET_OBJECT_POINTS = 42;
     /** Juste après l'en-tête commencent les coordonnées des points de contrôle. */
@@ -48,6 +51,35 @@ public final class LevelReader {
     private static final int ENT_DEF = 54;
     private static final int ENT_UPPER_ZONE = 63;
 
+    // --- une arete : 16 octets ---
+    private static final int EDGE_SIZE = 16;
+    private static final int EDGE_DX = 4;
+    private static final int EDGE_JOIN = 8;
+    private static final int EDGE_DIVIDER = 10;
+
+    // --- un secteur : 50 octets, dans le fichier de NIVEAU ---
+    private static final int ZONE_FLOOR = 2;
+    private static final int ZONE_CEILING = 6;
+    private static final int ZONE_UPPER_FLOOR = 10;
+    private static final int ZONE_UPPER_CEILING = 14;
+    private static final int ZONE_WATER = 18;
+    private static final int ZONE_BRIGHTNESS = 22;
+    private static final int ZONE_UPPER_BRIGHTNESS = 24;
+    private static final int ZONE_CONTROL_POINT = 26;
+    private static final int ZONE_AMBIENT_MASK = 28;
+    private static final int ZONE_EDGE_LIST = 32;
+    private static final int ZONE_POINT_COUNT = 34;
+    private static final int ZONE_BACKDROP = 36;
+    private static final int ZONE_ECHO = 37;
+    private static final int ZONE_TEL_ZONE = 38;
+    private static final int ZONE_TEL_X = 40;
+    private static final int ZONE_TEL_Z = 42;
+    private static final int ZONE_FLOOR_SOUND = 44;
+    private static final int ZONE_UPPER_FLOOR_SOUND = 46;
+
+    /** Dans le fichier GRAPHE : la table qui donne, par secteur, son offset dans le niveau. */
+    private static final int GRAPH_ZONE_TABLE = 16;
+
     /** Le pas de la table de routage, en dur dans la routine d'origine. */
     private static final int ROUTE_STRIDE = 100;
 
@@ -60,14 +92,21 @@ public final class LevelReader {
      * @param mediaRoot racine des données dépackées, celle qui contient {@code levels/}
      */
     public static Level read(Path mediaRoot, char letter) throws IOException {
-        Path f = mediaRoot.resolve("levels")
-                .resolve("LEVEL_" + Character.toUpperCase(letter))
-                .resolve("twolev.bin");
-        return parse(new Blob(Files.readAllBytes(f), f.toString()), letter);
+        Path dir = mediaRoot.resolve("levels").resolve("LEVEL_" + Character.toUpperCase(letter));
+        Path bin = dir.resolve("twolev.bin");
+        Path graph = dir.resolve("twolev.graph.bin");
+        return parse(new Blob(Files.readAllBytes(bin), bin.toString()),
+                new Blob(Files.readAllBytes(graph), graph.toString()), letter);
     }
 
-    /** Variante pour un fichier déjà en mémoire. */
-    public static Level parse(Blob f, char letter) {
+    /**
+     * Variante pour des fichiers déjà en mémoire.
+     *
+     * <p>Il en faut <b>deux</b>. Les secteurs vivent dans le fichier de niveau, mais c'est le
+     * fichier graphe qui dit où : il porte une table donnant, pour chaque secteur, son offset
+     * dans le niveau. Le jeu fait exactement cela — {@code pZone = niveau[table[zoneId]]}.
+     */
+    public static Level parse(Blob f, Blob graph, char letter) {
         int h = HEADER;                                  // l'en-tete suit le bloc de messages
 
         List<String> messages = new ArrayList<>(MESSAGE_COUNT);
@@ -104,8 +143,84 @@ public final class LevelReader {
 
         List<Level.Entity> entities = readEntities(f, h);
 
+        List<Level.Zone> zones = readZones(f, graph, f.u16(h + NUM_ZONES) + 1);
+
+        // --- les aretes ---
+        // Leur nombre n'est ecrit nulle part. On serait tente de le deduire des deux offsets
+        // d'en-tete, mais la soustraction est NEGATIVE : les entites precedent les aretes dans
+        // le fichier. Le corpus de reference prend la valeur absolue de cette difference, ce qui
+        // lui fait lire deux fois trop loin -- au-dela de la table, dans les enregistrements de
+        // secteur -- et lui donne des aretes qui n'existent pas.
+        //
+        // La vraie borne est structurelle : la table court jusqu'au PREMIER enregistrement de
+        // secteur. Verifie sur les seize niveaux, elle contient toujours l'indice maximum que
+        // les secteurs referencent, et rien de plus.
+        int edgesAt = f.s32(h + OFFSET_EDGES);
+        int firstZone = Integer.MAX_VALUE;
+        for (Level.Zone z : zones) {
+            firstZone = Math.min(firstZone, graph.s32(GRAPH_ZONE_TABLE + z.id() * 4));
+        }
+        int edgeCount = (firstZone - edgesAt) / EDGE_SIZE;
+        List<Level.Edge> edges = new ArrayList<>(edgeCount);
+        for (int i = 0; i < edgeCount; i++) {
+            int e = edgesAt + i * EDGE_SIZE;
+            edges.add(new Level.Edge(f.s16(e), f.s16(e + 2), f.s16(e + EDGE_DX),
+                    f.s16(e + EDGE_DX + 2), f.s16(e + EDGE_JOIN), f.s16(e + EDGE_DIVIDER)));
+        }
+        // Le mot qui precede les aretes porte le secteur de sortie du niveau.
+        int exitZone = f.s16(edgesAt - 2);
+
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
-                List.copyOf(points), List.copyOf(control), routes, List.copyOf(entities));
+                List.copyOf(points), List.copyOf(control), routes, List.copyOf(entities),
+                List.copyOf(edges), List.copyOf(zones), exitZone);
+    }
+
+    /**
+     * Les secteurs. Leur offset vient du fichier graphe, leur contenu du fichier de niveau.
+     *
+     * <p>La liste d'arêtes est rangée <b>à la suite du secteur</b>, à un déplacement que le
+     * secteur porte lui-même. Elle se lit jusqu'au marqueur -2, avec un -1 qui referme le
+     * premier groupe : celui-là est le contour, le reste sert à la collision.
+     */
+    private static List<Level.Zone> readZones(Blob f, Blob graph, int count) {
+        List<Level.Zone> out = new ArrayList<>(count);
+        for (int id = 0; id < count; id++) {
+            int at = graph.s32(GRAPH_ZONE_TABLE + id * 4);
+            if (at == 0) {
+                continue;
+            }
+            List<Integer> edgeList = new ArrayList<>();
+            int list = at + f.s16(at + ZONE_EDGE_LIST);
+            for (int i = 0; i < 512; i++) {
+                int e = f.s16(list + i * 2);
+                edgeList.add(e);
+                if (e == -2) {
+                    break;
+                }
+            }
+            out.add(new Level.Zone(
+                    id,
+                    f.s32(at + ZONE_FLOOR),
+                    f.s32(at + ZONE_CEILING),
+                    f.s32(at + ZONE_UPPER_FLOOR),
+                    f.s32(at + ZONE_UPPER_CEILING),
+                    f.s32(at + ZONE_WATER),
+                    f.s16(at + ZONE_BRIGHTNESS),
+                    f.s16(at + ZONE_UPPER_BRIGHTNESS),
+                    f.u8(at + ZONE_CONTROL_POINT),
+                    f.u8(at + ZONE_CONTROL_POINT + 1),
+                    f.s16(at + ZONE_AMBIENT_MASK),
+                    f.u8(at + ZONE_BACKDROP) != 0,
+                    f.u8(at + ZONE_ECHO),
+                    f.s16(at + ZONE_TEL_ZONE),
+                    f.s16(at + ZONE_TEL_X),
+                    f.s16(at + ZONE_TEL_Z),
+                    f.s16(at + ZONE_FLOOR_SOUND),
+                    f.s16(at + ZONE_UPPER_FLOOR_SOUND),
+                    f.u16(at + ZONE_POINT_COUNT),
+                    List.copyOf(edgeList)));
+        }
+        return out;
     }
 
     /**

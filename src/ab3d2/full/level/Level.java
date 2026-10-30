@@ -26,7 +26,10 @@ public record Level(
         List<Point> points,
         List<ControlPoint> controlPoints,
         int[] routes,
-        List<Entity> entities) {
+        List<Entity> entities,
+        List<Edge> edges,
+        List<Zone> zones,
+        int exitZone) {
 
     /** Position de départ d'un joueur. */
     public record Start(int x, int z, int zone) { }
@@ -84,6 +87,82 @@ public record Level(
         /** Vrai si l'entité tient la clé d'au moins une porte ou un ascenseur. */
         public boolean holdsKey() {
             return unlocks != 0;
+        }
+    }
+
+    /**
+     * Une arête : un segment du plan, qui sépare deux secteurs ou ferme le décor.
+     *
+     * @param x        origine
+     * @param z        origine
+     * @param dx       vecteur, de l'origine vers l'autre bout
+     * @param dz       vecteur
+     * @param joinZone secteur de l'autre côté, ou -1 si l'arête est un mur plein
+     * @param divider  diviseur du test de côté, précalculé par l'éditeur
+     */
+    public record Edge(int x, int z, int dx, int dz, int joinZone, int divider) {
+
+        /** Vrai si rien ne passe : l'arête est un mur. */
+        public boolean solid() {
+            return joinZone < 0;
+        }
+    }
+
+    /**
+     * Un secteur.
+     *
+     * <p>Les hauteurs sont en Y vers le BAS : le sol a une valeur plus grande que le plafond.
+     * Un secteur peut avoir un second étage ({@code upperFloor} / {@code upperCeiling}), ce
+     * qui permet au jeu de superposer deux pièces au même endroit du plan.
+     *
+     * <p>{@code brightness} est signé : une valeur négative est une luminosité fixe, une valeur
+     * positive dont l'octet fort n'est pas nul désigne une lumière ANIMÉE dans la table du jeu.
+     *
+     * @param edgeList liste brute des arêtes, avec ses marqueurs : -1 ferme le premier groupe
+     *                 (le contour, qui sert au rendu du sol et du plafond), -2 termine la liste
+     */
+    public record Zone(
+            int id,
+            int floor,
+            int ceiling,
+            int upperFloor,
+            int upperCeiling,
+            int water,
+            int brightness,
+            int upperBrightness,
+            int controlPoint,
+            int upperControlPoint,
+            int ambientSoundMask,
+            boolean drawBackdrop,
+            int echo,
+            int teleportZone,
+            int teleportX,
+            int teleportZ,
+            int floorSound,
+            int upperFloorSound,
+            int pointCount,
+            List<Integer> edgeList) {
+
+        /** Vrai si le secteur a un second étage. */
+        public boolean hasUpperFloor() {
+            return upperFloor != floor || upperCeiling != ceiling;
+        }
+
+        /** Vrai si le secteur téléporte ailleurs. */
+        public boolean teleports() {
+            return teleportZone >= 0;
+        }
+
+        /** Les arêtes du CONTOUR : le premier groupe, celui qui ferme le secteur. */
+        public List<Integer> outline() {
+            List<Integer> out = new java.util.ArrayList<>();
+            for (int e : edgeList) {
+                if (e < 0) {
+                    break;
+                }
+                out.add(e);
+            }
+            return List.copyOf(out);
         }
     }
 
