@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+}
+
+group = 'ab3d2'
+version = '0.0.1'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Gson ne sert QU'A l'outil de validation (il relit le corpus de reference, qui est du
+    // JSON). Le moteur lui-meme n'a aucune dependance.
+    implementation 'com.google.code.gson:gson:2.11.0'
+}
+
+sourceSets {
+    main {
+        java { srcDirs = ['src'] }
+        resources { srcDirs = [] }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all' << '-Xlint:-serial'
+}
+
+/** Racine des donnees d'origine depackees (medias/original), cherchee en remontant. */
+def mediaRoot = {
+    def d = projectDir
+    while (d != null) {
+        def c = new File(d, 'medias/original')
+        if (c.isDirectory()) { return c }
+        d = d.parentFile
+    }
+    return new File(projectDir, 'medias/original')
+}()
+
+tasks.register('levelCheck', JavaExec) {
+    group = 'verification'
+    description = "Lit les 16 niveaux SANS memoire plate et compare au corpus de reference"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.LevelCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    def ref = new File(projectDir.parentFile, 'ab3d2-tkg-java/rebirth/assets/levels')
+    systemProperty 'ab3d2.ref', ref.absolutePath
+}
