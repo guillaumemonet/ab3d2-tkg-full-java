@@ -29,6 +29,9 @@ public record Level(
         List<Entity> entities,
         List<Edge> edges,
         List<Zone> zones,
+        List<Liftable> doors,
+        List<Liftable> lifts,
+        List<Clip> clips,
         int exitZone) {
 
     /** Position de départ d'un joueur. */
@@ -141,7 +144,8 @@ public record Level(
             int floorSound,
             int upperFloorSound,
             int pointCount,
-            List<Integer> edgeList) {
+            List<Integer> edgeList,
+            List<Visible> visible) {
 
         /** Vrai si le secteur a un second étage. */
         public boolean hasUpperFloor() {
@@ -164,6 +168,96 @@ public record Level(
             }
             return List.copyOf(out);
         }
+    }
+
+    /**
+     * Un secteur potentiellement visible depuis un autre, et par quelle ouverture.
+     *
+     * <p>C'est la base de la ligne de vue, donc de la detection du joueur par les monstres : un
+     * monstre ne regarde que les secteurs de cette liste.
+     *
+     * @param clip le groupe de points qui retrecit le champ en passant par cette ouverture, ou
+     *             {@code null} si la vue est degagee
+     */
+    public record Visible(int zone, Clip clip) {
+
+        /** Vrai si traverser cette ouverture ne retrecit pas le champ de vision. */
+        public boolean open() {
+            return clip == null;
+        }
+    }
+
+    /**
+     * Un groupe de points qui resserre le champ de vision au passage d'une ouverture.
+     *
+     * <p>Le fichier de niveau ne porte pas ces groupes : il marque seulement, d'un mot positif,
+     * les ouvertures qui en ont un. C'est le CHARGEUR qui les distribue, en parcourant la table
+     * des decoupes du debut a la fin et en donnant a chaque ouverture marquee le groupe suivant,
+     * dans l'ordre des secteurs. Un groupe tient donc son identite de son rang, et {@code
+     * wordIndex} est la position en mots a laquelle le jeu le retrouvait.
+     *
+     * <p>Les deux cotes sont independants : l'un comme l'autre peut etre vide. Chaque valeur est
+     * l'indice d'un sommet du decor ; le rendu en tire une abscisse a l'ecran et ne garde que la
+     * plus contraignante.
+     *
+     * @param left  les points qui bornent la vue a gauche
+     * @param right les points qui la bornent a droite
+     */
+    public record Clip(int wordIndex, List<Integer> left, List<Integer> right) { }
+
+    /**
+     * Une porte ou un ascenseur — le jeu n'en fait qu'un seul format, le « liftable ».
+     *
+     * <p>Ce qui les distingue n'est pas leur structure mais ce qu'ils deplacent : une porte fait
+     * descendre le plafond de son secteur, un ascenseur en fait monter le sol. Les deux
+     * deforment au passage les murs que {@code walls} designe.
+     *
+     * @param bottom    position basse de la course
+     * @param top       position haute
+     * @param openSpeed vitesse d'ouverture
+     * @param closeSpeed vitesse de fermeture
+     * @param openDuration temps passe ouvert avant de se refermer
+     * @param position  position de depart
+     * @param zone      secteur dont la porte ou l'ascenseur bouge le plafond ou le sol
+     * @param openBits  condition d'ouverture : 0 et 1 demandent la touche d'action du joueur,
+     *                  4 s'ouvre tout seul a l'approche
+     * @param closeBits condition de fermeture
+     * @param walls     les murs deformes par le mouvement
+     */
+    public record Liftable(
+            int index,
+            int bottom,
+            int top,
+            int openSpeed,
+            int closeSpeed,
+            int openDuration,
+            int openingSound,
+            int closingSound,
+            int openedSound,
+            int closedSound,
+            int x,
+            int z,
+            int position,
+            int speed,
+            int zone,
+            int openBits,
+            int closeBits,
+            List<Wall> walls) {
+
+        /** Vrai si la porte s'ouvre d'elle-meme, sans que le joueur ait a agir. */
+        public boolean automatic() {
+            return openBits == 4;
+        }
+
+        /**
+         * Un mur deforme par le mouvement.
+         *
+         * @param edge       l'arete concernee
+         * @param graphics   ou se trouve son enregistrement dans le flux graphique
+         * @param textureTop base du decalage vertical de la texture, dont le jeu retranche la
+         *                   position courante a chaque image
+         */
+        public record Wall(int edge, int graphics, int textureTop) { }
     }
 
     /**

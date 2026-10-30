@@ -57,9 +57,11 @@ public final class LevelCheck {
             }
             List<String> pb = compare(lvl, json);
             ecarts += pb.size();
-            System.out.printf("  %c : %4d points, %4d aretes, %3d secteurs, %4d entites   %s%n",
-                    c, lvl.points().size(), lvl.edges().size(), lvl.zones().size(),
-                    lvl.entities().size(), pb.isEmpty() ? "conforme" : pb.size() + " ECART(S)");
+            System.out.printf("  %c : %4d aretes, %3d secteurs, %2d portes, %d ascenseurs,"
+                    + " %4d entites   %s%n",
+                    c, lvl.edges().size(), lvl.zones().size(), lvl.doors().size(),
+                    lvl.lifts().size(), lvl.entities().size(),
+                    pb.isEmpty() ? "conforme" : pb.size() + " ECART(S)");
             for (String s : pb.subList(0, Math.min(pb.size(), 6))) {
                 System.out.println("        " + s);
             }
@@ -176,6 +178,20 @@ public final class LevelCheck {
                 eq(pb, q + " echo", a.echo(), z.get("echo").getAsInt());
                 eq(pb, q + " fond", a.drawBackdrop() ? 1 : 0,
                         z.get("drawBackdrop").getAsBoolean() ? 1 : 0);
+                JsonArray pv = z.getAsJsonArray("pvs");
+                if (pv != null) {
+                    eq(pb, q + " nb secteurs visibles", a.visible().size(), pv.size());
+                    for (int k = 0; k < Math.min(a.visible().size(), pv.size()); k++) {
+                        JsonObject v = pv.get(k).getAsJsonObject();
+                        eq(pb, q + " visible " + k, a.visible().get(k).zone(),
+                                v.get("zone").getAsInt());
+                        // La reference garde le rang du groupe, en mots ; nous gardons le
+                        // groupe lui-meme, qui porte ce rang.
+                        Level.Clip g = a.visible().get(k).clip();
+                        eq(pb, q + " decoupe " + k, g == null ? -1 : g.wordIndex(),
+                                v.get("clip").getAsInt());
+                    }
+                }
                 JsonArray el = z.getAsJsonArray("edgeList");
                 if (el != null) {
                     eq(pb, q + " taille liste d'aretes", a.edgeList().size(), el.size());
@@ -185,6 +201,10 @@ public final class LevelCheck {
                 }
             }
         }
+
+        // --- portes et ascenseurs ---
+        verifieLiftables(pb, "porte", lvl.doors(), o.getAsJsonArray("doors"));
+        verifieLiftables(pb, "ascenseur", lvl.lifts(), o.getAsJsonArray("lifts"));
 
         JsonArray msg = o.getAsJsonArray("messages");
         if (msg != null) {
@@ -208,6 +228,44 @@ public final class LevelCheck {
             }
         }
         return pb;
+    }
+
+    /** Portes et ascenseurs ont le meme format : une seule verification pour les deux. */
+    private static void verifieLiftables(List<String> pb, String quoi,
+            List<Level.Liftable> lus, JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        eq(pb, "nombre de " + quoi + "s", lus.size(), ref.size());
+        for (int i = 0; i < Math.min(lus.size(), ref.size()); i++) {
+            JsonObject r = ref.get(i).getAsJsonObject();
+            Level.Liftable a = lus.get(i);
+            String q = quoi + " " + i;
+            eq(pb, q + " bas", a.bottom(), r.get("bottom").getAsInt());
+            eq(pb, q + " haut", a.top(), r.get("top").getAsInt());
+            eq(pb, q + " vitesse ouverture", a.openSpeed(), r.get("openingSpeed").getAsInt());
+            eq(pb, q + " vitesse fermeture", a.closeSpeed(), r.get("closingSpeed").getAsInt());
+            eq(pb, q + " duree ouverte", a.openDuration(), r.get("openDuration").getAsInt());
+            eq(pb, q + " x", a.x(), r.get("x").getAsInt());
+            eq(pb, q + " z", a.z(), r.get("z").getAsInt());
+            eq(pb, q + " position", a.position(), r.get("position").getAsInt());
+            eq(pb, q + " secteur", a.zone(), r.get("zone").getAsInt());
+            eq(pb, q + " condition ouverture", a.openBits(), r.get("openBits").getAsInt());
+            eq(pb, q + " condition fermeture", a.closeBits(), r.get("closeBits").getAsInt());
+            JsonArray w = r.getAsJsonArray("wallPatches");
+            if (w != null) {
+                eq(pb, q + " nb murs", a.walls().size(), w.size());
+                for (int k = 0; k < Math.min(a.walls().size(), w.size()); k++) {
+                    JsonObject rw = w.get(k).getAsJsonObject();
+                    eq(pb, q + " mur " + k + " arete", a.walls().get(k).edge(),
+                            rw.get("edge").getAsInt());
+                    eq(pb, q + " mur " + k + " graphique", a.walls().get(k).graphics(),
+                            rw.get("gfxOfs").getAsInt());
+                    eq(pb, q + " mur " + k + " texture", a.walls().get(k).textureTop(),
+                            rw.get("yBase").getAsInt());
+                }
+            }
+        }
     }
 
     /** Le plus grand indice d'arete qu'un secteur designe : la table doit aller au moins la. */

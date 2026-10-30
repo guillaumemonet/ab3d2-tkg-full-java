@@ -77,8 +77,22 @@ public final class LevelReader {
     private static final int ZONE_FLOOR_SOUND = 44;
     private static final int ZONE_UPPER_FLOOR_SOUND = 46;
 
-    /** Dans le fichier GRAPHE : la table qui donne, par secteur, son offset dans le niveau. */
+    /** La liste des secteurs visibles, a la suite de l'enregistrement : tuples de 8 octets. */
+    private static final int ZONE_VISIBLE = 48;
+    private static final int VISIBLE_SIZE = 8;
+    private static final int VISIBLE_CLIP = 2;
+
+    // --- dans le fichier GRAPHE ---
+    private static final int GRAPH_DOORS = 0;
+    private static final int GRAPH_LIFTS = 4;
+    /** La table qui donne, par secteur, son offset dans le fichier de niveau. */
     private static final int GRAPH_ZONE_TABLE = 16;
+
+    // --- une porte ou un ascenseur : 36 octets, puis sa liste de murs ---
+    private static final int LIFT_HEADER = 36;
+    private static final int LIFT_WALL_SIZE = 10;
+    /** Fin de la liste globale. */
+    private static final int LIFT_END = 999;
 
     /** Le pas de la table de routage, en dur dans la routine d'origine. */
     private static final int ROUTE_STRIDE = 100;
@@ -95,8 +109,10 @@ public final class LevelReader {
         Path dir = mediaRoot.resolve("levels").resolve("LEVEL_" + Character.toUpperCase(letter));
         Path bin = dir.resolve("twolev.bin");
         Path graph = dir.resolve("twolev.graph.bin");
+        Path clips = dir.resolve("twolev.clips");
         return parse(new Blob(Files.readAllBytes(bin), bin.toString()),
-                new Blob(Files.readAllBytes(graph), graph.toString()), letter);
+                new Blob(Files.readAllBytes(graph), graph.toString()),
+                new Blob(Files.readAllBytes(clips), clips.toString()), letter);
     }
 
     /**
@@ -106,8 +122,9 @@ public final class LevelReader {
      * fichier graphe qui dit où : il porte une table donnant, pour chaque secteur, son offset
      * dans le niveau. Le jeu fait exactement cela — {@code pZone = niveau[table[zoneId]]}.
      */
-    public static Level parse(Blob f, Blob graph, char letter) {
+    public static Level parse(Blob f, Blob graph, Blob clipData, char letter) {
         int h = HEADER;                                  // l'en-tete suit le bloc de messages
+        ClipAssigner clips = new ClipAssigner(clipData);
 
         List<String> messages = new ArrayList<>(MESSAGE_COUNT);
         for (int i = 0; i < MESSAGE_COUNT; i++) {
@@ -143,7 +160,7 @@ public final class LevelReader {
 
         List<Level.Entity> entities = readEntities(f, h);
 
-        List<Level.Zone> zones = readZones(f, graph, f.u16(h + NUM_ZONES) + 1);
+        List<Level.Zone> zones = readZones(f, graph, f.u16(h + NUM_ZONES) + 1, clips);
 
         // --- les aretes ---
         // Leur nombre n'est ecrit nulle part. On serait tente de le deduire des deux offsets
@@ -170,9 +187,13 @@ public final class LevelReader {
         // Le mot qui precede les aretes porte le secteur de sortie du niveau.
         int exitZone = f.s16(edgesAt - 2);
 
+        List<Level.Liftable> doors = readLiftables(graph, graph.s32(GRAPH_DOORS));
+        List<Level.Liftable> lifts = readLiftables(graph, graph.s32(GRAPH_LIFTS));
+
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), routes, List.copyOf(entities),
-                List.copyOf(edges), List.copyOf(zones), exitZone);
+                List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
+                clips.groups(), exitZone);
     }
 
     /**
@@ -182,7 +203,7 @@ public final class LevelReader {
      * secteur porte lui-même. Elle se lit jusqu'au marqueur -2, avec un -1 qui referme le
      * premier groupe : celui-là est le contour, le reste sert à la collision.
      */
-    private static List<Level.Zone> readZones(Blob f, Blob graph, int count) {
+    private static List<Level.Zone> readZones(Blob f, Blob graph, int count, ClipAssigner clips) {
         List<Level.Zone> out = new ArrayList<>(count);
         for (int id = 0; id < count; id++) {
             int at = graph.s32(GRAPH_ZONE_TABLE + id * 4);
@@ -218,9 +239,128 @@ public final class LevelReader {
                     f.s16(at + ZONE_FLOOR_SOUND),
                     f.s16(at + ZONE_UPPER_FLOOR_SOUND),
                     f.u16(at + ZONE_POINT_COUNT),
-                    List.copyOf(edgeList)));
+                    List.copyOf(edgeList),
+                    readVisible(f, at, clips)));
         }
         return out;
+    }
+
+    /**
+     * Les secteurs potentiellement visibles depuis celui-ci : des couples {@code (secteur,
+     * decoupe)} de 8 octets, a la suite de l'enregistrement, termines par un secteur negatif.
+     *
+     * <p>Le second mot n'est PAS un index : c'est un drapeau. Negatif, la vue par cette
+     * ouverture est degagee ; positif, elle a un groupe de decoupe, que l'assigneur distribue.
+     */
+    private static List<Level.Visible> readVisible(Blob f, int zoneAt, ClipAssigner clips) {
+        List<Level.Visible> out = new ArrayList<>();
+        for (int at = zoneAt + ZONE_VISIBLE; ; at += VISIBLE_SIZE) {
+            int zone = f.s16(at);
+            if (zone < 0) {
+                return List.copyOf(out);
+            }
+            out.add(new Level.Visible(zone,
+                    f.s16(at + VISIBLE_CLIP) < 0 ? null : clips.next()));
+        }
+    }
+
+    /**
+     * Distribue les groupes de decoupe aux ouvertures qui en reclament un.
+     *
+     * <p>Le jeu ne range nulle part quelle ouverture utilise quel groupe : il s'en remet a
+     * l'ORDRE. Le chargeur descend les secteurs par numero croissant, et leurs ouvertures dans
+     * l'ordre de la liste ; chaque fois qu'il en trouve une marquee, il lui donne le groupe sous
+     * son curseur, puis avance le curseur jusqu'apres le prochain {@code -2}. Lire les groupes
+     * demande donc de refaire ce parcours dans le meme ordre, et c'est ce que fait cette classe,
+     * un appel a {@link #next()} par ouverture marquee.
+     *
+     * <p>A l'interieur d'un groupe, un premier terminateur separe les points qui bornent la vue
+     * a gauche de ceux qui la bornent a droite ; le {@code -2} ferme le tout. Un cote vide se
+     * reconnait a son terminateur immediat.
+     *
+     * <p>Ce que le curseur laisse derriere lui, une fois tous les secteurs traites, marque la
+     * fin des decoupes : la table de connexion commence la, dans le meme fichier.
+     */
+    private static final class ClipAssigner {
+
+        /** Ferme un groupe entier. */
+        private static final int GROUP_END = -2;
+
+        private final Blob f;
+        private final List<Level.Clip> groups = new ArrayList<>();
+        /** Position du prochain groupe, en octets — le {@code d0} de la routine d'origine. */
+        private int cursor;
+
+        ClipAssigner(Blob f) {
+            this.f = f;
+        }
+
+        /** Le groupe suivant, attribue a l'ouverture courante. */
+        Level.Clip next() {
+            int start = cursor;
+            int end = start;
+            while (f.s16(end) != GROUP_END) {
+                end += 2;
+            }
+            cursor = end + 2;
+
+            List<Integer> left = new ArrayList<>();
+            int at = start;
+            while (at < end && f.s16(at) >= 0) {
+                left.add(f.s16(at));
+                at += 2;
+            }
+            List<Integer> right = new ArrayList<>();
+            at += 2;                                     // on passe le terminateur de gauche
+            while (at < end && f.s16(at) >= 0) {
+                right.add(f.s16(at));
+                at += 2;
+            }
+
+            Level.Clip g = new Level.Clip(start / 2, List.copyOf(left), List.copyOf(right));
+            groups.add(g);
+            return g;
+        }
+
+        List<Level.Clip> groups() {
+            return List.copyOf(groups);
+        }
+    }
+
+    /**
+     * Les portes ou les ascenseurs : une suite d'enregistrements, chacun suivi de sa liste de
+     * murs. La liste de murs finit sur une arete negative, la liste globale sur une position
+     * basse valant 999.
+     */
+    private static List<Level.Liftable> readLiftables(Blob graph, int at) {
+        List<Level.Liftable> out = new ArrayList<>();
+        if (at <= 0) {
+            return out;
+        }
+        while (true) {
+            int bottom = graph.s16(at);
+            if (bottom == LIFT_END) {
+                return List.copyOf(out);
+            }
+            List<Level.Liftable.Wall> walls = new ArrayList<>();
+            int w = at + LIFT_HEADER;
+            while (true) {
+                int edge = graph.s16(w);
+                if (edge < 0) {
+                    break;
+                }
+                walls.add(new Level.Liftable.Wall(edge, graph.s32(w + 2), graph.s32(w + 6)));
+                w += LIFT_WALL_SIZE;
+            }
+            out.add(new Level.Liftable(
+                    out.size(), bottom, graph.s16(at + 2), graph.s16(at + 4), graph.s16(at + 6),
+                    graph.s16(at + 8), graph.s16(at + 10), graph.s16(at + 12),
+                    graph.s16(at + 14), graph.s16(at + 16), graph.s16(at + 18),
+                    graph.s16(at + 20), graph.s16(at + 22), graph.s16(at + 24),
+                    graph.s16(at + 30), graph.u8(at + 34), graph.u8(at + 35),
+                    List.copyOf(walls)));
+            at = w + 2;                              // saute le terminateur de la liste de murs
+        }
     }
 
     /**
