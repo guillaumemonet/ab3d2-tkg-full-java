@@ -1,4 +1,4 @@
-package ab3d2.full.level;
+package ab3d2.full;
 
 import java.nio.charset.StandardCharsets;
 

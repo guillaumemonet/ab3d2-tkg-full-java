@@ -1,5 +1,7 @@
 package ab3d2.full.level;
 
+import ab3d2.full.Blob;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

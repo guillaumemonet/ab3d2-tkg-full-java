@@ -51,3 +51,19 @@ tasks.register('levelCheck', JavaExec) {
     def ref = new File(projectDir.parentFile, 'ab3d2-tkg-java/rebirth/assets/levels')
     systemProperty 'ab3d2.ref', ref.absolutePath
 }
+
+tasks.register('defsCheck', JavaExec) {
+    group = 'verification'
+    description = "Lit la base GLF (test.lnk) SANS memoire plate et compare au corpus de reference"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.DefsCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    def glf = new File(projectDir.parentFile, 'ab3d2-tkg-java/rebirth/assets/glf.json')
+    systemProperty 'ab3d2.glf', glf.absolutePath
+}
+
+tasks.register('checkAll') {
+    group = 'verification'
+    description = "Toutes les verifications contre le corpus de reference"
+    dependsOn 'levelCheck', 'defsCheck'
+}
