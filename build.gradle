@@ -101,6 +101,16 @@ tasks.register('xformCheck', JavaExec) {
     systemProperty 'ab3d2.xform', new File(refRoot, 'xform.json').absolutePath
 }
 
+tasks.register('zoneOrderCheck', JavaExec) {
+    group = 'verification'
+    description = "L'ordre de dessin des secteurs, confronte au portage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ZoneOrderCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.zoneorder', new File(refRoot, 'zoneorder.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -124,6 +134,6 @@ tasks.register('play', JavaExec) {
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
-    dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'moveTest', 'alienTest',
-            'shotTest', 'worldTest'
+    dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
+            'alienTest', 'shotTest', 'worldTest'
 }

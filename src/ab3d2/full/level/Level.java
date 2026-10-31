@@ -256,8 +256,11 @@ public record Level(
      *
      * @param clip le groupe de points qui retrecit le champ en passant par cette ouverture, ou
      *             {@code null} si la vue est degagee
+     * @param orderMask l'etat de depart du tri des secteurs : trois bits par arete du secteur,
+     *                  disant ce que l'editeur a deja tranche sur l'ordre de dessin. Le fichier
+     *                  le range en deux mots que le jeu lit d'un seul tenant
      */
-    public record Visible(int zone, Clip clip) {
+    public record Visible(int zone, Clip clip, int orderMask) {
 
         /** Vrai si traverser cette ouverture ne retrecit pas le champ de vision. */
         public boolean open() {

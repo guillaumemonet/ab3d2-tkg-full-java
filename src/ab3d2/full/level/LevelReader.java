@@ -91,6 +91,7 @@ public final class LevelReader {
     private static final int ZONE_VISIBLE = 48;
     private static final int VISIBLE_SIZE = 8;
     private static final int VISIBLE_CLIP = 2;
+    private static final int VISIBLE_ORDER_MASK = 4;
 
     // --- dans le fichier GRAPHE ---
     private static final int GRAPH_DOORS = 0;
@@ -306,7 +307,8 @@ public final class LevelReader {
                 return List.copyOf(out);
             }
             out.add(new Level.Visible(zone,
-                    f.s16(at + VISIBLE_CLIP) < 0 ? null : clips.next()));
+                    f.s16(at + VISIBLE_CLIP) < 0 ? null : clips.next(),
+                    f.s32(at + VISIBLE_ORDER_MASK)));
         }
     }
 
