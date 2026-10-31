@@ -91,6 +91,16 @@ tasks.register('defsCheck', JavaExec) {
     }
 }
 
+tasks.register('xformCheck', JavaExec) {
+    group = 'verification'
+    description = "La transformation de vue, confrontee au portage point par point"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.XformCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.xform', new File(refRoot, 'xform.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -114,5 +124,6 @@ tasks.register('play', JavaExec) {
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
-    dependsOn 'levelCheck', 'defsCheck', 'moveTest', 'alienTest', 'shotTest', 'worldTest'
+    dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'moveTest', 'alienTest',
+            'shotTest', 'worldTest'
 }
