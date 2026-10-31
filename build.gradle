@@ -77,8 +77,28 @@ tasks.register('defsCheck', JavaExec) {
     }
 }
 
+tasks.register('worldTest', JavaExec) {
+    group = 'verification'
+    description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.WorldTest'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.level', project.findProperty('level') ?: 'all'
+}
+
+tasks.register('play', JavaExec) {
+    group = 'application'
+    description = "Joue un niveau, vu de dessus (-Plevel=a)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.Play'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.level', project.findProperty('level') ?: 'a'
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
-    dependsOn 'levelCheck', 'defsCheck', 'moveTest', 'alienTest', 'shotTest'
+    dependsOn 'levelCheck', 'defsCheck', 'moveTest', 'alienTest', 'shotTest', 'worldTest'
 }
