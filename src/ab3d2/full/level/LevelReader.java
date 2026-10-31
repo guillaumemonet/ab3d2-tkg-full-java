@@ -113,8 +113,9 @@ public final class LevelReader {
     /** Fin de la liste globale. */
     private static final int LIFT_END = 999;
 
-    /** Le pas de la table de routage, en dur dans la routine d'origine. */
-    private static final int ROUTE_STRIDE = 100;
+    /** Dix points de bord par secteur, quarante luminosites — quatre par point. */
+    private static final int ZONE_BORDER = 10;
+    private static final int ZONE_BRIGHTS = 40;
 
     private LevelReader() {
     }
@@ -129,9 +130,13 @@ public final class LevelReader {
         Path bin = dir.resolve("twolev.bin");
         Path graph = dir.resolve("twolev.graph.bin");
         Path clips = dir.resolve("twolev.clips");
+        Path walk = dir.resolve("twolev.map");
+        Path fly = dir.resolve("twolev.flymap");
         return parse(new Blob(Files.readAllBytes(bin), bin.toString()),
                 new Blob(Files.readAllBytes(graph), graph.toString()),
-                new Blob(Files.readAllBytes(clips), clips.toString()), letter);
+                new Blob(Files.readAllBytes(clips), clips.toString()),
+                new Blob(Files.readAllBytes(walk), walk.toString()),
+                new Blob(Files.readAllBytes(fly), fly.toString()), letter);
     }
 
     /**
@@ -141,7 +146,8 @@ public final class LevelReader {
      * fichier graphe qui dit où : il porte une table donnant, pour chaque secteur, son offset
      * dans le niveau. Le jeu fait exactement cela — {@code pZone = niveau[table[zoneId]]}.
      */
-    public static Level parse(Blob f, Blob graph, Blob clipData, char letter) {
+    public static Level parse(Blob f, Blob graph, Blob clipData, Blob walkMap, Blob flyMap,
+            char letter) {
         int h = HEADER;                                  // l'en-tete suit le bloc de messages
         ClipAssigner clips = new ClipAssigner(clipData);
 
@@ -170,16 +176,21 @@ public final class LevelReader {
             control.add(new Level.ControlPoint(f.s16(o), f.s16(o + 2), f.s16(o + 4), f.s16(o + 6)));
         }
 
-        // La table de routage suit les coordonnees : un octet par couple, au pas de 100.
-        int routesAt = controlAt + nControl * 8;
-        int[] routes = new int[nControl * ROUTE_STRIDE];
-        for (int i = 0; i < routes.length; i++) {
-            routes[i] = f.u8(routesAt + i);
-        }
+        // Le routage ne vit PAS dans le fichier de niveau : le jeu le charge depuis deux
+        // fichiers voisins, l'un pour ce qui marche, l'autre pour ce qui vole. Chacun porte la
+        // table entiere, cent par cent, quel que soit le nombre de points de controle.
+        int[] walk = routes(walkMap, nControl);
+        int[] fly = routes(flyMap, nControl);
 
         List<Level.Entity> entities = readEntities(f, h);
 
-        List<Level.Zone> zones = readZones(f, graph, f.u16(h + NUM_ZONES) + 1, clips);
+        // Les luminosites de points et les points de bord suivent les sommets du decor, dans
+        // le fichier de niveau. Le chargeur saute un point de plus que le compte annonce.
+        int zoneCount = f.u16(h + NUM_ZONES) + 1;
+        int brightsAt = pointsAt + 4 + nPoints * 4;
+        int borderAt = brightsAt + zoneCount * ZONE_BRIGHTS * 2;
+        List<Level.Zone> zones =
+                readZones(f, graph, zoneCount, clips, brightsAt, borderAt);
 
         // --- les aretes ---
         // Leur nombre n'est ecrit nulle part. On serait tente de le deduire des deux offsets
@@ -211,7 +222,7 @@ public final class LevelReader {
         List<Level.Liftable> lifts = readLiftables(graph, graph.s32(GRAPH_LIFTS));
 
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
-                List.copyOf(points), List.copyOf(control), routes, List.copyOf(entities),
+                List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
                 List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
                 List.copyOf(switches), clips.groups(), exitZone);
     }
@@ -223,7 +234,8 @@ public final class LevelReader {
      * secteur porte lui-même. Elle se lit jusqu'au marqueur -2, avec un -1 qui referme le
      * premier groupe : celui-là est le contour, le reste sert à la collision.
      */
-    private static List<Level.Zone> readZones(Blob f, Blob graph, int count, ClipAssigner clips) {
+    private static List<Level.Zone> readZones(Blob f, Blob graph, int count, ClipAssigner clips,
+            int brightsAt, int borderAt) {
         List<Level.Zone> out = new ArrayList<>(count);
         for (int id = 0; id < count; id++) {
             int at = graph.s32(GRAPH_ZONE_TABLE + id * 4);
@@ -251,6 +263,7 @@ public final class LevelReader {
                     f.u8(at + ZONE_CONTROL_POINT),
                     f.u8(at + ZONE_CONTROL_POINT + 1),
                     f.s16(at + ZONE_AMBIENT_MASK),
+                    f.s16(at + ZONE_AMBIENT_MASK + 2),
                     f.u8(at + ZONE_BACKDROP) != 0,
                     f.u8(at + ZONE_ECHO),
                     f.s16(at + ZONE_TEL_ZONE),
@@ -261,6 +274,8 @@ public final class LevelReader {
                     f.u16(at + ZONE_POINT_COUNT),
                     List.copyOf(edgeList),
                     readVisible(f, at, clips),
+                    words(f, borderAt + id * ZONE_BORDER * 2, ZONE_BORDER),
+                    words(f, brightsAt + id * ZONE_BRIGHTS * 2, ZONE_BRIGHTS),
                     readGraphics(graph, id, 0),
                     readGraphics(graph, id, 4)));
         }
@@ -347,6 +362,29 @@ public final class LevelReader {
         List<Level.Clip> groups() {
             return List.copyOf(groups);
         }
+    }
+
+    /**
+     * Une table de routage entiere, telle que son fichier la porte.
+     *
+     * <p>Le fichier fait toujours dix mille octets, soit cent points de controle sur cent, mais
+     * le niveau n'en utilise que le debut. On ne garde que ce qu'il utilise.
+     */
+    private static int[] routes(Blob f, int controlPoints) {
+        int[] out = new int[controlPoints * Level.ROUTE_STRIDE];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = f.u8(i);
+        }
+        return out;
+    }
+
+    /** Une suite de mots signes. */
+    private static List<Integer> words(Blob f, int at, int count) {
+        List<Integer> out = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            out.add(f.s16(at + i * 2));
+        }
+        return List.copyOf(out);
     }
 
     /**

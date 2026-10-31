@@ -25,7 +25,8 @@ public record Level(
         Start start2,
         List<Point> points,
         List<ControlPoint> controlPoints,
-        int[] routes,
+        int[] walkRoutes,
+        int[] flyRoutes,
         List<Entity> entities,
         List<Edge> edges,
         List<Zone> zones,
@@ -137,6 +138,7 @@ public record Level(
             int controlPoint,
             int upperControlPoint,
             int ambientSoundMask,
+            int upperAmbientSoundMask,
             boolean drawBackdrop,
             int echo,
             int teleportZone,
@@ -147,8 +149,29 @@ public record Level(
             int pointCount,
             List<Integer> edgeList,
             List<Visible> visible,
+            List<Integer> borderPoints,
+            List<Integer> pointBrights,
             Graphics lower,
             Graphics upper) {
+
+        /**
+         * Les points de bord effectifs : la liste s'arrete a sa premiere valeur negative.
+         *
+         * <p>ATTENTION, elle peut DEBORDER de son emplacement. Le jeu lui reserve dix mots par
+         * secteur mais ne verifie rien : une liste plus longue continue dans le secteur suivant,
+         * et l'indice de luminosite suit. C'est un debordement d'origine, pas un defaut de
+         * lecture, et il faut le reproduire.
+         */
+        public List<Integer> border() {
+            List<Integer> out = new java.util.ArrayList<>();
+            for (int p : borderPoints) {
+                if (p < 0) {
+                    break;
+                }
+                out.add(p);
+            }
+            return List.copyOf(out);
+        }
 
         /** Vrai si l'etage superieur a son propre habillage. */
         public boolean hasUpperGraphics() {
@@ -502,20 +525,27 @@ public record Level(
     }
 
     /**
-     * Point de contrôle suivant sur le chemin de {@code from} vers {@code to}, ou -1 s'il n'y en
+     * Point de controle suivant sur le chemin de {@code from} vers {@code to}, ou -1 s'il n'y en
      * a pas.
      *
-     * <p>Le pas de la table est de <b>100</b> quel que soit le nombre de points : la routine
-     * d'origine multiplie par 100 en dur. La valeur {@code 0x7F} signale l'absence de chemin, et
-     * le bit 7 marque les liaisons « à vue seulement ».
+     * <p>Il y a DEUX tables, selon que le monstre marche ou vole, et elles vivent dans leurs
+     * propres fichiers a cote du niveau. Le pas est de <b>100</b> quel que soit le nombre de
+     * points : la routine d'origine multiplie par 100 en dur, et les fichiers font donc
+     * toujours dix mille octets.
+     *
+     * <p>La valeur {@code 0x7F} signale l'absence de chemin, et le bit 7 marque les liaisons
+     * qui ne valent qu'a vue.
      */
-    public int nextControlPoint(int from, int to) {
-        int v = routes[from * 100 + to] & 0xFF;
+    public int nextControlPoint(boolean flying, int from, int to) {
+        int v = (flying ? flyRoutes : walkRoutes)[from * ROUTE_STRIDE + to] & 0xFF;
         return (v & 0x7F) == 0x7F ? -1 : v & 0x7F;
     }
 
-    /** Vrai si la liaison n'est empruntable qu'à vue. */
-    public boolean routeOnlyWhenSeen(int from, int to) {
-        return (routes[from * 100 + to] & 0x80) != 0;
+    /** Vrai si la liaison n'est empruntable qu'a vue. */
+    public boolean routeOnlyWhenSeen(boolean flying, int from, int to) {
+        return ((flying ? flyRoutes : walkRoutes)[from * ROUTE_STRIDE + to] & 0x80) != 0;
     }
+
+    /** Le pas des tables de routage, en dur dans la routine d'origine. */
+    public static final int ROUTE_STRIDE = 100;
 }

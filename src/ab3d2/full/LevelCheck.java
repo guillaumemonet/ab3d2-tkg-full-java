@@ -176,6 +176,14 @@ public final class LevelCheck {
                 eq(pb, q + " teleporteur", a.teleportZone(), z.get("telZone").getAsInt());
                 eq(pb, q + " nb points", a.pointCount(), z.get("points").getAsInt());
                 eq(pb, q + " echo", a.echo(), z.get("echo").getAsInt());
+                eq(pb, q + " bruits d'ambiance", a.ambientSoundMask(),
+                        z.get("backSfxMask").getAsInt());
+                eq(pb, q + " bruits d'ambiance haut", a.upperAmbientSoundMask(),
+                        z.get("upperBackSfxMask").getAsInt());
+                listeEntiers(pb, q + " points de bord", a.borderPoints(),
+                        z.getAsJsonArray("borderPointsRaw"));
+                listeEntiers(pb, q + " luminosites de points", a.pointBrights(),
+                        z.getAsJsonArray("pointBrightsRaw"));
                 eq(pb, q + " fond", a.drawBackdrop() ? 1 : 0,
                         z.get("drawBackdrop").getAsBoolean() ? 1 : 0);
                 JsonArray pv = z.getAsJsonArray("pvs");
@@ -201,6 +209,10 @@ public final class LevelCheck {
                 }
             }
         }
+
+        // --- le routage des monstres, a pied et en vol ---
+        tableRoutage(pb, "a pied", lvl.walkRoutes(), o.getAsJsonArray("walkLinks"));
+        tableRoutage(pb, "en vol", lvl.flyRoutes(), o.getAsJsonArray("flyLinks"));
 
         // --- l'habillage : murs et surfaces horizontales ---
         verifieMurs(pb, lvl, o.getAsJsonArray("walls"));
@@ -440,5 +452,33 @@ public final class LevelCheck {
             out.add(z.upper());
         }
         return out;
+    }
+
+    /** Une table de routage, octet par octet. */
+    private static void tableRoutage(List<String> pb, String quoi, int[] notre, JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        eq(pb, "taille du routage " + quoi, notre.length, ref.size());
+        for (int i = 0; i < Math.min(notre.length, ref.size()); i++) {
+            if (notre[i] != ref.get(i).getAsInt()) {
+                pb.add(String.format("routage %s, de %d vers %d : %d au lieu de %d",
+                        quoi, i / Level.ROUTE_STRIDE, i % Level.ROUTE_STRIDE,
+                        notre[i], ref.get(i).getAsInt()));
+                return;                                // une suffit : le reste glisserait
+            }
+        }
+    }
+
+    /** Une liste d'entiers, element par element. */
+    private static void listeEntiers(List<String> pb, String quoi, List<Integer> notre,
+            JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        eq(pb, quoi + " taille", notre.size(), ref.size());
+        for (int i = 0; i < Math.min(notre.size(), ref.size()); i++) {
+            eq(pb, quoi + " " + i, notre.get(i), ref.get(i).getAsInt());
+        }
     }
 }
