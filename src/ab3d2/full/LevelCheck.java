@@ -202,6 +202,35 @@ public final class LevelCheck {
             }
         }
 
+        // --- l'habillage : murs et surfaces horizontales ---
+        verifieMurs(pb, lvl, o.getAsJsonArray("walls"));
+        verifieSurfaces(pb, lvl, o.getAsJsonArray("flats"));
+
+        // --- les groupes de decoupe, confrontes a la table brute ---
+        JsonArray cl = o.getAsJsonArray("clips");
+        if (cl != null) {
+            for (Level.Clip g : lvl.clips()) {
+                int at = g.wordIndex();
+                List<Integer> mots = new ArrayList<>();
+                for (int v : g.left()) {
+                    mots.add(v);
+                }
+                mots.add(-1);
+                for (int v : g.right()) {
+                    mots.add(v);
+                }
+                mots.add(-2);
+                for (int k = 0; k < mots.size(); k++) {
+                    if (at + k >= cl.size()) {
+                        pb.add("decoupe en mot " + at + " : depasse la table de reference");
+                        break;
+                    }
+                    eq(pb, "decoupe en mot " + at + ", mot " + k,
+                            mots.get(k), cl.get(at + k).getAsInt());
+                }
+            }
+        }
+
         // --- portes et ascenseurs ---
         verifieLiftables(pb, "porte", lvl.doors(), o.getAsJsonArray("doors"));
         verifieLiftables(pb, "ascenseur", lvl.lifts(), o.getAsJsonArray("lifts"));
@@ -294,5 +323,122 @@ public final class LevelCheck {
         if (lu != attendu) {
             pb.add(quoi + " : " + lu + " au lieu de " + attendu);
         }
+    }
+
+    /**
+     * Les murs, confrontes un a un dans l'ordre ou le programme d'habillage les dessine.
+     *
+     * <p>La reference les a releves en parcourant les secteurs puis, pour chacun, l'etage bas
+     * avant l'etage haut. On refait le meme parcours, et {@code gfxOfs} sert de garde-fou : si
+     * un seul enregistrement etait mal dimensionne, tous les offsets suivants glisseraient.
+     */
+    private static void verifieMurs(List<String> pb, Level lvl, JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        List<Level.Wall> murs = new ArrayList<>();
+        List<Boolean> hauts = new ArrayList<>();
+        for (Level.Zone z : lvl.zones()) {
+            for (Level.Graphics g : etages(z)) {
+                for (Level.Paint p : g.program()) {
+                    if (p instanceof Level.Wall w) {
+                        murs.add(w);
+                        hauts.add(g == z.upper());
+                    }
+                }
+            }
+        }
+        eq(pb, "nb murs", murs.size(), ref.size());
+        for (int i = 0; i < Math.min(murs.size(), ref.size()); i++) {
+            Level.Wall w = murs.get(i);
+            JsonObject r = ref.get(i).getAsJsonObject();
+            String q = "mur " + i;
+            eq(pb, q + " offset", w.offset(), r.get("gfxOfs").getAsInt());
+            eq(pb, q + " etage haut", hauts.get(i) ? 1 : 0,
+                    r.get("upper").getAsBoolean() ? 1 : 0);
+            // La reference ramene a -1 les murs absents de la carte, la ou le moteur se
+            // contente de voir l'octet haut negatif et de ne rien tracer.
+            eq(pb, q + " emplacement carte", w.onMap() ? w.mapSlot() : -1,
+                    r.get("mapSlot").getAsInt());
+            eq(pb, q + " porte sur la carte", w.onMap() && w.mapDoor() ? 1 : 0,
+                    r.get("mapDoor").getAsBoolean() ? 1 : 0);
+            eq(pb, q + " point gauche", w.leftPoint(), r.get("leftPt").getAsInt());
+            eq(pb, q + " point droit", w.rightPoint(), r.get("rightPt").getAsInt());
+            eq(pb, q + " lumiere gauche", w.leftSlot(), r.get("whichLeft").getAsInt());
+            eq(pb, q + " lumiere droite", w.rightSlot(), r.get("whichRight").getAsInt());
+            eq(pb, q + " longueur", w.length(), r.get("wallLen").getAsInt());
+            eq(pb, q + " tuile de depart", w.textureX(), r.get("fromTile").getAsInt());
+            eq(pb, q + " decalage vertical", w.textureY(), r.get("yOffset").getAsInt());
+            eq(pb, q + " texture", w.texture(), r.get("texIndex").getAsInt());
+            eq(pb, q + " masque hauteur", w.heightMask(), r.get("heightMask").getAsInt());
+            eq(pb, q + " masque largeur", w.widthMask(), r.get("widthMask").getAsInt());
+            eq(pb, q + " rangee lumiere", w.brightRow(), r.get("whichPBR").getAsInt());
+            eq(pb, q + " ecart lumiere", w.brightOffset(), r.get("brightOffset").getAsInt());
+            eq(pb, q + " haut", w.topWorld(), r.get("top").getAsInt());
+            eq(pb, q + " bas", w.bottomWorld(), r.get("bottom").getAsInt());
+            eq(pb, q + " autre secteur", w.otherZone(), r.get("otherZone").getAsInt());
+        }
+    }
+
+    /** Les sols, plafonds et plans d'eau, dans le meme ordre de parcours que les murs. */
+    private static void verifieSurfaces(List<String> pb, Level lvl, JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        int manquants = 0;
+        List<Level.Flat> plats = new ArrayList<>();
+        for (Level.Zone z : lvl.zones()) {
+            for (Level.Graphics g : etages(z)) {
+                for (Level.Paint p : g.program()) {
+                    if (p instanceof Level.Flat fl) {
+                        plats.add(fl);
+                    }
+                }
+            }
+        }
+        eq(pb, "nb surfaces", plats.size(), ref.size());
+        for (int i = 0; i < Math.min(plats.size(), ref.size()); i++) {
+            Level.Flat fl = plats.get(i);
+            JsonObject r = ref.get(i).getAsJsonObject();
+            String q = "surface " + i;
+            eq(pb, q + " hauteur", fl.y(), r.get("y").getAsInt());
+            eq(pb, q + " tuile", fl.tileIndex(), r.get("tile").getAsInt());
+            JsonArray pts = r.getAsJsonArray("points");
+            // La reference s'arrete un point trop tot : elle prend le compteur pour le nombre
+            // de sommets alors que la boucle de rendu en parcourt un de plus. Sa propre liste
+            // de points de bord la dement -- le secteur 0 du niveau A y porte [3,2,4,5] tandis
+            // que sa surface n'a que [3,2,4]. On compte donc l'ecart comme une remarque.
+            if (fl.corners().size() != pts.size()) {
+                manquants++;
+            }
+            for (int k = 0; k < Math.min(fl.corners().size(), pts.size()); k++) {
+                eq(pb, q + " point " + k, fl.corners().get(k).point(), pts.get(k).getAsInt());
+            }
+            JsonArray slots = r.getAsJsonArray("pointSlots");
+            if (slots != null) {
+                for (int k = 0; k < Math.min(fl.corners().size(), slots.size()); k++) {
+                    eq(pb, q + " lumiere " + k, fl.corners().get(k).slot(),
+                            slots.get(k).getAsInt());
+                }
+            }
+        }
+        if (manquants > 0) {
+            remarques.add(String.format(
+                    "  %c : %d surfaces sur %d ont un sommet de plus que la reference"
+                    + " -- elle s'arrete au compteur, le rendu va un cran plus loin",
+                    lvl.letter(), manquants, plats.size()));
+        }
+    }
+
+    /** Les etages d'un secteur qui ont un habillage, le bas puis le haut. */
+    private static List<Level.Graphics> etages(Level.Zone z) {
+        List<Level.Graphics> out = new ArrayList<>(2);
+        if (z.lower() != null) {
+            out.add(z.lower());
+        }
+        if (z.upper() != null) {
+            out.add(z.upper());
+        }
+        return out;
     }
 }

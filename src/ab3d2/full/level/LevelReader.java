@@ -86,7 +86,24 @@ public final class LevelReader {
     private static final int GRAPH_DOORS = 0;
     private static final int GRAPH_LIFTS = 4;
     /** La table qui donne, par secteur, son offset dans le fichier de niveau. */
+    private static final int GRAPH_SWITCHES = 8;
+    private static final int GRAPH_ZONE_GRAPHICS = 12;
     private static final int GRAPH_ZONE_TABLE = 16;
+
+    // --- un interrupteur : 14 octets, et toujours huit emplacements ---
+    private static final int SWITCH_COUNT = 8;
+    private static final int SWITCH_SIZE = 14;
+    private static final int SWITCH_POINT = 4;
+    private static final int SWITCH_WALL = 6;
+
+    // --- le programme d'habillage d'un etage de secteur ---
+    private static final int GRAPHICS_ENTRY = 8;
+    private static final int PAINT_WALL = 0;
+    private static final int PAINT_FLOOR = 1;
+    private static final int PAINT_CEILING = 2;
+    private static final int PAINT_OBJECTS = 4;
+    private static final int PAINT_WATER = 7;
+    private static final int PAINT_SKY = 12;
 
     // --- une porte ou un ascenseur : 36 octets, puis sa liste de murs ---
     private static final int LIFT_HEADER = 36;
@@ -187,13 +204,14 @@ public final class LevelReader {
         // Le mot qui precede les aretes porte le secteur de sortie du niveau.
         int exitZone = f.s16(edgesAt - 2);
 
+        List<Level.Switch> switches = readSwitches(graph, graph.s32(GRAPH_SWITCHES));
         List<Level.Liftable> doors = readLiftables(graph, graph.s32(GRAPH_DOORS));
         List<Level.Liftable> lifts = readLiftables(graph, graph.s32(GRAPH_LIFTS));
 
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), routes, List.copyOf(entities),
                 List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
-                clips.groups(), exitZone);
+                List.copyOf(switches), clips.groups(), exitZone);
     }
 
     /**
@@ -240,7 +258,9 @@ public final class LevelReader {
                     f.s16(at + ZONE_UPPER_FLOOR_SOUND),
                     f.u16(at + ZONE_POINT_COUNT),
                     List.copyOf(edgeList),
-                    readVisible(f, at, clips)));
+                    readVisible(f, at, clips),
+                    readGraphics(graph, id, 0),
+                    readGraphics(graph, id, 4)));
         }
         return out;
     }
@@ -325,6 +345,105 @@ public final class LevelReader {
         List<Level.Clip> groups() {
             return List.copyOf(groups);
         }
+    }
+
+    /**
+     * Les huit interrupteurs.
+     *
+     * <p>Le moteur en parcourt toujours huit, sans compteur : le nombre est en dur dans la
+     * routine. Un emplacement inutilise se reconnait a son premier mot negatif, et c'est le cas
+     * des <b>huit, dans les seize niveaux</b> — le mecanisme existe mais aucun niveau livre ne
+     * s'en sert. L'editeur a tout de meme reserve deux points a chacun.
+     */
+    private static List<Level.Switch> readSwitches(Blob graph, int at) {
+        List<Level.Switch> out = new ArrayList<>(SWITCH_COUNT);
+        for (int i = 0; i < SWITCH_COUNT; i++) {
+            int o = at + i * SWITCH_SIZE;
+            out.add(new Level.Switch(i, graph.s16(o) >= 0, graph.s16(o + SWITCH_POINT),
+                    graph.s32(o + SWITCH_WALL)));
+        }
+        return out;
+    }
+
+    /**
+     * Le programme d'habillage d'un etage de secteur, ou {@code null} s'il n'y en a pas.
+     *
+     * <p>Une table donne, par secteur, deux offsets de huit octets : l'etage bas puis l'etage
+     * haut. Un offset nul veut dire que l'etage n'existe pas — le jeu le reconnait a ce que le
+     * pointeur retombe sur le debut du fichier.
+     *
+     * @param half 0 pour l'etage bas, 4 pour l'etage haut
+     */
+    private static Level.Graphics readGraphics(Blob graph, int zoneId, int half) {
+        int table = graph.s32(GRAPH_ZONE_GRAPHICS);
+        int at = graph.s32(table + zoneId * GRAPHICS_ENTRY + half);
+        if (at == 0) {
+            return null;
+        }
+        return new Level.Graphics(graph.s16(at), at, readProgram(graph, at + 2));
+    }
+
+    /**
+     * Deroule le programme jusqu'a son arret.
+     *
+     * <p>Chaque commande s'annonce par un mot dont l'octet bas est le code. Le moteur teste cet
+     * octet <b>comme un octet signe</b> : le bit 7 mis arrete tout. Un code qu'il ne reconnait
+     * pas ne le derange pas, il passe simplement au mot suivant, et on fait de meme.
+     */
+    private static List<Level.Paint> readProgram(Blob graph, int at) {
+        List<Level.Paint> out = new ArrayList<>();
+        while (true) {
+            int tag = graph.u16(at);
+            at += 2;
+            int op = tag & 0xFF;
+            if ((byte) op < 0) {
+                return List.copyOf(out);
+            }
+            switch (op) {
+                case PAINT_WALL -> {
+                    out.add(readWall(graph, at, tag, at - 2));
+                    at += Level.Wall.SIZE;
+                }
+                case PAINT_FLOOR, PAINT_CEILING, PAINT_WATER -> {
+                    // Le contour est referme : autant de mots que de cotes, plus un.
+                    int sides = graph.s16(at + 2) + 1;
+                    out.add(readFlat(graph, at, tag, op, sides));
+                    at += 4 + (sides + 1) * 2 + 6;
+                }
+                case PAINT_OBJECTS -> {
+                    out.add(new Level.Objects(tag, Level.Objects.Moment.of(graph.s16(at))));
+                    at += 2;
+                }
+                case PAINT_SKY -> out.add(new Level.Sky(tag));
+                default -> out.add(new Level.Unknown(tag));
+            }
+        }
+    }
+
+    /** Un pan de mur : vingt-huit octets, lus dans l'ordre ou le rendu les consomme. */
+    private static Level.Wall readWall(Blob g, int at, int tag, int offset) {
+        return new Level.Wall(tag, offset,
+                g.s16(at), g.s16(at + 2),
+                g.u8(at + 4), g.u8(at + 5),
+                g.s16(at + 6),
+                g.u16(at + 8),
+                g.u16(at + 10),
+                g.s16(at + 12),
+                g.u8(at + 14), g.u8(at + 15), g.u8(at + 16), g.u8(at + 17),
+                g.s32(at + 18), g.s32(at + 22),
+                g.s8(at + 26), g.u8(at + 27));
+    }
+
+    /** Une surface horizontale, dont la taille depend du nombre de cotes. */
+    private static Level.Flat readFlat(Blob g, int at, int tag, int op, int sides) {
+        List<Level.FlatPoint> outline = new ArrayList<>(sides + 1);
+        for (int i = 0; i <= sides; i++) {
+            int w = g.u16(at + 4 + i * 2);
+            outline.add(new Level.FlatPoint(w & 0x0FFF, w >>> 12));
+        }
+        int tail = at + 4 + (sides + 1) * 2;
+        return new Level.Flat(tag, Level.Surface.of(op), g.s16(at),
+                List.copyOf(outline), g.s16(tail), g.s16(tail + 2), g.s16(tail + 4));
     }
 
     /**

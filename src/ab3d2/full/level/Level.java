@@ -31,6 +31,7 @@ public record Level(
         List<Zone> zones,
         List<Liftable> doors,
         List<Liftable> lifts,
+        List<Switch> switches,
         List<Clip> clips,
         int exitZone) {
 
@@ -145,7 +146,14 @@ public record Level(
             int upperFloorSound,
             int pointCount,
             List<Integer> edgeList,
-            List<Visible> visible) {
+            List<Visible> visible,
+            Graphics lower,
+            Graphics upper) {
+
+        /** Vrai si l'etage superieur a son propre habillage. */
+        public boolean hasUpperGraphics() {
+            return upper != null;
+        }
 
         /** Vrai si le secteur a un second étage. */
         public boolean hasUpperFloor() {
@@ -206,6 +214,217 @@ public record Level(
     public record Clip(int wordIndex, List<Integer> left, List<Integer> right) { }
 
     /**
+     * L'habillage d'un etage de secteur : la suite de commandes que le rendu execute.
+     *
+     * <p>Le fichier graphe ne decrit pas des surfaces, il ecrit un <b>programme</b>. Chaque
+     * commande commence par un mot dont l'octet bas est le code ; le reste de l'enregistrement
+     * depend de ce code, et un octet bas dont le bit 7 est mis arrete le programme. Le rendu ne
+     * fait que derouler cette suite, ce qui veut dire que l'ORDRE est significatif : le sol
+     * avant les objets, l'eau entre les deux.
+     *
+     * <p>Un secteur en a jusqu'a deux, un par etage. L'etage superieur est absent plus souvent
+     * qu'autrement, et le fichier le dit par un offset nul.
+     *
+     * @param offset ou l'habillage commence dans le fichier graphe — le jeu n'y accede que par
+     *               la table des secteurs, mais c'est l'identite que la commande porte
+     */
+    public record Graphics(int zone, int offset, List<Paint> program) { }
+
+    /** Une commande du programme d'habillage. */
+    public sealed interface Paint
+            permits Wall, Flat, Objects, Sky, Unknown {
+
+        /** Le mot de tete, dont l'octet bas porte le code et l'octet haut des indicateurs. */
+        int tag();
+    }
+
+    /**
+     * Un pan de mur.
+     *
+     * <p>Les deux points sont ceux du decor ; {@code leftSlot} et {@code rightSlot} disent
+     * lequel des points lumineux du secteur eclaire chaque bout. La texture se plaque avec
+     * {@code fromTile} pour abscisse de depart et {@code textureY} pour ordonnee, les masques
+     * donnant ses dimensions — ce sont des masques et non des tailles parce que le rendu
+     * boucle par ET binaire, ce qui impose des puissances de deux.
+     *
+     * @param top    haut du pan, en virgule fixe, Y vers le BAS
+     * @param bottom bas du pan ; le rendu abandonne si {@code top >= bottom}, le mur tournant
+     *               alors le dos a la camera
+     */
+    public record Wall(
+            int tag,
+            int offset,
+            int leftPoint,
+            int rightPoint,
+            int leftSlot,
+            int rightSlot,
+            int length,
+            int fromTile,
+            int textureY,
+            int texture,
+            int heightMask,
+            int heightShift,
+            int widthMask,
+            int brightRow,
+            int top,
+            int bottom,
+            int brightOffset,
+            int otherZone) implements Paint {
+
+        /** Taille de l'enregistrement, mot de tete non compris. */
+        public static final int SIZE = 28;
+
+        /**
+         * Vrai si ce mur figure sur la carte automatique.
+         *
+         * <p>Le moteur lit l'octet haut du mot de tete comme un octet SIGNE et abandonne s'il
+         * est negatif : c'est ainsi que l'editeur marque les murs a ne pas tracer.
+         */
+        public boolean onMap() {
+            return (tag & 0x8000) == 0;
+        }
+
+        /**
+         * L'emplacement de ce mur sur la carte automatique, dans les quatre bits bas de
+         * l'octet haut — sans valeur si {@link #onMap()} est faux.
+         *
+         * <p>Ce n'est pas par la que les portes et les interrupteurs designent un mur : ceux-la
+         * en gardent l'offset dans le fichier graphe, celui que rend {@link #offset()}.
+         */
+        public int mapSlot() {
+            return (tag >>> 8) & 0x0F;
+        }
+
+        /** Vrai si la carte automatique doit tracer ce mur comme une porte. */
+        public boolean mapDoor() {
+            return (tag & 0x1000) != 0;
+        }
+
+        /**
+         * L'abscisse de depart de la texture, en pixels.
+         *
+         * <p>Le fichier compte en <b>seizaines</b> et le rendu decale de quatre bits ; le
+         * decalage se fait sur un mot, donc il reboucle, et c'est voulu.
+         */
+        public int textureX() {
+            return (short) (fromTile << 4);
+        }
+
+        /** Le haut du pan, en unites du monde. */
+        public int topWorld() {
+            return top >> 8;
+        }
+
+        /** Le bas du pan, en unites du monde. */
+        public int bottomWorld() {
+            return bottom >> 8;
+        }
+    }
+
+    /**
+     * Une surface horizontale : sol, plafond ou plan d'eau.
+     *
+     * <p>Son contour est une ligne brisee de points du decor, et le fichier la REFERME : le
+     * dernier point repete le premier, parce que le rendu avance par couples successifs.
+     *
+     * @param y hauteur, Y vers le BAS
+     */
+    public record Flat(
+            int tag,
+            Surface kind,
+            int y,
+            List<FlatPoint> outline,
+            int scale,
+            int tile,
+            int light) implements Paint {
+
+        /**
+         * Les sommets distincts du contour, sans le point de fermeture.
+         *
+         * <p>Ce sont exactement les points de bord du secteur, dans le meme ordre.
+         */
+        public List<FlatPoint> corners() {
+            return outline.subList(0, outline.size() - 1);
+        }
+
+        /**
+         * Le numero de la tuile, de 0 a 15.
+         *
+         * <p>Le fichier ne le range pas tel quel : le mot vaut {@code banque * 256 + rang},
+         * parce que le rendu s'en sert comme d'un DEPLACEMENT dans le bloc des textures de sol,
+         * ou les tuiles sont entrelacees quatre par quatre.
+         */
+        public int tileIndex() {
+            return (tile >>> 8) * 4 + (tile & 0xFF);
+        }
+    }
+
+    /** Ce qu'une surface horizontale represente. */
+    public enum Surface {
+        /** Le sol. */
+        FLOOR,
+        /** Le plafond. */
+        CEILING,
+        /** La surface de l'eau. */
+        WATER;
+
+        /** La surface correspondant au code de commande. */
+        public static Surface of(int opcode) {
+            return switch (opcode) {
+                case 1 -> FLOOR;
+                case 2 -> CEILING;
+                default -> WATER;
+            };
+        }
+    }
+
+    /**
+     * Un sommet du contour d'une surface horizontale.
+     *
+     * <p>Le fichier les range un par mot : les douze bits de poids faible designent le point du
+     * decor, les quatre autres le point lumineux du secteur qui l'eclaire.
+     */
+    public record FlatPoint(int point, int slot) { }
+
+    /**
+     * Le moment ou le rendu insere les objets du secteur.
+     *
+     * <p>C'est une commande sans geometrie : elle ne dit que QUAND dessiner, par rapport au plan
+     * d'eau, ce qui suffit a ranger correctement ce qui flotte et ce qui est immerge.
+     */
+    public record Objects(int tag, Moment moment) implements Paint {
+
+        /** A quel moment de la traversee du secteur les objets viennent. */
+        public enum Moment {
+            /** Avant le plan d'eau. */
+            BEFORE_WATER,
+            /** Apres le plan d'eau. */
+            AFTER_WATER,
+            /** Sur toute la hauteur du secteur. */
+            WHOLE_ROOM;
+
+            /** Le moment correspondant au mot de l'enregistrement. */
+            public static Moment of(int v) {
+                if (v < 1) {
+                    return BEFORE_WATER;
+                }
+                return v == 1 ? AFTER_WATER : WHOLE_ROOM;
+            }
+        }
+    }
+
+    /** Le ciel. La commande tient dans son seul mot de tete. */
+    public record Sky(int tag) implements Paint { }
+
+    /**
+     * Une commande dont le code n'est pas reconnu.
+     *
+     * <p>Le rendu d'origine ne s'en plaint pas : il passe au mot suivant. On garde donc la
+     * meme tolerance, et la trace de ce qui a ete rencontre.
+     */
+    public record Unknown(int tag) implements Paint { }
+
+    /**
      * Une porte ou un ascenseur — le jeu n'en fait qu'un seul format, le « liftable ».
      *
      * <p>Ce qui les distingue n'est pas leur structure mais ce qu'ils deplacent : une porte fait
@@ -258,6 +477,28 @@ public record Level(
          *                   position courante a chaque image
          */
         public record Wall(int edge, int graphics, int textureTop) { }
+    }
+
+    /**
+     * Un interrupteur mural, que le joueur actionne en s'en approchant.
+     *
+     * <p>Le moteur en parcourt huit a chaque image, nombre ecrit en dur. Le <i>n</i>-ieme
+     * commande le bit {@code 4 + n} des conditions du niveau, et change la texture du mur qu'il
+     * designe.
+     *
+     * <p>Aucun des seize niveaux n'en active un seul : ils sont tous marques inutilises. Le
+     * mecanisme est du contenu mort, mais il est parcouru, donc il est ici.
+     *
+     * @param enabled faux si l'emplacement est vide, ce qui est le cas partout
+     * @param point   premier des deux points consecutifs dont l'interrupteur occupe le milieu
+     * @param wall    ou se trouve, dans le fichier graphe, le mur dont il change la texture
+     */
+    public record Switch(int index, boolean enabled, int point, int wall) {
+
+        /** Le bit des conditions du niveau que cet interrupteur bascule. */
+        public int conditionBit() {
+            return 4 + index;
+        }
     }
 
     /**
