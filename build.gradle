@@ -62,8 +62,23 @@ tasks.register('defsCheck', JavaExec) {
     systemProperty 'ab3d2.glf', glf.absolutePath
 }
 
+/** Les trois harnais sans affichage de la simulation. */
+['moveTest': 'ab3d2.full.sim.MoveTest',
+ 'alienTest': 'ab3d2.full.sim.AlienTest',
+ 'shotTest': 'ab3d2.full.sim.ShotTest'].each { nom, classe ->
+    tasks.register(nom, JavaExec) {
+        group = 'verification'
+        description = "Simulation sans affichage : $nom (-Plevel=a, ou all)"
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = classe
+        systemProperty 'ab3d2.media', mediaRoot.absolutePath
+        systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+        systemProperty 'rebirth.level', project.findProperty('level') ?: 'all'
+    }
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
-    dependsOn 'levelCheck', 'defsCheck'
+    dependsOn 'levelCheck', 'defsCheck', 'moveTest', 'alienTest', 'shotTest'
 }

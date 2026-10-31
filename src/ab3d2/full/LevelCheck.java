@@ -125,6 +125,20 @@ public final class LevelCheck {
             eq(pb, "entite " + i + " def", a.def(), e.get("def").getAsInt());
             eq(pb, "entite " + i + " luminosite", a.brightness(), e.get("bright").getAsInt());
             eq(pb, "entite " + i + " verrous", a.unlocks(), e.get("doorsHeld").getAsInt());
+            if (e.has("angle")) {
+                eq(pb, "entite " + i + " angle", a.angle(), e.get("angle").getAsInt());
+            }
+            // La reference ne releve l'etat de depart que pour les monstres.
+            if (e.has("hitPoints")) {
+                eq(pb, "entite " + i + " vie", a.hitPoints(), e.get("hitPoints").getAsInt());
+                eq(pb, "entite " + i + " equipe", a.team(), e.get("team").getAsInt());
+                eq(pb, "entite " + i + " mode", a.mode(), e.get("mode").getAsInt());
+                eq(pb, "entite " + i + " pt controle", a.controlPoint(),
+                        e.get("controlPoint").getAsInt());
+                eq(pb, "entite " + i + " pt controle vise", a.targetControlPoint(),
+                        e.get("targetControlPoint").getAsInt());
+                eq(pb, "entite " + i + " hauteur", a.height(), e.get("height").getAsInt());
+            }
             eq(pb, "entite " + i + " message", a.message(), e.get("displayText").getAsInt());
             eq(pb, "entite " + i + " etage", a.upperZone() ? 1 : 0,
                     e.get("upperZone").getAsBoolean() ? 1 : 0);
@@ -207,6 +221,24 @@ public final class LevelCheck {
                         eq(pb, q + " arete " + k, a.edgeList().get(k), el.get(k).getAsInt());
                     }
                 }
+            }
+        }
+
+        // --- les aretes ---
+        JsonArray ed = o.getAsJsonArray("edges");
+        if (ed != null) {
+            for (int i = 0; i < Math.min(lvl.edges().size(), ed.size()); i++) {
+                Level.Edge a = lvl.edges().get(i);
+                JsonObject r = ed.get(i).getAsJsonObject();
+                String q = "arete " + i;
+                eq(pb, q + " x", a.x(), r.get("x").getAsInt());
+                eq(pb, q + " z", a.z(), r.get("z").getAsInt());
+                eq(pb, q + " dx", a.dx(), r.get("dx").getAsInt());
+                eq(pb, q + " dz", a.dz(), r.get("dz").getAsInt());
+                eq(pb, q + " secteur joint", a.joinZone(), r.get("join").getAsInt());
+                eq(pb, q + " diviseur", a.divider(), r.get("w5").getAsInt());
+                eq(pb, q + " normale X", a.normalX(), r.get("b12").getAsInt());
+                eq(pb, q + " normale Z", a.normalZ(), r.get("b13").getAsInt());
             }
         }
 

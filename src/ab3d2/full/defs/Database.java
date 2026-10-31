@@ -30,6 +30,44 @@ public record Database(
         int player1Graphic,
         int player2Graphic) {
 
+    /**
+     * Les plafonds de l'inventaire, case par case.
+     *
+     * <p>Ils ne viennent PAS du fichier : {@code game_LoadModProperties} les ecrit en dur au
+     * demarrage, et sans cet appel la table resterait a zero -- aucun ramassage ne donnerait
+     * quoi que ce soit. D'ou leur place ici, en constantes.
+     *
+     * <p>Tout est plafonne a dix mille, sauf le carburant du jetpack.
+     */
+    public static final List<Integer> MAX_INVENTORY = List.of(
+            10000, 250, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000,
+            10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000);
+
+    /** La definition d'objet de rang {@code i}, ou {@code null} s'il n'y en a pas. */
+    public ObjectDef object(int i) {
+        return i >= 0 && i < objects.size() ? objects.get(i) : null;
+    }
+
+    /** La definition de monstre de rang {@code i}, ou {@code null}. */
+    public AlienDef alien(int i) {
+        return i >= 0 && i < aliens.size() ? aliens.get(i) : null;
+    }
+
+    /** L'arme de rang {@code i}, ou {@code null}. */
+    public Gun gun(int i) {
+        return i >= 0 && i < guns.size() ? guns.get(i) : null;
+    }
+
+    /** Le projectile de rang {@code i}, ou {@code null}. */
+    public BulletDef bullet(int i) {
+        return i >= 0 && i < bullets.size() ? bullets.get(i) : null;
+    }
+
+    /** La facon de tirer du monstre de rang {@code i}, ou {@code null}. */
+    public Shoot alienShot(int i) {
+        return i >= 0 && i < alienShots.size() ? alienShots.get(i) : null;
+    }
+
     /** Un niveau : son nom affiche et la musique qui l'accompagne. */
     public record LevelInfo(int index, char letter, String name, String music) { }
 

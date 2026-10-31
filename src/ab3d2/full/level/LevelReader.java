@@ -49,6 +49,13 @@ public final class LevelReader {
     private static final int ENT_ZONE = 12;
     private static final int ENT_TYPE_ID = 16;
     private static final int ENT_MESSAGE = 24;
+    private static final int ENT_HEIGHT = 4;
+    private static final int ENT_HIT_POINTS = 18;
+    private static final int ENT_MODE = 20;
+    private static final int ENT_TEAM = 21;
+    private static final int ENT_CONTROL_POINT = 28;
+    private static final int ENT_ANGLE = 30;
+    private static final int ENT_TARGET_CONTROL_POINT = 32;
     private static final int ENT_UNLOCKS = 50;
     private static final int ENT_DEF = 54;
     private static final int ENT_UPPER_ZONE = 63;
@@ -58,6 +65,7 @@ public final class LevelReader {
     private static final int EDGE_DX = 4;
     private static final int EDGE_JOIN = 8;
     private static final int EDGE_DIVIDER = 10;
+    private static final int EDGE_NORMAL = 12;
 
     // --- un secteur : 50 octets, dans le fichier de NIVEAU ---
     private static final int ZONE_FLOOR = 2;
@@ -212,7 +220,8 @@ public final class LevelReader {
         for (int i = 0; i < edgeCount; i++) {
             int e = edgesAt + i * EDGE_SIZE;
             edges.add(new Level.Edge(f.s16(e), f.s16(e + 2), f.s16(e + EDGE_DX),
-                    f.s16(e + EDGE_DX + 2), f.s16(e + EDGE_JOIN), f.s16(e + EDGE_DIVIDER)));
+                    f.s16(e + EDGE_DX + 2), f.s16(e + EDGE_JOIN), f.s16(e + EDGE_DIVIDER),
+                    f.s8(e + EDGE_NORMAL), f.s8(e + EDGE_NORMAL + 1)));
         }
         // Le mot qui precede les aretes porte le secteur de sortie du niveau.
         int exitZone = f.s16(edgesAt - 2);
@@ -546,7 +555,14 @@ public final class LevelReader {
                     f.u8(o + ENT_UPPER_ZONE) != 0,
                     f.s16(o + ENT_BRIGHTNESS),
                     f.s32(o + ENT_UNLOCKS),
-                    f.s16(o + ENT_MESSAGE)));
+                    f.s16(o + ENT_MESSAGE),
+                    f.u16(o + ENT_ANGLE),
+                    f.u8(o + ENT_HIT_POINTS),
+                    f.s8(o + ENT_TEAM),
+                    f.s8(o + ENT_MODE),
+                    f.s16(o + ENT_CONTROL_POINT),
+                    f.s16(o + ENT_TARGET_CONTROL_POINT),
+                    f.s16(o + ENT_HEIGHT)));
         }
         return out;
     }

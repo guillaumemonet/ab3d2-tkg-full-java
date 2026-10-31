@@ -77,6 +77,14 @@ public record Level(
      * @param unlocks    bits des portes et ascenseurs que cette entité VERROUILLE tant qu'elle
      *                   est présente — autrement dit les clés qu'elle porte
      * @param message    index du texte du niveau à afficher, ou -1
+     * @param angle      orientation de depart
+     * @param hitPoints  points de vie de depart — n'a de sens que pour un monstre
+     * @param team       equipe du monstre, negatif s'il n'en a pas : deux monstres d'equipes
+     *                   differentes se tirent dessus
+     * @param mode       conduite de depart
+     * @param controlPoint       point du maillage ou le monstre se trouve
+     * @param targetControlPoint celui vers lequel il se dirige
+     * @param height     hauteur de dessin et de collision
      */
     public record Entity(
             Kind kind,
@@ -87,7 +95,14 @@ public record Level(
             boolean upperZone,
             int brightness,
             int unlocks,
-            int message) {
+            int message,
+            int angle,
+            int hitPoints,
+            int team,
+            int mode,
+            int controlPoint,
+            int targetControlPoint,
+            int height) {
 
         /** Vrai si l'entité tient la clé d'au moins une porte ou un ascenseur. */
         public boolean holdsKey() {
@@ -104,10 +119,16 @@ public record Level(
      * @param dz       vecteur
      * @param joinZone secteur de l'autre côté, ou -1 si l'arête est un mur plein
      * @param divider  diviseur du test de côté, précalculé par l'éditeur
+     * @param normalX  normale de l'arete, precalculee par l'editeur : la collision s'en sert
+     *                 pour ECARTER le point teste du mur, de la largeur de ce qui bouge. Elle
+     *                 decale la normale a gauche d'autant de bits que l'objet est large, ce qui
+     *                 fait de ces deux octets une unite de largeur plutot qu'une distance
+     * @param normalZ  l'autre composante de la normale
      */
-    public record Edge(int x, int z, int dx, int dz, int joinZone, int divider) {
+    public record Edge(int x, int z, int dx, int dz, int joinZone, int divider,
+            int normalX, int normalZ) {
 
-        /** Vrai si rien ne passe : l'arête est un mur. */
+        /** Vrai si rien ne passe : l'arete est un mur. */
         public boolean solid() {
             return joinZone < 0;
         }
@@ -153,6 +174,32 @@ public record Level(
             List<Integer> pointBrights,
             Graphics lower,
             Graphics upper) {
+
+        /**
+         * Les luminosites de points telles que le jeu les utilise, et non telles que le fichier
+         * les range.
+         *
+         * <p>Le fichier n'y met qu'un octet, que le chargement etire sur l'echelle du rendu :
+         * il le multiplie par 397, le ramene de huit bits, ecarte les valeurs negatives de six
+         * cents, puis decale le tout de trois cents. C'est ce resultat que lisent aussi bien le
+         * rendu que les monstres, qui jugent a sa moyenne si une piece est assez sombre pour
+         * s'y cacher.
+         *
+         * <p>L'octet FORT du mot brut, lui, designe une lumiere ANIMEE et n'est pas resolu ici :
+         * cette valeur est la base sur laquelle l'animation vient jouer.
+         */
+        public List<Integer> litPointBrights() {
+            List<Integer> out = new java.util.ArrayList<>(pointBrights.size());
+            for (int raw : pointBrights) {
+                int v = (byte) raw;
+                v = (v * 397) >> 8;
+                if (v < 0) {
+                    v -= 600;
+                }
+                out.add(v + 300);
+            }
+            return List.copyOf(out);
+        }
 
         /**
          * Les points de bord effectifs : la liste s'arrete a sa premiere valeur negative.
