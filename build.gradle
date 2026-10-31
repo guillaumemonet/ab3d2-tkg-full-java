@@ -42,13 +42,27 @@ def mediaRoot = {
     return new File(projectDir, 'medias/original')
 }()
 
+/**
+ * Le corpus de reference, produit par le remake : on le cherche en remontant, pour que ce
+ * projet puisse vivre n'importe ou dans l'arborescence.
+ */
+def refRoot = {
+    def d = projectDir
+    while (d != null) {
+        def c = new File(d, 'rebirth/assets')
+        if (new File(c, 'glf.json').isFile()) { return c }
+        d = d.parentFile
+    }
+    return new File(projectDir, 'rebirth/assets')
+}()
+
 tasks.register('levelCheck', JavaExec) {
     group = 'verification'
     description = "Lit les 16 niveaux SANS memoire plate et compare au corpus de reference"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.full.LevelCheck'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
-    def ref = new File(projectDir.parentFile, 'ab3d2-tkg-java/rebirth/assets/levels')
+    def ref = new File(refRoot, 'levels')
     systemProperty 'ab3d2.ref', ref.absolutePath
 }
 
@@ -58,7 +72,7 @@ tasks.register('defsCheck', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.full.DefsCheck'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
-    def glf = new File(projectDir.parentFile, 'ab3d2-tkg-java/rebirth/assets/glf.json')
+    def glf = new File(refRoot, 'glf.json')
     systemProperty 'ab3d2.glf', glf.absolutePath
 }
 
