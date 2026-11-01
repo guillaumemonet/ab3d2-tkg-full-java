@@ -29,6 +29,7 @@ public final class Data {
     private static final Map<String, EdgePvs> EDGE_PVS = new HashMap<>();
     private static Database database;
     private static SinCos sinCos;
+    private static int[] iterations;
 
     private Data() {
     }
@@ -75,6 +76,33 @@ public final class Data {
             }
         }
         return database;
+    }
+
+    /**
+     * La table d'iterations du rendu des murs.
+     *
+     * <p>Pour chaque largeur de bande a l'ecran, elle donne de combien decaler pour obtenir le
+     * pas — c'est-a-dire la puissance de deux immediatement superieure — et combien de pas
+     * faire. Le jeu la lit d'un seul tenant : le mot de poids faible est le decalage, celui de
+     * poids fort le nombre de pas moins un.
+     */
+    public static synchronized int[] iterations() {
+        if (iterations == null) {
+            java.nio.file.Path f = local().resolve("incbin").resolve("includes")
+                    .resolve("iterfile");
+            byte[] raw;
+            try {
+                raw = java.nio.file.Files.readAllBytes(f);
+            } catch (IOException e) {
+                throw new UncheckedIOException("table d'iterations introuvable : " + f, e);
+            }
+            iterations = new int[raw.length / 4];
+            for (int i = 0; i < iterations.length; i++) {
+                iterations[i] = ((raw[i * 4] & 0xFF) << 24) | ((raw[i * 4 + 1] & 0xFF) << 16)
+                        | ((raw[i * 4 + 2] & 0xFF) << 8) | (raw[i * 4 + 3] & 0xFF);
+            }
+        }
+        return iterations;
     }
 
     /** La table de sinus. */

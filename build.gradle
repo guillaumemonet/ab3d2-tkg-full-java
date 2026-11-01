@@ -141,6 +141,16 @@ tasks.register('visEdgesCheck', JavaExec) {
     systemProperty 'ab3d2.visedges', new File(refRoot, 'visedges.json').absolutePath
 }
 
+tasks.register('wallCheck', JavaExec) {
+    group = 'verification'
+    description = "La projection verticale des murs, confrontee au portage bande par bande"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.WallCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.walls', new File(refRoot, 'walls.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -165,5 +175,5 @@ tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
-            'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck'
+            'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck', 'wallCheck'
 }
