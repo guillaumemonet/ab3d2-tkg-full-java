@@ -9,7 +9,9 @@ import static ab3d2.full.M68k.divs;
 import static ab3d2.full.M68k.divsReg;
 import static ab3d2.full.M68k.muls;
 import static ab3d2.full.M68k.mulu;
+import static ab3d2.full.M68k.negw;
 import static ab3d2.full.M68k.s16;
+import static ab3d2.full.M68k.setw;
 
 /**
  * Une surface horizontale — sol, plafond ou plan d'eau — de la carte a l'ecran.
@@ -51,11 +53,15 @@ import static ab3d2.full.M68k.s16;
  * placage des pixels vient apres, et il differe selon la surface — l'eau fait onduler la ligne
  * avant de la lire, le sol la lit telle quelle.
  *
- * <p>Deux chemins du code d'origine ne sont PAS portes ici. Le premier est le rendu <i>gouraud</i>
- * des sols, qui interpole l'eclairage entre les sommets au lieu de le deduire de la distance :
- * il lit les luminosites de points que l'eclairage dynamique calcule, et il viendra avec lui —
- * exactement comme pour les murs. Le second est le mode demi-hauteur, une variante de resolution
- * que ce depot ne cible pas.
+ * <p>Le jeu offre DEUX eclairages pour ces surfaces, et {@link #gouraud} choisit. Le premier ne
+ * regarde que la distance : toute la ligne prend la meme rangee d'ombrage, et c'est tout ce
+ * qu'il faut pour un couloir. Le second part des luminosites des SOMMETS, les interpole le long
+ * du contour en meme temps que les abscisses, puis le long de chaque ligne entre ses deux bords
+ * — une lampe posee dans un coin de la piece eclaire alors ce coin-la. Le contour remplit pour
+ * cela deux tables de plus, qui suivent les deux premieres en memoire.
+ *
+ * <p>N'est pas porte ici le mode demi-hauteur, une variante de resolution que ce depot ne cible
+ * pas.
  */
 public final class Flat {
 
@@ -71,9 +77,12 @@ public final class Flat {
      *                 fixe accoles dans un meme mot double, l'ordonnee en haut et l'abscisse en
      *                 bas
      * @param step     de combien avancer dans la texture a chaque pixel, range de meme
+     * @param leftBright  le rang d'ombrage du rendu INTERPOLE, en huit-huit : il remplace
+     *                    {@code bright}, qui reste a zero quand ce rendu-la est choisi
+     * @param brightSpeed de combien ce rang avance a chaque pixel, de meme
      */
     public record Span(int y, int left, int right, int distance, int bright,
-            int texture, int step) {
+            int texture, int step, int leftBright, int brightSpeed) {
 
         /** La largeur de la tranche, en pixels. */
         public int width() {
@@ -83,6 +92,12 @@ public final class Flat {
 
     /** Le milieu de la table d'ombrage, le plus clair qu'une ligne puisse etre. */
     private static final int MAX_BRIGHT = 28;
+
+    /** La meme borne pour le rendu interpole, qui atteint deux rangees de plus. */
+    private static final int MAX_GOURAUD = 30;
+
+    /** L'arrondi de l'avance du degrade quand la ligne est recadree : un pixel sur quatre. */
+    private static final int ROUND = 256 * 4;
 
     /**
      * La correction d'aspect du plein ecran, posee ici en deux temps.
@@ -102,14 +117,16 @@ public final class Flat {
      *
      * <p>Le code d'origine leur reserve mille vingt-quatre lignes chacune et n'en verifie
      * aucune. Un sommet qui se projette tres bas deborde donc de la premiere dans la seconde, et
-     * ce debordement fait partie du resultat : on garde les deux bout a bout pour le reproduire.
-     * Ce qui deborde des DEUX, en revanche, tomberait dans les tables de luminosite du rendu
-     * gouraud, qui ne sont pas portees : on le compte plutot que de l'ecrire.
+     * ce debordement fait partie du resultat : on garde les quatre bout a bout pour le
+     * reproduire. Les deux dernieres ne servent qu'au rendu interpole, mais elles suivent les
+     * deux premieres en memoire, et c'est dans celles-la qu'un contour trop bas deborde.
      */
     private static final int TABLE = 1024;
     private static final int LEFT = 0;
     private static final int RIGHT = TABLE;
-    private final int[] edges = new int[2 * TABLE];
+    private static final int LEFT_BRIGHT = 2 * TABLE;
+    private static final int RIGHT_BRIGHT = 3 * TABLE;
+    private final int[] edges = new int[4 * TABLE];
 
     /**
      * La table des inverses : seize mille trois cent quatre-vingt-quatre divise par le rang.
@@ -168,6 +185,14 @@ public final class Flat {
     /** Vrai si le niveau a de l'eau du tout : sans cela, aucun plan d'eau ne se dessine. */
     private boolean anyWater = true;
 
+    /** Vrai quand le joueur a choisi l'ombrage INTERPOLE des sols : un reglage, pas un etat. */
+    private boolean gouraud;
+
+    // D'ou le rendu interpole tire ses luminosites de coin : la table a plat de l'eclairage, et
+    // le rang ou commence la surface en cours — secteur, etage et sol-ou-plafond compris.
+    private int[] pointBrights;
+    private int brightsAt;
+
     /**
      * Pose le point de vue, pour toute une image.
      *
@@ -216,6 +241,33 @@ public final class Flat {
     /** Dit si le niveau comporte de l'eau. Sinon, aucun plan d'eau n'est dessine. */
     public void water(boolean any) {
         this.anyWater = any;
+    }
+
+    /**
+     * Choisit l'ombrage INTERPOLE des sols.
+     *
+     * <p>C'est un reglage du joueur, et il vaut pour toute l'image : le jeu n'en change pas
+     * d'une surface a l'autre. Quand il est pose, l'eclairage ne se deduit plus de la distance
+     * seule mais des luminosites des SOMMETS, interpolees le long du contour puis le long de
+     * chaque ligne — la lumiere d'une lampe se voit alors glisser sur le sol.
+     */
+    public void gouraud(boolean on) {
+        this.gouraud = on;
+    }
+
+    /**
+     * Ou le rendu interpole lit les luminosites des sommets.
+     *
+     * <p>{@code at} est un rang dans la table a plat de {@link Lights}, pose une fois par
+     * surface : {@code secteur * 40}, plus un mot pour un plafond, plus deux pour l'etage haut.
+     * Un sommet y ajoute son propre rang, quatre mots par point de bord. Le code d'origine fait
+     * exactement cette arithmetique de pointeur, et un rang de sommet va jusqu'a QUINZE la ou
+     * un secteur n'a que dix points : il deborde donc sur le secteur suivant, et c'est pourquoi
+     * la table est a plat.
+     */
+    public void brights(int[] table, int at) {
+        this.pointBrights = table;
+        this.brightsAt = at;
     }
 
     /** Les tranches de la derniere surface traitee, de haut en bas. */
@@ -397,6 +449,8 @@ public final class Flat {
             int b = points.get(i + 1).point();
             int za = s16(view.rotZ(a));
             int zb = s16(view.rotZ(b));
+            int first = gouraud ? cornerBright(points.get(i).slot()) : 0;
+            int second = gouraud ? cornerBright(points.get(i + 1).slot()) : 0;
 
             int xa;
             int ya;
@@ -411,25 +465,62 @@ public final class Flat {
                     yb = divs(yPos, zb);
                 } else {
                     // Le bout DROIT passe derriere : on coupe, et le morceau coupe plonge.
+                    int dz = s16(zb - za);
+                    int toPlane = s16(minZ - za);
+                    // La luminosite du bout coupe se deplace avec lui, sur la meme proportion.
+                    second = gouraud
+                            ? s16(divs(muls(s16(second - first), toPlane), dz) + first)
+                            : second;
                     xa = view.screenX(a);
                     ya = divs(yPos, za);
-                    xb = s16(divs(cut(view.rotX(b) - view.rotX(a), s16(zb - za),
-                            s16(minZ - za)) + view.rotX(a), minZ) + view.centreX());
+                    xb = s16(divs(cut(view.rotX(b) - view.rotX(a), dz, toPlane)
+                            + view.rotX(a), minZ) + view.centreX());
                     yb = bottomLine;
                 }
             } else if (zb > minZ) {
                 // Le bout GAUCHE passe derriere.
-                xa = s16(divs(cut(view.rotX(a) - view.rotX(b), s16(za - zb),
-                        s16(minZ - zb)) + view.rotX(b), minZ) + view.centreX());
+                int dz = s16(za - zb);
+                int toPlane = s16(minZ - zb);
+                first = gouraud
+                        ? s16(divs(muls(s16(first - second), toPlane), dz) + second)
+                        : first;
+                xa = s16(divs(cut(view.rotX(a) - view.rotX(b), dz, toPlane)
+                        + view.rotX(b), minZ) + view.centreX());
                 ya = bottomLine;
                 xb = view.screenX(b);
                 yb = divs(yPos, zb);
             } else {
                 continue;                              // bothbehind
             }
-            segment(xa, ya, xb, yb);
+            segment(xa, ya, xb, yb, first, second);
         }
     }
+
+    /**
+     * La luminosite d'un sommet du contour, telle que le rendu interpole la prend.
+     *
+     * <p>Trois gestes, et le deuxieme surprend : on lit la valeur, on en prend la VALEUR
+     * ABSOLUE, puis on retranche trois cents. Le signe sert ailleurs — l'eclairage s'en sert
+     * pour marquer les points qu'une lumiere mobile a touches — et il est jete ici.
+     */
+    private int cornerBright(int slot) {
+        int at = brightsAt + slot * SLOTS;
+        if (pointBrights == null || at < 0 || at >= pointBrights.length) {
+            offTable++;
+            return 0;
+        }
+        int v = s16(pointBrights[at]);
+        if (v < 0) {
+            v = s16(-v);
+        }
+        return s16(v - BIAS);
+    }
+
+    /** Combien de mots un point de bord occupe dans la table de l'eclairage. */
+    private static final int SLOTS = 4;
+
+    /** Le biais que l'eclairage ajoute a ses valeurs, et que le rendu retranche. */
+    private static final int BIAS = 300;
 
     /**
      * Ou une arete coupe le plan de profondeur minimale, en abscisse laterale.
@@ -453,7 +544,7 @@ public final class Flat {
      * droite, une arete qui descend vers la gauche la borne a gauche. Une arete horizontale ne
      * borne rien et ne s'inscrit nulle part.
      */
-    private void segment(int xa, int ya, int xb, int yb) {
+    private void segment(int xa, int ya, int xb, int yb, int first, int second) {
         int x1 = s16(xa);
         int y1 = s16(ya);
         int x2 = s16(xb);
@@ -484,7 +575,12 @@ public final class Flat {
         // avant ou apres le pas. Une arete bornant a gauche inscrit AVANT quand elle va vers la
         // droite ; une arete bornant a droite, l'inverse. C'est ainsi que chaque table garde,
         // sur une ligne traversee en biais, l'abscisse la plus a l'exterieur.
-        trace((onRight ? RIGHT : LEFT) + y1, x1, dx, dy, onRight == (dx < 0));
+        // Les deux luminosites ne sont PAS echangees avec les bouts : c'est le sens de
+        // l'arete qui dit laquelle est en haut. Une arete qui borne a droite descend de son
+        // premier sommet vers le second ; une arete qui borne a gauche fait l'inverse.
+        trace((onRight ? RIGHT : LEFT) + y1, x1, dx, dy, onRight == (dx < 0),
+                (onRight ? RIGHT_BRIGHT : LEFT_BRIGHT) + y1,
+                onRight ? first : second, onRight ? second : first);
     }
 
     /**
@@ -493,16 +589,35 @@ public final class Flat {
      * <p>C'est un trace de segment ordinaire, a ceci pres que la division qui l'amorce rend d'un
      * seul geste le pas entier ET le reste qui amorce l'accumulateur.
      *
+     * <p>Le rendu interpole y promene un second accumulateur, celui de la luminosite. Lui
+     * s'inscrit TOUJOURS avant son pas, quelle que soit la variante — les quatre boucles du
+     * code d'origine different sur l'abscisse et sur elle seule.
+     *
      * @param storeFirst si la ligne courante s'inscrit avant le pas plutot qu'apres
+     * @param brightAt   ou s'inscrit la luminosite ; {@code from} et {@code to} sont ses bouts
      */
-    private void trace(int at, int x, int dx, int dy, boolean storeFirst) {
+    private void trace(int at, int x, int dx, int dy, boolean storeFirst,
+            int brightAt, int from, int to) {
         boolean back = dx < 0;
         int reg = divsReg(back ? s16(-dx) : dx, dy);
         int step = s16(reg);                           // le pas entier
         int next = s16(step + 1);                      // le pas quand l'accumulateur deborde
         int rest = s16(reg >> 16);                     // ce qui reste a rattraper par ligne
         int acc = dy;
+        // La pente de luminosite se calcule sur un MOT porte a mille vingt-quatre fois sa
+        // valeur, et c'est une multiplication qui peut deborder : au-dela de soixante-trois
+        // niveaux d'ecart entre les deux bouts d'une arete, la pente se brouille. Les
+        // luminosites du jeu n'en comptent qu'une quarantaine.
+        int delta = s16(to - from);
+        delta = setw(delta, (delta & 0xFFFF) << 8);
+        delta = setw(delta, (delta & 0xFFFF) << 2);
+        int brightStep = s16(divs(delta, dy)) << 6;
+        int bright = from << 16;
         for (int i = 0; i < dy; i++) {
+            if (gouraud) {
+                write(brightAt + i, bright >> 16);
+                bright += brightStep;
+            }
             if (storeFirst) {
                 write(at + i, x);
             }
@@ -616,7 +731,12 @@ public final class Flat {
         int dir = above != 0 ? -1 : 1;
 
         for (int i = 0; i < count; i++) {
-            if (bounds(first + i)) {
+            if (gouraud) {
+                Span une = gouraudLine(first + i, height, fromHorizon, scale, startX, startZ, y);
+                if (une != null) {
+                    spans.add(une);
+                }
+            } else if (bounds(first + i)) {
                 // La hauteur corrigee est tronquee a un mot avant la table des inverses : la
                 // multiplication d'origine est une multiplication de mots. Le corpus de
                 // reference ne la porte jamais plus haut que huit mille sept cent quarante-sept,
@@ -682,7 +802,101 @@ public final class Flat {
         } else if (bright > MAX_BRIGHT) {
             bright = MAX_BRIGHT;
         }
+        return span(y, distance, scale, startX, startZ, bright, 0, 0);
+    }
 
+    /**
+     * Une ligne du rendu INTERPOLE : ses deux bords, puis les deux bouts de son degrade.
+     *
+     * <p>Quatre choses la separent de {@link #line} :
+     *
+     * <ul>
+     *   <li>l'eclairage ne vient plus de la distance SEULE mais des deux tables que le contour
+     *       a remplies — la distance ne fait que s'y ajouter, et d'un neuvieme de sa valeur au
+     *       lieu d'un dixieme ;</li>
+     *   <li>la luminosite du secteur et celle de la surface sont IGNOREES : le rendu interpole
+     *       ne connait que les sommets ;</li>
+     *   <li>la borne est a TRENTE et non a vingt-huit, parce que le degrade atteint une rangee
+     *       d'ombrage sur deux de plus que le rendu plat ;</li>
+     *   <li>quand la ligne est recadree a gauche, le degrade doit etre avance d'autant de
+     *       pixels — et cette avance se calcule avec une pente QUADRUPLE, arrondie, avant que
+     *       la pente ne soit ramenee a sa valeur.</li>
+     * </ul>
+     *
+     * <p>La pente elle-meme se calcule de DEUX facons selon qu'il y a recadrage ou non : une
+     * division de MOT sur la valeur portee a mille vingt-quatre fois, ou une division de mot
+     * DOUBLE sur la valeur portee a soixante-cinq mille fois. Les deux s'accordent toujours
+     * quand la pente monte — on peut le demontrer — et peuvent differer d'une rangee quand elle
+     * descend. Le corpus de reference ne tranche pas : neuf de ses quatorze mille tranches
+     * seulement passent sans recadrage, et les deux y donnent le meme resultat.
+     *
+     * @return {@code null} quand la ligne ne laisse rien a dessiner
+     */
+    private Span gouraudLine(int line, int height, int fromHorizon, int scale,
+            int startX, int startZ, int y) {
+        int rightRaw = read(RIGHT + line);
+        int left = read(LEFT + line);
+        int full = s16(s16(rightRaw - left) + 1);
+        int right = s16(rightRaw + 1);
+        int skipped = 0;
+        if (anyClipping) {
+            if (right <= leftClip) {
+                return null;
+            }
+            if (right > rightClip) {
+                right = rightClip;
+            }
+            if (left >= rightClip) {
+                return null;
+            }
+            if (left < leftClip) {
+                skipped = s16(s16(leftClip - 1) - left);
+                left = leftClip;
+            }
+            if (right <= left) {
+                return null;
+            }
+        }
+        leftEdge = left;
+        rightEdge = right;
+
+        int distance = mulu(height >>> 4, oneOver(fromHorizon)) >>> 8;
+        int withDistance = distance >> 9;
+        int low = edge(LEFT_BRIGHT + line, withDistance);
+        int high = edge(RIGHT_BRIGHT + line, withDistance);
+        int leftBright = s16(s16(low) << 8);
+        int slope = s16(high - low) << 16;
+        if (anyClipping) {
+            // L'oppose se prend APRES la division, et non avant. Cela ne change rien ici :
+            // la valeur est un multiple de soixante-cinq mille cinq cent trente-six, de sorte
+            // que le decalage de six bits ne perd rien et commute avec le changement de signe.
+            slope = slope > 0 ? divs(slope >> 6, full)
+                    : negw(divs((-slope) >> 6, full));
+            int advance = muls(skipped, slope);
+            advance = setw(advance, advance + ROUND);
+            advance = setw(advance, s16(advance) >> 2);
+            advance = advance & ~0xFF;                 // la fraction de l'avance est jetee
+            advance = setw(advance, advance + leftBright);
+            leftBright = s16(advance) < 0 ? 0 : s16(advance);
+            slope = s16(s16(slope) >> 2);
+        } else {
+            slope = s16((slope / s16(full)) >> 8);
+        }
+        return span(y, distance, scale, startX, startZ, 0, leftBright, slope);
+    }
+
+    /** Ce qu'une des deux tables de luminosite dit de cette ligne, la distance comprise. */
+    private int edge(int at, int withDistance) {
+        int v = s16(read(at) + withDistance);
+        if (v < 0) {
+            return 0;
+        }
+        return v > MAX_GOURAUD ? MAX_GOURAUD : v;
+    }
+
+    /** Ou la texture se lit sur cette ligne, et de combien elle avance. */
+    private Span span(int y, int distance, int scale, int startX, int startZ,
+            int bright, int leftBright, int brightSpeed) {
         int alongX = scaled(muls(distance, cos) >> 2, scale);
         int alongZ = scaled(-muls(distance, sin) >> 2, scale);
 
@@ -713,7 +927,8 @@ public final class Flat {
         }
         int step = ((stepZ << 8) & 0xFFFF0000) | ((stepX >> 8) & 0xFFFF);
 
-        return new Span(y, leftEdge, rightEdge, distance, bright, texture, step);
+        return new Span(y, leftEdge, rightEdge, distance, bright, texture, step,
+                leftBright, brightSpeed);
     }
 
     /** Trois quarts d'une valeur, obtenus comme le code d'origine : deux decalages. */

@@ -4,6 +4,9 @@ import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.ShadeTable;
 
+import static ab3d2.full.M68k.s16;
+import static ab3d2.full.M68k.setw;
+
 /**
  * La mise en couleurs d'un sol ou d'un plafond : d'une tranche d'ecran aux pixels.
  *
@@ -31,6 +34,13 @@ import ab3d2.full.level.ShadeTable;
  * rang de rampe sur cinq bits, un sol porte directement une couleur. L'eclairage se fait donc
  * apres coup, en choisissant une rangee de la {@link ShadeTable} : eclairer, ici, c'est
  * traduire une palette entiere par une autre.
+ *
+ * <p><b>Deux eclairages, une seule boucle.</b> Le code d'origine n'a qu'une routine de texels
+ * pour les sols, et elle lit TOUJOURS la luminosite interpolee. Le rendu plat s'en sort en lui
+ * donnant une pente nulle et en rangeant sa rangee d'ombrage dans le pointeur de table ; le
+ * rendu degrade laisse le pointeur au debut du bloc et fait tout varier. C'est pourquoi les
+ * deux avancent d'un nombre de rangees different — deux pour l'un, une pour l'autre — alors
+ * qu'ils peignent avec le meme code.
  *
  * <p>Ne sont pas portees ici les surfaces d'EAU, qui ont leur propre boucle : celle-la fait
  * onduler la ligne avant de la lire et attend l'animation. {@link Flat} en produit pourtant les
@@ -91,7 +101,45 @@ public final class FlatPaint {
     }
 
     /**
-     * Peint une tranche, et rend le nombre de pixels ecrits.
+     * Peint une tranche a l'ombrage INTERPOLE, et rend le nombre de pixels ecrits.
+     *
+     * <p>La rangee d'ombrage n'est plus fixe : elle part de {@link Flat.Span#leftBright} et
+     * avance de {@link Flat.Span#brightSpeed} a chaque pixel, en huit-huit. Le pointeur de
+     * table reste au debut du bloc des sols, et c'est la luminosite qui porte le deplacement —
+     * d'UNE rangee par niveau, la ou le rendu plat en saute deux.
+     */
+    public int paintGouraud(Flat.Span span) {
+        int width = span.width();
+        byte[] pixels = screen.pixels();
+        int to = screen.line(span.y()) + span.left();
+        int uv = span.texture();
+        int step = span.step();
+        int bright = span.leftBright();
+        int speed = span.brightSpeed();
+        for (int n = 0; n < width; n++) {
+            int at = ((uv >>> 16) & 0xFF00) | ((uv & 0xFFFF) >>> 8);
+            int texel = tiles.texel(tile + at * 4);
+            if (texel < 0) {
+                offTable++;
+                return -1;
+            }
+            // La rangee et le texel se logent dans un seul mot : l'octet HAUT de la luminosite
+            // par-dessus, le texel par-dessous. C'est le meme geste que le rendu plat, sauf que
+            // l'octet haut change ici a chaque pixel.
+            int colour = shades.colour(ShadeTable.FLOOR + s16((bright & 0xFF00) | texel));
+            if (colour < 0) {
+                offTable++;
+                return -1;
+            }
+            pixels[to++] = (byte) colour;
+            uv = (uv + step) & BOTH;
+            bright = setw(bright, bright + speed);
+        }
+        return width;
+    }
+
+    /**
+     * Peint une tranche a l'ombrage PLAT, et rend le nombre de pixels ecrits.
      *
      * <p>{@code -1} quand la tranche n'a pas pu etre peinte, sa luminosite designant une
      * rangee qui n'existe pas.
