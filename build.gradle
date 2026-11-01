@@ -172,6 +172,17 @@ tasks.register('wallPaintCheck', JavaExec) {
     systemProperty 'ab3d2.wallpaint', new File(refRoot, 'wallpaint.json').absolutePath
 }
 
+tasks.register('gourWallPaintCheck', JavaExec) {
+    group = 'verification'
+    description = "Le placage des murs degrades, confronte au portage colonne par colonne et pixel par pixel"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.GouraudWallPaintCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.gourwallpaint', new File(refRoot, 'gourwallpaint.json').absolutePath
+}
+
 tasks.register('flatPaintCheck', JavaExec) {
     group = 'verification'
     description = "Le placage des sols, confronte au portage tranche par tranche et pixel par pixel"
@@ -218,5 +229,6 @@ tasks.register('checkAll') {
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
-            'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck'
+            'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
+            'gourWallPaintCheck'
 }

@@ -167,42 +167,49 @@ public final class Wall {
         int x2 = view.rotX(right);
         int z2 = s16(view.rotZ(right));
 
-        if (z1 > 0) {
-            if (z2 <= 0) {
-                if (rightBehind(x1, z1, x2, z2)) {
-                    return;
-                }
-            } else if (crossedOver(x1, z1, x2, z2)) {
-                return;
-            }
-        } else {
-            if (z2 <= 0) {
-                return;                                // les deux bouts derriere la camera
-            }
-            if (leftBehind(x1, z1, x2, z2)) {
-                return;
-            }
+        if (facingAway(x1, z1, x2, z2, centreX, rightX)) {
+            return;
         }
 
-        int passes = cuts(x1, z1, x2, z2, goodRender);
-        subdivide(x1, z1, x2, z2, 0, wall.length(), leftBright, rightBright, passes);
+        Cuts coupes = cuts(x1, z1, x2, z2, goodRender);
+        this.steps = coupes.steps();
+        subdivide(x1, z1, x2, z2, 0, wall.length(), leftBright, rightBright, coupes.passes());
         walk(steps - 1);
     }
 
     // ===== le mur est-il face a nous ? =====
 
     /**
+     * Le pan tourne-t-il le dos a la camera, ou tombe-t-il entierement hors du cadre ?
+     *
+     * <p>Ce tri precede le choix du rastériseur : le rendu simple et le rendu <i>gouraud</i>
+     * s'en remettent au meme, comme le code d'origine qui le fait avant de se brancher.
+     */
+    static boolean facingAway(int x1, int z1, int x2, int z2, int centreX, int rightX) {
+        if (z1 > 0) {
+            if (z2 <= 0) {
+                return rightBehind(x1, z1, x2, z2);
+            }
+            return crossedOver(x1, z1, x2, z2, centreX, rightX);
+        }
+        if (z2 <= 0) {
+            return true;                               // les deux bouts derriere la camera
+        }
+        return leftBehind(x1, z1, x2, z2);
+    }
+
+    /**
      * Le bout gauche est derriere la camera : on coupe le segment sur le plan de la camera et
      * l'on regarde de quel cote le morceau restant tombe.
      */
-    private static boolean leftBehind(int x1, int z1, int x2, int z2) {
+    static boolean leftBehind(int x1, int z1, int x2, int z2) {
         int cut = (int) ((long) (x1 - x2) / s16(z1 - z2));
         cut = -(cut * z2) + x2;
         return cut >= (int) ((long) x2 / z2);
     }
 
     /** Le bout droit est derriere la camera : la meme chose, de l'autre cote. */
-    private static boolean rightBehind(int x1, int z1, int x2, int z2) {
+    static boolean rightBehind(int x1, int z1, int x2, int z2) {
         int cut = (int) ((long) (x2 - x1) / s16(z2 - z1));
         cut = -(cut * z1) + x1;
         return cut <= (int) ((long) x1 / z1);
@@ -214,7 +221,7 @@ public final class Wall {
      *
      * <p>Un bout gauche a droite du bout droit veut dire qu'on voit le mur par derriere.
      */
-    private boolean crossedOver(int x1, int z1, int x2, int z2) {
+    static boolean crossedOver(int x1, int z1, int x2, int z2, int centreX, int rightX) {
         int screenLeft = (int) ((long) x1 / z1) + centreX;
         int screenRight = (int) ((long) x2 / z2) + centreX;
         if (screenLeft >= rightX) {
@@ -232,13 +239,24 @@ public final class Wall {
     private int steps;
 
     /**
+     * Ce que {@link #cuts} decide : combien de fois couper, et combien de pas en sortiront.
+     *
+     * @param passes combien de fois le pan est coupe en deux
+     * @param steps  combien de pas la bande d'ecran comptera
+     */
+    record Cuts(int passes, int steps) { }
+
+    /**
      * Combien de fois couper le pan en deux.
      *
      * <p>Quinze comparaisons, qui montent la finesse quand le mur est large a l'ecran, tres
      * oblique ou tres proche, et la baissent quand il est loin. Les deux compteurs avancent
      * ensemble : {@code steps} vaut toujours deux puissance {@code passes + 1}.
+     *
+     * <p>Le rendu <i>gouraud</i> se branche apres ce calcul et le partage tel quel : voir
+     * {@link GouraudWall}.
      */
-    private int cuts(int x1, int z1, int x2, int z2, boolean goodRender) {
+    static Cuts cuts(int x1, int z1, int x2, int z2, boolean goodRender) {
         int step = 16;
         int pass = 2;
         if (goodRender) {
@@ -308,8 +326,7 @@ public final class Wall {
             step = 128;
             pass = 5;
         }
-        this.steps = s16(step);
-        return pass;
+        return new Cuts(pass, s16(step));
     }
 
     // ===== la subdivision =====
@@ -380,7 +397,7 @@ public final class Wall {
      * donc un mur sans trou. C'est le SEUL endroit du rendu des murs ou l'on s'ecarte, et
      * {@link #outOfTable()} le compte.
      */
-    private static int beyond(int width) {
+    static int beyond(int width) {
         int shift = 0;
         while ((1 << shift) < width) {
             shift++;
