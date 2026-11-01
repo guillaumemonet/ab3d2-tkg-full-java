@@ -4,12 +4,16 @@ import ab3d2.full.defs.Database;
 import ab3d2.full.defs.DatabaseReader;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
+import ab3d2.full.level.WallTexture;
 import ab3d2.full.render.EdgePvs;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,6 +31,7 @@ public final class Data {
 
     private static final Map<String, Level> LEVELS = new HashMap<>();
     private static final Map<String, EdgePvs> EDGE_PVS = new HashMap<>();
+    private static final Map<String, List<WallTexture>> WALLS = new HashMap<>();
     private static Database database;
     private static SinCos sinCos;
     private static int[] iterations;
@@ -103,6 +108,77 @@ public final class Data {
             }
         }
         return iterations;
+    }
+
+    /**
+     * Les textures de mur d'un niveau, dans l'ordre ou le niveau y renvoie.
+     *
+     * <p>Seize emplacements, dont treize seulement portent un nom dans la base de liaison. Un
+     * emplacement sans nom reste vide : aucun mur ne devrait y renvoyer.
+     *
+     * <p>Chaque emplacement peut etre REMPLACE pour un niveau donne, par un fichier
+     * {@code wall_N.256wad} range avec le niveau. Le jeu essaie toujours de l'ouvrir et garde
+     * le fichier commun quand il n'existe pas — ce qui est le cas partout dans le jeu tel
+     * qu'il a ete publie.
+     */
+    public static synchronized List<WallTexture> walls(char letter) {
+        return WALLS.computeIfAbsent(String.valueOf(Character.toLowerCase(letter)), k -> {
+            List<WallTexture> out = new ArrayList<>();
+            for (Database.Resource r : database().wallTextures()) {
+                Path override = asset("ab3:levels/level_" + k.charAt(0) + "/wall_"
+                        + "0123456789ABCDEF".charAt(r.index()) + ".256wad");
+                Path file = override != null ? override : asset(r.file());
+                if (file == null) {
+                    out.add(null);
+                    continue;
+                }
+                try {
+                    out.add(WallTexture.read(file));
+                } catch (IOException e) {
+                    throw new UncheckedIOException("texture illisible : " + file, e);
+                }
+            }
+            return out;
+        });
+    }
+
+    /**
+     * Ou se trouve un fichier que les donnees d'origine designent a la mode Amiga.
+     *
+     * <p>Un nom comme {@code TKG1:WALLINC/STONEWALL.256WAD} porte le volume qui le contenait —
+     * une disquette parmi cinq — et la casse n'y veut rien dire. On jette le volume, on
+     * descend l'arborescence sans regarder la casse, et on rend {@code null} si le nom est vide
+     * ou si rien ne correspond.
+     */
+    public static Path asset(String amigaPath) {
+        String rest = amigaPath.trim();
+        int colon = rest.indexOf(':');
+        if (colon >= 0) {
+            rest = rest.substring(colon + 1);
+        }
+        if (rest.isEmpty()) {
+            return null;
+        }
+        Path at = media();
+        for (String step : rest.split("/")) {
+            Path exact = at.resolve(step);
+            if (Files.exists(exact)) {
+                at = exact;
+                continue;
+            }
+            Path found = null;
+            try (var entries = Files.list(at)) {
+                found = entries.filter(p -> p.getFileName().toString().equalsIgnoreCase(step))
+                        .findFirst().orElse(null);
+            } catch (IOException e) {
+                return null;
+            }
+            if (found == null) {
+                return null;
+            }
+            at = found;
+        }
+        return at;
     }
 
     /** La table de sinus. */
