@@ -38,6 +38,8 @@ public final class DatabaseReader {
     private static final int LEVEL_NAMES = 64;
     private static final int OBJ_GFX_NAMES = 704;
     private static final int SFX_FILENAMES = 2624;
+    private static final int FLOOR_FILENAME = 6464;
+    private static final int TEXTURE_FILENAME = 6528;
     private static final int BULLET_DEFS = 6848;
     private static final int BULLET_NAMES = 12848;
     private static final int GUN_NAMES = 13248;
@@ -183,6 +185,8 @@ public final class DatabaseReader {
         return new Database(
                 List.copyOf(levels),
                 resources(f, WALL_GFX_NAMES, NUM_WALL_TEXTURES),
+                f.text(FLOOR_FILENAME, FILENAME_LENGTH),
+                f.text(TEXTURE_FILENAME, FILENAME_LENGTH),
                 resources(f, OBJ_GFX_NAMES, NUM_OBJECT_DEFS),
                 resources(f, VECTOR_NAMES, NUM_OBJECT_DEFS),
                 readObjects(f),

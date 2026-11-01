@@ -17,6 +17,8 @@ import java.util.List;
 public record Database(
         List<LevelInfo> levels,
         List<Resource> wallTextures,
+        String floorFile,
+        String textureFile,
         List<Resource> spriteSheets,
         List<Resource> vectorModels,
         List<ObjectDef> objects,
@@ -66,6 +68,18 @@ public record Database(
     /** La facon de tirer du monstre de rang {@code i}, ou {@code null}. */
     public Shoot alienShot(int i) {
         return i >= 0 && i < alienShots.size() ? alienShots.get(i) : null;
+    }
+
+    /**
+     * Le bloc des textures de sol, et le bloc des textures de modeles.
+     *
+     * <p>Ces deux-la ne sont pas des tables indexees comme {@link #wallTextures()} : ce sont
+     * deux fichiers uniques, nommes une seule fois pour tout le jeu. Le second se double d'un
+     * troisieme, de meme nom suivi de {@code .pal} : la table d'ombrage, que les sols et les
+     * modeles en relief se partagent.
+     */
+    public String texturePaletteFile() {
+        return textureFile + ".pal";
     }
 
     /** Un niveau : son nom affiche et la musique qui l'accompagne. */

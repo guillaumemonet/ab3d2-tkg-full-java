@@ -4,6 +4,8 @@ import ab3d2.full.defs.Database;
 import ab3d2.full.defs.DatabaseReader;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
+import ab3d2.full.level.FloorTexture;
+import ab3d2.full.level.ShadeTable;
 import ab3d2.full.level.WallTexture;
 import ab3d2.full.render.EdgePvs;
 
@@ -32,6 +34,8 @@ public final class Data {
     private static final Map<String, Level> LEVELS = new HashMap<>();
     private static final Map<String, EdgePvs> EDGE_PVS = new HashMap<>();
     private static final Map<String, List<WallTexture>> WALLS = new HashMap<>();
+    private static final Map<String, FloorTexture> FLOORS = new HashMap<>();
+    private static ShadeTable shades;
     private static Database database;
     private static SinCos sinCos;
     private static int[] iterations;
@@ -140,6 +144,43 @@ public final class Data {
             }
             return out;
         });
+    }
+
+    /**
+     * Le bloc des textures de sol d'un niveau.
+     *
+     * <p>Comme pour les murs, un niveau peut le REMPLACER par un fichier range avec lui. Ici
+     * encore, aucun ne le fait dans le jeu tel qu'il a ete publie.
+     */
+    public static synchronized FloorTexture floors(char letter) {
+        return FLOORS.computeIfAbsent(String.valueOf(Character.toLowerCase(letter)), k -> {
+            Path override = asset("ab3:levels/level_" + k.charAt(0) + "/floortile");
+            Path file = override != null ? override : asset(database().floorFile());
+            if (file == null) {
+                throw new IllegalStateException("bloc de textures de sol introuvable");
+            }
+            try {
+                return FloorTexture.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("bloc de sols illisible : " + file, e);
+            }
+        });
+    }
+
+    /** La table d'ombrage, commune a tout le jeu. */
+    public static synchronized ShadeTable shades() {
+        if (shades == null) {
+            Path file = asset(database().texturePaletteFile());
+            if (file == null) {
+                throw new IllegalStateException("table d'ombrage introuvable");
+            }
+            try {
+                shades = ShadeTable.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("table d'ombrage illisible : " + file, e);
+            }
+        }
+        return shades;
     }
 
     /**
