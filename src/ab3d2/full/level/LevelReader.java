@@ -231,10 +231,15 @@ public final class LevelReader {
         List<Level.Liftable> doors = readLiftables(graph, graph.s32(GRAPH_DOORS));
         List<Level.Liftable> lifts = readLiftables(graph, graph.s32(GRAPH_LIFTS));
 
+        // La table de voisinage occupe la fin du fichier des decoupes : elle commence ou le
+        // curseur de distribution s'est arrete. Le jeu n'en connait ni le debut ni la taille
+        // autrement -- il garde simplement le pointeur la ou la distribution l'a laisse.
+        List<Level.Link> links = readLinks(clipData, clips.end());
+
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
                 List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
-                List.copyOf(switches), clips.groups(), exitZone);
+                List.copyOf(switches), clips.groups(), links, exitZone);
     }
 
     /**
@@ -329,6 +334,22 @@ public final class LevelReader {
      * <p>Ce que le curseur laisse derriere lui, une fois tous les secteurs traites, marque la
      * fin des decoupes : la table de connexion commence la, dans le meme fichier.
      */
+    /**
+     * La table de voisinage, qui occupe tout ce que les decoupes laissent du fichier.
+     *
+     * <p>Deux mots par sommet, dans l'ordre des sommets du niveau. Le jeu ne borne jamais cette
+     * table : il y entre par l'indice d'un sommet cite par une decoupe, et ces indices restent
+     * tous dans ce que le fichier porte.
+     */
+    private static List<Level.Link> readLinks(Blob f, int at) {
+        int count = (f.size() - at) / 4;
+        List<Level.Link> out = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            out.add(new Level.Link(f.s16(at + i * 4), f.s16(at + i * 4 + 2)));
+        }
+        return List.copyOf(out);
+    }
+
     private static final class ClipAssigner {
 
         /** Ferme un groupe entier. */
@@ -372,6 +393,11 @@ public final class LevelReader {
 
         List<Level.Clip> groups() {
             return List.copyOf(groups);
+        }
+
+        /** Ou le curseur s'est arrete : la table de voisinage commence la. */
+        int end() {
+            return cursor;
         }
     }
 

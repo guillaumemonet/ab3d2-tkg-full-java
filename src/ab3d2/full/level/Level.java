@@ -34,6 +34,7 @@ public record Level(
         List<Liftable> lifts,
         List<Switch> switches,
         List<Clip> clips,
+        List<Link> links,
         int exitZone) {
 
     /** Position de départ d'un joueur. */
@@ -285,6 +286,25 @@ public record Level(
      * @param right les points qui la bornent a droite
      */
     public record Clip(int wordIndex, List<Integer> left, List<Integer> right) { }
+
+    /**
+     * Les deux sommets voisins d'un sommet du decor, le long de la paroi.
+     *
+     * <p>Elle ne sert qu'a une chose, mais elle y est indispensable : savoir, quand un sommet
+     * borne la vue, DE QUEL COTE la paroi continue. Un sommet qui borne a gauche ne vaut que si
+     * le decor se poursuit vers la gauche derriere lui ; sinon on regarde le vide, et resserrer
+     * la vue la ferait mentir. Le rendu compare donc l'abscisse a l'ecran du sommet et celle de
+     * son voisin, et ne garde la borne que si elle va dans le bon sens.
+     *
+     * <p>La table vit dans le MEME fichier que les decoupes, a la suite : elle commence la ou le
+     * chargeur a fini de distribuer les groupes. Elle compte quinze entrees de moins que le
+     * niveau n'a de sommets — les derniers n'ont pas de voisins ecrits, et aucune decoupe ne les
+     * cite, ce qui a ete verifie sur les seize niveaux.
+     *
+     * @param right le voisin a regarder quand le sommet borne la vue a DROITE
+     * @param left  le voisin a regarder quand il la borne a GAUCHE
+     */
+    public record Link(int right, int left) { }
 
     /**
      * L'habillage d'un etage de secteur : la suite de commandes que le rendu execute.

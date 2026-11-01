@@ -111,6 +111,16 @@ tasks.register('zoneOrderCheck', JavaExec) {
     systemProperty 'ab3d2.zoneorder', new File(refRoot, 'zoneorder.json').absolutePath
 }
 
+tasks.register('clipCheck', JavaExec) {
+    group = 'verification'
+    description = "La fenetre de dessin des secteurs, confrontee au portage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ClipCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.clips', new File(refRoot, 'clips.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -135,5 +145,5 @@ tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
-            'alienTest', 'shotTest', 'worldTest'
+            'alienTest', 'shotTest', 'worldTest', 'clipCheck'
 }
