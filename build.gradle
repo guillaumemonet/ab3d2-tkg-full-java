@@ -235,11 +235,22 @@ tasks.register('play', JavaExec) {
     systemProperty 'ab3d2.level', project.findProperty('level') ?: 'a'
 }
 
+tasks.register('waterPaintCheck', JavaExec) {
+    group = 'verification'
+    description = "Le placage de l'eau, confronte au portage tranche par tranche et pixel par pixel"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.WaterPaintCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.waterpaint', new File(refRoot, 'waterpaint.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck'
 }

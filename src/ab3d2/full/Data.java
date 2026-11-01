@@ -6,6 +6,7 @@ import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.ShadeTable;
+import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
 import ab3d2.full.render.EdgePvs;
 
@@ -36,6 +37,7 @@ public final class Data {
     private static final Map<String, List<WallTexture>> WALLS = new HashMap<>();
     private static final Map<String, FloorTexture> FLOORS = new HashMap<>();
     private static ShadeTable shades;
+    private static WaterFrames water;
     private static Database database;
     private static SinCos sinCos;
     private static int[] iterations;
@@ -220,6 +222,19 @@ public final class Data {
             at = found;
         }
         return at;
+    }
+
+    /** Les huit images de l'ondulation de l'eau. */
+    public static synchronized WaterFrames water() {
+        if (water == null) {
+            Path file = local().resolve("incbin").resolve("waterfile");
+            try {
+                water = WaterFrames.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("images d'eau introuvables : " + file, e);
+            }
+        }
+        return water;
     }
 
     /** La table de sinus. */

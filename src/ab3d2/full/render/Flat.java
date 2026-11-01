@@ -80,9 +80,11 @@ public final class Flat {
      * @param leftBright  le rang d'ombrage du rendu INTERPOLE, en huit-huit : il remplace
      *                    {@code bright}, qui reste a zero quand ce rendu-la est choisi
      * @param brightSpeed de combien ce rang avance a chaque pixel, de meme
+     * @param toBottom    combien de lignes restent jusqu'au bord de l'image, du cote ou la
+     *                    surface s'eloigne : l'EAU s'en sert pour borner son reflet
      */
     public record Span(int y, int left, int right, int distance, int bright,
-            int texture, int step, int leftBright, int brightSpeed) {
+            int texture, int step, int leftBright, int brightSpeed, int toBottom) {
 
         /** La largeur de la tranche, en pixels. */
         public int width() {
@@ -682,6 +684,13 @@ public final class Flat {
             return;
         }
 
+        // Combien de lignes restent jusqu'au bord, compte depuis le haut NON decoupe du
+        // contour : l'eau s'en sert pour ne pas aller chercher son reflet hors de l'image.
+        this.above = above != 0;
+        toBottom = above != 0
+                ? s16(s16(centreY - 1) - top)
+                : s16(s16(s16(bottomY - centreY) - 1) - top);
+
         int first = top;
         int last = bottom;
         if (above != 0) {
@@ -746,6 +755,7 @@ public final class Flat {
                 spans.add(line(distance, lightType, scale, startX, startZ, y));
             }
             y += dir;
+            toBottom = s16(toBottom - 1);
             fromHorizon = s16(fromHorizon + 1);
         }
     }
@@ -894,6 +904,23 @@ public final class Flat {
         return v > MAX_GOURAUD ? MAX_GOURAUD : v;
     }
 
+    /** Combien de lignes restent jusqu'au bord, pour la ligne en cours de balayage. */
+    private int toBottom;
+
+    /** Vrai quand la derniere surface traitee etait AU-DESSUS de l'oeil. */
+    private boolean above;
+
+    /**
+     * Vrai si la derniere surface traitee etait au-dessus de l'oeil.
+     *
+     * <p>Le reflet de l'eau se decale vers le bas quand on la regarde d'en haut, et vers le
+     * haut quand on la voit d'en dessous : c'est le seul endroit du placage qui ait besoin de
+     * le savoir.
+     */
+    public boolean above() {
+        return above;
+    }
+
     /** Ou la texture se lit sur cette ligne, et de combien elle avance. */
     private Span span(int y, int distance, int scale, int startX, int startZ,
             int bright, int leftBright, int brightSpeed) {
@@ -928,7 +955,7 @@ public final class Flat {
         int step = ((stepZ << 8) & 0xFFFF0000) | ((stepX >> 8) & 0xFFFF);
 
         return new Span(y, leftEdge, rightEdge, distance, bright, texture, step,
-                leftBright, brightSpeed);
+                leftBright, brightSpeed, toBottom);
     }
 
     /** Trois quarts d'une valeur, obtenus comme le code d'origine : deux decalages. */

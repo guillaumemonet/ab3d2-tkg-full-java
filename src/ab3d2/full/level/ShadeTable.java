@@ -28,6 +28,15 @@ public record ShadeTable(byte[] bytes) {
     /** Ou commencent les rangees des sols. */
     public static final int FLOOR = 32 * ROW;
 
+    /**
+     * Ou commencent les rangees de MIROITEMENT, celles que l'eau emprunte.
+     *
+     * <p>Elles chevauchent le bloc des sols : l'eau part de la seizieme rangee et monte avec la
+     * distance et l'ondulation, jusque vers la quarante-cinquieme. Ce n'est pas un bloc a part,
+     * c'est une plage qui traverse les deux.
+     */
+    public static final int GLARE = 16 * ROW;
+
     /** Lit la table. */
     public static ShadeTable read(Path file) throws IOException {
         byte[] raw = Files.readAllBytes(file);
