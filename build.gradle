@@ -121,6 +121,16 @@ tasks.register('clipCheck', JavaExec) {
     systemProperty 'ab3d2.clips', new File(refRoot, 'clips.json').absolutePath
 }
 
+tasks.register('edgePvsCheck', JavaExec) {
+    group = 'verification'
+    description = "Le PVS par arete, confronte au portage octet par octet"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.EdgePvsCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.edgepvs', new File(refRoot, 'edgepvs.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -145,5 +155,5 @@ tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
-            'alienTest', 'shotTest', 'worldTest', 'clipCheck'
+            'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck'
 }
