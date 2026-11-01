@@ -75,6 +75,41 @@ public final class M68k {
     }
 
     /**
+     * {@code muls.w} sans signe : produit de deux mots lus comme des entiers positifs.
+     *
+     * <p>Comme {@link #muls}, elle ne voit que le mot bas de ses facteurs. Le jeu s'en sert
+     * pour ses tables d'inverses, dont les entrees ne tiendraient pas dans un mot signe.
+     */
+    public static int mulu(int a, int b) {
+        return (a & 0xFFFF) * (b & 0xFFFF);
+    }
+
+    /**
+     * {@code divs.w} dans son entier : le registre tel que le processeur le laisse, quotient
+     * dans le mot bas et reste dans le mot fort.
+     *
+     * <p>Le code d'origine recupere les deux d'un seul geste — un {@code swap} apres la
+     * division — et c'est ainsi qu'il interpole : le quotient donne le pas entier, le reste
+     * amorce l'accumulateur. {@link #divs} et {@link #divsRem} n'en rendent qu'une moitie
+     * chacune, et leur reunion ne vaut PAS ceci : quand la division est impossible, le
+     * processeur ne pose ni l'un ni l'autre et laisse le registre intact.
+     */
+    public static int divsReg(int dn, int src) {
+        int dv = (short) src;
+        if (dv == 0) {
+            return dn;
+        }
+        int q = Math.abs(dn) / Math.abs(dv);
+        if ((dn < 0) != (dv < 0)) {
+            q = -q;
+        }
+        if (q < -32768 || q > 32767) {
+            return dn;
+        }
+        return ((dn % dv) << 16) | (q & 0xFFFF);
+    }
+
+    /**
      * Le reste de {@link #divs}, celui que le processeur laisse dans le mot fort.
      *
      * <p>Il prend le signe du DIVIDENDE, comme sur 68k et comme {@code %} en Java.

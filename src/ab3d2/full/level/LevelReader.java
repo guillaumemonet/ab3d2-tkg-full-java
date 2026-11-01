@@ -484,7 +484,7 @@ public final class LevelReader {
                 case PAINT_FLOOR, PAINT_CEILING, PAINT_WATER -> {
                     // Le contour est referme : autant de mots que de cotes, plus un.
                     int sides = graph.s16(at + 2) + 1;
-                    out.add(readFlat(graph, at, tag, op, sides));
+                    out.add(readFlat(graph, at, tag, at - 2, op, sides));
                     at += 4 + (sides + 1) * 2 + 6;
                 }
                 case PAINT_OBJECTS -> {
@@ -512,14 +512,14 @@ public final class LevelReader {
     }
 
     /** Une surface horizontale, dont la taille depend du nombre de cotes. */
-    private static Level.Flat readFlat(Blob g, int at, int tag, int op, int sides) {
+    private static Level.Flat readFlat(Blob g, int at, int tag, int offset, int op, int sides) {
         List<Level.FlatPoint> outline = new ArrayList<>(sides + 1);
         for (int i = 0; i <= sides; i++) {
             int w = g.u16(at + 4 + i * 2);
             outline.add(new Level.FlatPoint(w & 0x0FFF, w >>> 12));
         }
         int tail = at + 4 + (sides + 1) * 2;
-        return new Level.Flat(tag, Level.Surface.of(op), g.s16(at),
+        return new Level.Flat(tag, offset, Level.Surface.of(op), g.s16(at),
                 List.copyOf(outline), g.s16(tail), g.s16(tail + 2), g.s16(tail + 4));
     }
 

@@ -420,10 +420,12 @@ public record Level(
      * <p>Son contour est une ligne brisee de points du decor, et le fichier la REFERME : le
      * dernier point repete le premier, parce que le rendu avance par couples successifs.
      *
+     * @param offset son emplacement dans le fichier graphe, qui l'identifie sans ambiguite
      * @param y hauteur, Y vers le BAS
      */
     public record Flat(
             int tag,
+            int offset,
             Surface kind,
             int y,
             List<FlatPoint> outline,
