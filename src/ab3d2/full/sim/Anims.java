@@ -73,6 +73,14 @@ public final class Anims {
     public boolean playerStoodOnLift;
     /** Plr1_FloorSpd_w : vitesse du sol mobile sous le joueur. */
     public int playerFloorSpd;
+    /**
+     * Zone_CurrentDoorState_w : un bit par porte, arme tant qu'elle n'est pas FERMEE.
+     *
+     * <p>C'est ce que le rendu lit pour savoir si ce qu'une chaine de portes cache est
+     * visible. Une porte entrouverte compte comme ouverte : le jeu ne retient que le moment
+     * ou elle touche sa butee basse.
+     */
+    public int doorState;
 
     // scratch partage par les sous-cas (d7 du 68k)
     private int liftSpeed;
@@ -185,6 +193,13 @@ public final class Anims {
                 d2 = 0;
                 d0 = M68k.setw(d0, d3);                // move.w d3,d0 (quirk d'origine : pas de clamp)
             }
+            // NOTMOVING (Newanims.java:1129) : l'etat de visibilite de cette porte.
+            if (doorClosed) {
+                doorState &= ~(1 << (i & 31));         // bclr
+            } else {
+                doorState |= 1 << (i & 31);            // bset
+            }
+
             boolean doorOpen = (short) d1 >= (short) d3;     // sge anim_DoorOpen_b
             if (!((short) d1 < (short) d3)) {
                 if (d2 != 0) {                         // elle vient d'arriver en butee haute

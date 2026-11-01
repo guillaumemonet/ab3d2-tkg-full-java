@@ -5,6 +5,8 @@ import ab3d2.full.level.Level;
 import java.util.ArrayList;
 import java.util.List;
 
+import static ab3d2.full.M68k.s16;
+
 /**
  * Qui se voit depuis ou, et <b>par quelle ouverture</b>.
  *
@@ -241,7 +243,7 @@ public final class EdgePvs {
                 continue;
             }
             out.add(new Opening(edgeId, pointIndex(edge.x(), edge.z()),
-                    pointIndex(edge.x() + edge.dx(), edge.z() + edge.dz())));
+                    pointIndex(s16(edge.x() + edge.dx()), s16(edge.z() + edge.dz()))));
         }
         return List.copyOf(out);
     }
@@ -301,8 +303,10 @@ public final class EdgePvs {
                 Level.Edge edge = level.edges().get(opening.edge());
                 viewX1 = edge.x();
                 viewZ1 = edge.z();
-                viewX2 = edge.x() + edge.dx();
-                viewZ2 = edge.z() + edge.dz();
+                // Le bout de l'arete est range dans un MOT par le code d'origine : une somme
+                // qui deborde se replie, et le point de vue avec elle.
+                viewX2 = s16(edge.x() + edge.dx());
+                viewZ2 = s16(edge.z() + edge.dz());
 
                 // Le secteur de depart se voit toujours lui-meme ; le reste de la ligne part
                 // vierge.

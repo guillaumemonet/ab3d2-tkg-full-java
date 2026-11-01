@@ -4,6 +4,7 @@ import ab3d2.full.defs.Database;
 import ab3d2.full.defs.DatabaseReader;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
+import ab3d2.full.render.EdgePvs;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,6 +26,7 @@ import java.util.Map;
 public final class Data {
 
     private static final Map<String, Level> LEVELS = new HashMap<>();
+    private static final Map<String, EdgePvs> EDGE_PVS = new HashMap<>();
     private static Database database;
     private static SinCos sinCos;
 
@@ -50,6 +52,17 @@ public final class Data {
                 throw new UncheckedIOException("niveau " + k + " illisible", e);
             }
         });
+    }
+
+    /**
+     * Le decoupage de la visibilite par ouverture, pour un niveau.
+     *
+     * <p>Il se deduit du niveau seul et ne change jamais, mais il coute une poignee de
+     * millisecondes a etablir : on le garde comme le niveau lui-meme.
+     */
+    public static EdgePvs edgePvs(char letter) {
+        return EDGE_PVS.computeIfAbsent(String.valueOf(Character.toLowerCase(letter)),
+                k -> new EdgePvs(level(k.charAt(0))));
     }
 
     /** La base de liaison. */

@@ -1,6 +1,5 @@
 package ab3d2.full;
 
-import ab3d2.full.level.Level;
 import ab3d2.full.render.EdgePvs;
 
 import com.google.gson.JsonArray;
@@ -53,8 +52,7 @@ public final class EdgePvsCheck {
         for (int i = 0; i < niveaux.size(); i++) {
             JsonObject n = niveaux.get(i).getAsJsonObject();
             char lettre = n.get("level").getAsString().charAt(0);
-            Level lvl = Data.level(lettre);
-            EdgePvs pvs = new EdgePvs(lvl);
+            EdgePvs pvs = Data.edgePvs(lettre);
             int ecartsNiveau = 0;
 
             // Les portes d'abord : c'est leur rang qui donne les bits de condition, donc une
