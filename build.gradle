@@ -183,6 +183,16 @@ tasks.register('flatPaintCheck', JavaExec) {
     systemProperty 'ab3d2.flatpaint', new File(refRoot, 'flatpaint.json').absolutePath
 }
 
+tasks.register('lightCheck', JavaExec) {
+    group = 'verification'
+    description = "L'eclairage, confronte au portage secteur par secteur et point par point"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.LightCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.lights', new File(refRoot, 'lights.json').absolutePath
+}
+
 tasks.register('worldTest', JavaExec) {
     group = 'verification'
     description = "La boucle de jeu entiere, sans fenetre (-Plevel=a, ou all)"
@@ -208,5 +218,5 @@ tasks.register('checkAll') {
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
-            'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck'
+            'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck'
 }
