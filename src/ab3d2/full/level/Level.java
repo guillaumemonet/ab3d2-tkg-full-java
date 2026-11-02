@@ -17,6 +17,11 @@ import java.util.List;
  * @param controlPoints maillage de navigation des monstres
  * @param routes       table de routage entre points de contrôle (voir {@link #nextControlPoint})
  * @param entities     monstres et objets posés dans le niveau
+ * @param objectPoints combien de points la table des positions d'objets porte, et donc combien
+ *                     d'entités la rotation de vue fait tourner. L'en-tête du fichier en donne
+ *                     le compte MOINS UN, parce que la boucle qui le consomme compte à la
+ *                     façon du processeur, jusqu'à moins un ; on lui rend l'unité ici. Il vaut
+ *                     exactement le nombre d'entités non auxiliaires, dans les seize niveaux
  */
 public record Level(
         char letter,
@@ -28,6 +33,7 @@ public record Level(
         int[] walkRoutes,
         int[] flyRoutes,
         List<Entity> entities,
+        int objectPoints,
         List<Edge> edges,
         List<Zone> zones,
         List<Liftable> doors,
@@ -52,7 +58,15 @@ public record Level(
         ALIEN,
         /** Objet : ramassable, décor animé, interrupteur. */
         OBJECT,
-        /** Projectile, auxiliaire, joueur — pas de définition dans les tables. */
+        /**
+         * Auxiliaire : une entité qui n'a pas de place à elle.
+         *
+         * <p>Elle se dessine au point de l'entité SUIVANTE, décalée de ce que portent ses deux
+         * champs d'écart — c'est ainsi que le jeu accroche une chose à une autre. Et c'est
+         * pourquoi la rotation de vue l'ignore : elle ne possède aucun point à tourner.
+         */
+        AUX,
+        /** Projectile, joueur — pas de définition dans les tables. */
         OTHER;
 
         /** Le type d'entite correspondant au code brut du fichier. */
@@ -60,6 +74,7 @@ public record Level(
             return switch (typeId) {
                 case 0 -> ALIEN;
                 case 1 -> OBJECT;
+                case 3 -> AUX;
                 default -> OTHER;
             };
         }
@@ -86,6 +101,10 @@ public record Level(
      * @param controlPoint       point du maillage ou le monstre se trouve
      * @param targetControlPoint celui vers lequel il se dirige
      * @param height     hauteur de dessin et de collision
+     * @param point      rang de l'entité dans la table des points d'objets — celui que la
+     *                   rotation de vue indexe. Pour une entité ordinaire c'est son rang parmi
+     *                   les entités non auxiliaires ; une auxiliaire porte le rang de celle qui
+     *                   la SUIT, dont elle emprunte la position
      */
     public record Entity(
             Kind kind,
@@ -103,7 +122,8 @@ public record Level(
             int mode,
             int controlPoint,
             int targetControlPoint,
-            int height) {
+            int height,
+            int point) {
 
         /** Vrai si l'entité tient la clé d'au moins une porte ou un ascenseur. */
         public boolean holdsKey() {

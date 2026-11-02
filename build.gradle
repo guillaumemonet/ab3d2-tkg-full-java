@@ -257,11 +257,22 @@ tasks.register('skyCheck', JavaExec) {
     systemProperty 'ab3d2.sky', new File(refRoot, 'sky.json').absolutePath
 }
 
+tasks.register('objXformCheck', JavaExec) {
+    group = 'verification'
+    description = "La rotation des choses, confrontee au portage point par point"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ObjXformCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.objxform', new File(refRoot, 'objxform.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck'
 }

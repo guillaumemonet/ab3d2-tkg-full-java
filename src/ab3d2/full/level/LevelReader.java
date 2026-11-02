@@ -37,6 +37,7 @@ public final class LevelReader {
     private static final int OFFSET_POINTS = 22;
     /** Les aretes commencent la, et courent jusqu'aux entites. */
     private static final int OFFSET_EDGES = 26;
+    private static final int NUM_OBJECTS = 20;
     private static final int OFFSET_OBJECTS = 30;
     private static final int OFFSET_OBJECT_POINTS = 42;
     /** Juste après l'en-tête commencent les coordonnées des points de contrôle. */
@@ -238,7 +239,7 @@ public final class LevelReader {
 
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
-                List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
+                f.u16(h + NUM_OBJECTS) + 1, List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
                 List.copyOf(switches), clips.groups(), links, exitZone);
     }
 
@@ -590,7 +591,8 @@ public final class LevelReader {
                     f.s8(o + ENT_MODE),
                     f.s16(o + ENT_CONTROL_POINT),
                     f.s16(o + ENT_TARGET_CONTROL_POINT),
-                    f.s16(o + ENT_HEIGHT)));
+                    f.s16(o + ENT_HEIGHT),
+                    pointIndex));
         }
         return out;
     }
