@@ -65,7 +65,7 @@ public final class SkyCheck {
 
             screen.clear();
             sky.clearOffImage();
-            sky.draw(screen, 0, angle, centreY);
+            sky.draw(screen, 0, angle, centreY, c.get("full").getAsBoolean());
             horsImage += sky.offImage();
 
             byte[] attendu = decodeur.decode(c.get("pixels").getAsString());
@@ -80,8 +80,10 @@ public final class SkyCheck {
             for (int p = 0; p < attendu.length && !casse; p++) {
                 byte eu = screen.pixels()[p];
                 if (eu != attendu[p]) {
-                    ecarts += note(ecarts, "angle %4d horizon %3d, ligne %d colonne %d : %d,"
-                            + " l'oracle dit %d", angle, centreY, p / Screen.WIDTH,
+                    ecarts += note(ecarts, "%s, angle %4d horizon %3d, ligne %d colonne %d :"
+                            + " %d, l'oracle dit %d",
+                            c.get("full").getAsBoolean() ? "plein ecran" : "vue encadree",
+                            angle, centreY, p / Screen.WIDTH,
                             p % Screen.WIDTH, eu & 0xFF, attendu[p] & 0xFF);
                     casse = true;
                 }

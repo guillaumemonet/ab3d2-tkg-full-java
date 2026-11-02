@@ -41,7 +41,8 @@ import static ab3d2.full.M68k.muls;
  * quand les trois cent vingt colonnes recopiees atteignent le bout de l'image, soit a peu pres
  * une orientation sur deux. L'original y prend ce que l'allocateur avait laisse derriere — rien
  * ne le definit. On y met zero, et on COMPTE ces octets ({@link #offImage()}) pour que l'ecart
- * reste visible au lieu de se taire : deux cent vingt sur les six millions de pixels du corpus.
+ * reste visible au lieu de se taire : trois cent quarante sur les dix millions de pixels
+ * du corpus.
  */
 public final class Sky {
 
@@ -95,8 +96,9 @@ public final class Sky {
      * @param zone    le secteur ou se tient l'oeil — c'est lui qui peut eteindre le ciel
      * @param angle   l'orientation du joueur, sur un tour de huit mille cent quatre-vingt-douze
      * @param centreY l'horizon, en lignes depuis le haut de l'ecran
+     * @param full    vrai en plein ecran, faux dans la vue encadree
      */
-    public void draw(Screen screen, int zone, int angle, int centreY) {
+    public void draw(Screen screen, int zone, int angle, int centreY, boolean full) {
         if (disabled[zone]) {
             return;                                    // btst.b d3,(a5) ; bne (rien a faire)
         }
@@ -105,6 +107,10 @@ public final class Sky {
         // l'image puis ramene de douze bits : six cent quarante-huit colonnes par demi-tour.
         int column = muls(angle & ANGLE_MASK, Backdrop.WIDTH) >> 8 >> 4;
         int from = muls(column, Backdrop.HEIGHT);      // muls #SKY_BACKDROP_H,d5
+        if (!full) {
+            small(screen, from, centreY);              // tst.b Vid_FullScreen_b ; beq (petit)
+            return;
+        }
 
         // Le haut de l'ecran tombe sur la ligne 240 - horizon de la colonne : on vise la
         // colonne SUIVANTE et on remonte de l'horizon, ce qui revient au meme.
@@ -135,6 +141,66 @@ public final class Sky {
             if (at >= end) {                           // cmp.l a1,a3 ; bgt.s .noend
                 at = wrap;                             // move.l a5,a1
             }
+            to += 1;                                   // addq.w #1,a0
+        }
+    }
+
+    /**
+     * Le ciel de la vue encadree, qui n'est pas le meme dessin a une echelle pres.
+     *
+     * <p>Il est reduit des DEUX cotes, mais par deux procedes differents et par deux rapports
+     * differents, ce qui en dit long sur la facon dont il a ete ecrit.
+     *
+     * <p>En hauteur, la boucle lit SIX octets par groupe de quatre lignes et n'en garde que
+     * quatre : elle saute le premier de chaque trio. Deux tiers, soit le rapport des cent
+     * soixante lignes de la vue encadree aux deux cent quarante du plein ecran. L'horizon est
+     * recule d'une fois et demie lui-meme pour que le haut de l'image tombe au bon endroit.
+     *
+     * <p>En largeur, la colonne suivante est prise tantot a une colonne de la precedente,
+     * tantot a deux : les trois pas tournent sur eux-memes par deux {@code exg} et donnent le
+     * cycle un, un, deux. Quatre colonnes de l'image pour trois de l'ecran, soit deux cent
+     * cinquante-six colonnes montrees au lieu de trois cent vingt — la vue encadree est plus
+     * etroite que le plein ecran, mais elle montre MOINS de ciel, pas davantage.
+     */
+    private void small(Screen screen, int from, int centreY) {
+        // L'horizon, une fois et demie : move.w d6,d5 ; asr.w #1,d5 ; add.w d5,d6
+        int back = centreY + (centreY >> 1);
+        int at = from + Backdrop.HEIGHT - back;        // a1 = image + d5 + H - d6
+        int wrap = Backdrop.HEIGHT - back;             // a5 = image + H - d6
+        int end = Backdrop.WIDTH * Backdrop.HEIGHT;    // a3 = image + W*H
+        int groups = centreY >> 2;                     // d7 = horizon/4
+
+        // Les trois pas de colonne, qui tournent sur eux-memes a chaque colonne d'ecran.
+        int step1 = Backdrop.HEIGHT;                   // d1
+        int step2 = Backdrop.HEIGHT;                   // d2
+        int step3 = Backdrop.HEIGHT * 2;               // d5
+
+        byte[] pixels = screen.pixels();
+        int to = 0;                                    // a0 = le debut du tampon
+        for (int x = View.SMALL_WIDTH - 1; x >= 0; x--) { // .horline (dbra d4, 191)
+            int src = at;                              // a4 = a1
+            int dst = to;                              // a2 = a0
+            for (int g = groups; g >= 0; g--) {        // .vertline (dbra d3)
+                // Six octets lus, quatre poses : le premier de chaque trio est jete. Le mot
+                // de tete n'est la que pour avancer de deux d'un coup — seul son octet BAS
+                // sert.
+                pixels[dst] = (byte) octet(src + 1);           // move.w (a4)+,d0 ; move.b d0,(a2)
+                pixels[dst + Screen.WIDTH] = (byte) octet(src + 2);     // move.b (a4)+,d0
+                pixels[dst + Screen.WIDTH * 2] = (byte) octet(src + 4); // addq #1,a4 ; move.b (a4)+,d0
+                pixels[dst + Screen.WIDTH * 3] = (byte) octet(src + 5); // move.b (a4)+,d0
+                src += 6;
+                dst += Screen.WIDTH * 4;               // adda.w #SCREEN_WIDTH*4,a2
+            }
+            at += step1;                               // add.w d1,a1
+            if (at >= end) {                           // cmp.l a1,a3 ; bgt.s .noend
+                at = wrap;                             // move.l a5,a1
+            }
+            int t = step1;                             // exg d1,d2
+            step1 = step2;
+            step2 = t;
+            t = step2;                                 // exg d2,d5
+            step2 = step3;
+            step3 = t;
             to += 1;                                   // addq.w #1,a0
         }
     }
