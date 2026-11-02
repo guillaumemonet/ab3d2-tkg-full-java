@@ -7,6 +7,7 @@ import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.ShadeTable;
+import ab3d2.full.level.SpriteSheet;
 import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
 import ab3d2.full.render.EdgePvs;
@@ -40,6 +41,7 @@ public final class Data {
     private static ShadeTable shades;
     private static WaterFrames water;
     private static Backdrop sky;
+    private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
     private static Database database;
     private static SinCos sinCos;
     private static int[] iterations;
@@ -259,6 +261,29 @@ public final class Data {
             }
         }
         return sky;
+    }
+
+    /**
+     * Une feuille de sprites, par son rang dans la base de liaison.
+     *
+     * <p>Trois fichiers du meme nom, d'extensions differentes. Le nom que la base donne n'en
+     * porte aucune : c'est le chargeur qui les ajoute, et c'est ce qu'on refait ici.
+     */
+    public static synchronized SpriteSheet sheet(int index) {
+        return SHEETS.computeIfAbsent(index, k -> {
+            String nom = database().spriteSheets().get(k).file().trim();
+            Path wad = asset(nom + ".wad");
+            Path ptr = asset(nom + ".ptr");
+            Path pal = asset(nom + ".256pal");
+            if (wad == null || ptr == null || pal == null) {
+                throw new IllegalStateException("feuille de sprites incomplete : " + nom);
+            }
+            try {
+                return SpriteSheet.read(wad, ptr, pal);
+            } catch (IOException e) {
+                throw new UncheckedIOException("feuille illisible : " + nom, e);
+            }
+        });
     }
 
     /** La table de sinus. */
