@@ -9,8 +9,11 @@ import static ab3d2.full.M68k.setw;
  * Les pixels d'un sprite : la boucle simple, celle qui pose l'image telle quelle.
  *
  * <p>Elle est a {@link Bitmap} ce que {@link WallPaint} est a {@link Wall}. Trois autres
- * boucles existent — le miroitement, le melange additif, l'image eclairee — et elles ne sont
- * pas celle-ci : chacune remplace la derniere ligne, celle qui depose l'octet.
+ * boucles existent. Le MELANGE ADDITIF est ici, juste dessous : meme parcours, meme lecture
+ * des texels, et deux lignes de difference. Le MIROITEMENT a sa propre pose et sa propre
+ * table. L'IMAGE ECLAIREE, elle, ne ressemble a aucune des trois : elle lit un octet PLEIN par
+ * ligne — pas de format, pas de tiers, pas de bandes partagees — et sa palette se construit a
+ * chaque image d'apres l'eclairage directionnel.
  *
  * <h2>Une colonne d'ecran, une bande de texture</h2>
  *
@@ -49,6 +52,7 @@ public final class BitmapPaint {
 
     private final Screen screen;
     private int offSheet;
+    private int offStrip;
 
     public BitmapPaint(Screen screen) {
         this.screen = screen;
@@ -59,9 +63,15 @@ public final class BitmapPaint {
         return offSheet;
     }
 
-    /** Remet ce compte a zero. */
+    /** Combien de bandes sont tombees hors de la table des bandes. */
+    public int offStrip() {
+        return offStrip;
+    }
+
+    /** Remet ces comptes a zero. */
     public void clearOffSheet() {
         offSheet = 0;
+        offStrip = 0;
     }
 
     /**
@@ -85,7 +95,7 @@ public final class BitmapPaint {
 
             int entry = sheet.strip(strip);
             if (sheet.beyond(strip)) {
-                offSheet++;
+                offStrip++;
             }
             if (entry == 0) {
                 continue;                              // .blank_strip : colonne transparente
@@ -114,6 +124,73 @@ public final class BitmapPaint {
                 int retenue = (int) (somme >>> 32);
                 frac = (int) somme;
                 // addx.w d2,d1 : la ligne, le pas entier, et cette retenue.
+                row = setw(row, (row & 0xFFFF) + (p.texStep() & 0xFFFF) + retenue);
+            }
+        }
+    }
+
+    /**
+     * Pose les pixels d'un sprite qui se MELANGE a ce qui est dessous.
+     *
+     * <p>Le parcours est celui de {@link #paint}, a deux lignes pres, et ces deux lignes
+     * changent tout :
+     *
+     * <ul>
+     *   <li>la teinte zero ne se saute plus. Elle n'est plus la transparence mais une valeur
+     *       comme les autres, celle qui n'ajoute rien — un sprite additif couvre donc TOUT son
+     *       rectangle, et c'est pourquoi les explosions eclaircissent le decor autour
+     *       d'elles ;</li>
+     *   <li>l'octet pose ne vient plus d'une rampe mais de la table a deux entrees de la
+     *       feuille, prise a la teinte ET a l'octet deja present. La luminosite calculee par
+     *       {@link Bitmap} ne sert pas : un feu ne s'assombrit pas avec la distance.</li>
+     * </ul>
+     *
+     * @param p     ce que {@link Bitmap} a decide
+     * @param sheet la feuille de sprites, dont la palette doit faire huit mille cent
+     *              quatre-vingt-douze octets
+     */
+    public void paintAdditive(Bitmap.Placed p, SpriteSheet sheet) {
+        byte[] pixels = screen.pixels();
+        int d7 = 0;                                    // l'accumulateur de bande
+        int column = 0;                                // a1 : la colonne a l'ecran
+
+        for (int c = p.columns(); c > 0; c--) {        // draw_right_side_additive (dbra d3)
+            int strip = p.strip() + s16(d7 >>> 16);    // lea (a5,d7.w*4),a5
+            d7 += p.stripStep();                       // add.l a2,d7
+
+            int to = screen.line(p.top()) + p.left() + s16(column);
+            column++;
+
+            int entry = sheet.strip(strip);
+            if (sheet.beyond(strip)) {
+                offStrip++;
+            }
+            if (entry == 0) {
+                continue;                              // .blank_strip_additive
+            }
+            int format = (byte) (entry >>> 24);        // move.b (a5),d1 — octet SIGNE
+            int at = entry & 0xFFFFFF;                 // and.l #$ffffff,d1
+
+            int frac = p.texStart();                   // d6
+            int row = p.texStart();                    // d1
+            for (int r = p.rows(); r > 0; r--) {       // .draw_vertical_strip_n (dbra d4)
+                int texel = sheet.texel(format, at, row & 0xFFFF);
+                if (texel < 0) {
+                    offSheet++;
+                } else {
+                    // lsl.w #8,d0 ; move.b (a6),d0 : la teinte en haut, l'ecran en bas.
+                    int melange = sheet.blend(setw(0, texel << 8) | (pixels[to] & 0xFF));
+                    if (melange < 0) {
+                        offSheet++;
+                    } else {
+                        pixels[to] = (byte) melange;   // move.b (a4,d0.w),(a6)
+                    }
+                }
+                to += Screen.WIDTH;                    // adda.w #SCREEN_WIDTH,a6
+
+                long somme = (frac & 0xFFFFFFFFL) + (p.texStep() & 0xFFFFFFFFL);
+                int retenue = (int) (somme >>> 32);
+                frac = (int) somme;
                 row = setw(row, (row & 0xFFFF) + (p.texStep() & 0xFFFF) + retenue);
             }
         }

@@ -1,6 +1,8 @@
 package ab3d2.full;
 
+import ab3d2.full.M68k;
 import ab3d2.full.level.Level;
+import ab3d2.full.level.SpriteSheet;
 import ab3d2.full.render.Bitmap;
 import ab3d2.full.render.BitmapPaint;
 import ab3d2.full.render.ObjectView;
@@ -20,11 +22,18 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * Verifie les PIXELS DU SPRITE : la boucle simple, celle qui pose l'image telle quelle.
+ * Verifie les PIXELS DU SPRITE : la boucle simple et le melange additif.
  *
  * <p>Un sprite ne couvre pas tout ce qu'il touche — la teinte zero est transparente — et la
  * verification n'a donc de sens que si le tampon est connu avant son passage. On y pose le
- * meme motif que l'oracle, sur le rectangle du sprite et sur lui seul.
+ * meme motif que l'oracle, sur le rectangle du sprite et sur lui seul. Le melange additif, lui,
+ * LIT ce tampon autant qu'il l'ecrit : le motif n'y est plus une precaution mais la moitie de
+ * l'epreuve.
+ *
+ * <p>Les deux boucles se partagent le releve. L'additif demande une palette de huit mille cent
+ * quatre-vingt-douze octets, et deux feuilles seulement en portent autant — les gros
+ * projectiles et les explosions. L'oracle seme donc l'additif sur celles-la et la boucle simple
+ * sur les douze autres, comme le jeu le fait.
  *
  * <p>Chaque sprite est confronte SEUL : c'est ce qui permet de dire lequel se trompe, et de
  * combien.
@@ -62,8 +71,10 @@ public final class BitmapPaintCheck {
 
         int ecarts = 0;
         int sprites = 0;
+        int additifs = 0;
         long pixels = 0;
         int horsFeuille = 0;
+        int horsBande = 0;
         int horsTable = 0;
         char courant = 0;
         int ecartsNiveau = 0;
@@ -133,9 +144,19 @@ public final class BitmapPaintCheck {
                     continue;
                 }
 
+                SpriteSheet feuille = Data.sheet(o.get(5).getAsInt() & 0x7FFF);
+                if (horsBande(p, feuille)) {
+                    horsBande++;
+                    continue;
+                }
+
                 motif(screen, haut, colonne, colonnes, lignes);
                 paint.clearOffSheet();
-                paint.paint(p, Data.sheet(o.get(5).getAsInt() & 0x7FFF));
+                if (p.additive()) {
+                    paint.paintAdditive(p, feuille);
+                } else {
+                    paint.paint(p, feuille);
+                }
                 if (paint.offSheet() > 0) {
                     // La rampe de luminosite sort de la palette de la feuille — plusieurs
                     // n'en portent que seize niveaux la ou le calcul en designe trente-deux —
@@ -145,6 +166,9 @@ public final class BitmapPaintCheck {
                     continue;
                 }
                 sprites++;
+                if (p.additive()) {
+                    additifs++;
+                }
 
                 byte[] attendu = decodeur.decode(octets.get(e).getAsString());
                 pixels += attendu.length;
@@ -169,12 +193,36 @@ public final class BitmapPaintCheck {
             ecarts += ecartsNiveau;
         }
 
-        System.out.printf("%n%d vues, %d sprites, %d pixels, %d hors feuille, %d hors"
-                + " table, %d ecart(s) -> %s%n", cas.size(), sprites, pixels,
-                horsFeuille, horsTable, ecarts, ecarts == 0 ? "PASS" : "FAIL");
+        System.out.printf("%n%d vues, %d sprites (dont %d additifs), %d pixels, %d hors"
+                + " feuille, %d hors bande, %d hors table, %d ecart(s) -> %s%n", cas.size(),
+                sprites, additifs, pixels, horsFeuille, horsBande, horsTable, ecarts,
+                ecarts == 0 ? "PASS" : "FAIL");
         if (ecarts != 0) {
             System.exit(1);
         }
+    }
+
+    /**
+     * Vrai si le sprite lit une bande au-dela de la table des bandes de sa feuille.
+     *
+     * <p>Le cas existe — six cent quatre-vingts sprites du releve le font — et l'original y
+     * lit la memoire qui suit le fichier. On les ecarte, mais on decide ICI, en refaisant le
+     * parcours des bandes, et non d'apres ce que la routine eprouvee a lu.
+     *
+     * <p>La difference n'est pas de style. Laisser la routine decider donnait a une faute un
+     * moyen de se cacher : une bande prise sur la mauvaise moitie de l'accumulateur sort de la
+     * table, le sprite est ecarte, et rien ne le contredit. Une mutation qui RETIRE des cas
+     * passait ainsi au travers du corpus.
+     */
+    private static boolean horsBande(Bitmap.Placed p, SpriteSheet feuille) {
+        int acc = 0;
+        for (int k = p.columns(); k > 0; k--) {
+            if (feuille.beyond(p.strip() + M68k.s16(acc >>> 16))) {
+                return true;
+            }
+            acc += p.stripStep();
+        }
+        return false;
     }
 
     /** Le motif de depart, fonction des coordonnees ABSOLUES de l'ecran. */

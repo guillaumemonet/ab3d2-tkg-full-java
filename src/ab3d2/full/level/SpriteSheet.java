@@ -86,6 +86,24 @@ public record SpriteSheet(byte[] wad, int[] strips, byte[] pal) {
         return i + 1 < 0 || i + 1 >= wad.length ? -1 : wad[i + 1] & 0x1F;
     }
 
+    /**
+     * Le melange de cette teinte avec ce qui est deja a l'ecran, ou {@code -1} hors de la table.
+     *
+     * <p>Le melange additif ne lit pas une rampe mais une TABLE A DEUX ENTREES : la teinte en
+     * haut, l'octet deja pose en bas, trente-deux fois deux cent cinquante-six valeurs. Il lui
+     * faut donc huit mille cent quatre-vingt-douze octets de palette, quatre fois ce dont les
+     * autres se contentent — et de fait, deux feuilles seulement en portent autant, celle des
+     * gros projectiles et celle des explosions. Ce sont exactement les deux qui brulent.
+     *
+     * @param index la teinte fois deux cent cinquante-six, plus l'octet de l'ecran
+     */
+    public int blend(int index) {
+        if (index < 0 || index >= pal.length) {
+            return -1;
+        }
+        return pal[index] & 0xFF;
+    }
+
     /** La couleur d'ecran que la rampe donne a cette teinte, ou {@code -1} hors de la table. */
     public int colour(int ramp, int texel) {
         int i = ramp + texel * 2;
