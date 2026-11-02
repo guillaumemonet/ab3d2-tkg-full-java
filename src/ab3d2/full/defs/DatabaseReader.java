@@ -23,6 +23,7 @@ public final class DatabaseReader {
     private static final int NUM_LEVELS = 16;
     private static final int NUM_WALL_TEXTURES = 16;
     private static final int NUM_OBJECT_DEFS = 30;
+    private static final int FRAMES_PER_SHEET = 32;
     private static final int NUM_ALIEN_DEFS = 20;
     private static final int NUM_GUN_DEFS = 10;
     private static final int NUM_BULLET_DEFS = 20;
@@ -46,6 +47,7 @@ public final class DatabaseReader {
     private static final int SHOOT_DEFS = 13448;
     private static final int ALIEN_NAMES = 13528;
     private static final int ALIEN_DEFS = 13928;
+    private static final int FRAME_DATA = 14768;
     private static final int OBJECT_NAMES = 22448;
     private static final int OBJECT_DEFS = 23048;
     private static final int OBJECT_IDLE_ANIMS = 24248;
@@ -188,6 +190,7 @@ public final class DatabaseReader {
                 f.text(FLOOR_FILENAME, FILENAME_LENGTH),
                 f.text(TEXTURE_FILENAME, FILENAME_LENGTH),
                 resources(f, OBJ_GFX_NAMES, NUM_OBJECT_DEFS),
+                readFrames(f),
                 resources(f, VECTOR_NAMES, NUM_OBJECT_DEFS),
                 readObjects(f),
                 readAliens(f),
@@ -199,6 +202,26 @@ public final class DatabaseReader {
                 List.copyOf(sounds),
                 f.s16(PLAYER1_GRAPHIC),
                 f.s16(PLAYER2_GRAPHIC));
+    }
+
+    /**
+     * Les tables d'images : trente feuilles de trente-deux images.
+     *
+     * <p>Le rang de feuille que porte une chose a dessiner sert d'index ici comme dans la
+     * table des fichiers : les deux avancent du meme pas.
+     */
+    private static List<List<Database.Frame>> readFrames(Blob f) {
+        List<List<Database.Frame>> out = new ArrayList<>();
+        for (int g = 0; g < NUM_OBJECT_DEFS; g++) {
+            List<Database.Frame> une = new ArrayList<>();
+            for (int i = 0; i < FRAMES_PER_SHEET; i++) {
+                int at = FRAME_DATA + g * FRAMES_PER_SHEET * 8 + i * 8;
+                une.add(new Database.Frame(f.u16(at), f.u16(at + 2), f.u16(at + 4),
+                        f.u16(at + 6)));
+            }
+            out.add(List.copyOf(une));
+        }
+        return List.copyOf(out);
     }
 
     /** Une table de noms de fichiers, un par rang. */

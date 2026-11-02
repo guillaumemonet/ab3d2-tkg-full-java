@@ -279,11 +279,22 @@ tasks.register('spriteOrderCheck', JavaExec) {
     systemProperty 'ab3d2.spriteorder', new File(refRoot, 'spriteorder.json').absolutePath
 }
 
+tasks.register('bitmapCheck', JavaExec) {
+    group = 'verification'
+    description = "La pose du sprite, confrontee au portage valeur par valeur"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.BitmapCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.bitmap', new File(refRoot, 'bitmap.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck'
 }

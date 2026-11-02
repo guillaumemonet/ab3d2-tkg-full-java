@@ -20,6 +20,7 @@ public record Database(
         String floorFile,
         String textureFile,
         List<Resource> spriteSheets,
+        List<List<Frame>> frames,
         List<Resource> vectorModels,
         List<ObjectDef> objects,
         List<AlienDef> aliens,
@@ -91,6 +92,21 @@ public record Database(
      * <p>Textures de mur, feuilles de sprites et modeles vectoriels sont ranges en trois tables
      * separees, et un objet y renvoie par son INDEX, pas par sa position dans les definitions.
      */
+    /**
+     * Une image d'une feuille de sprites : ou la prendre, et de quelle taille elle est.
+     *
+     * <p>Trente feuilles, trente-deux images chacune, huit octets par image — le tout dans la
+     * base de liaison et non dans la feuille, de sorte que le rendu sait ou aller sans avoir
+     * ouvert le moindre fichier de pixels.
+     *
+     * @param strip  rang de la premiere bande de l'image dans la table des bandes
+     * @param down   decalage vertical dans la colonne : la hauteur a laquelle l'image commence
+     * @param half   la DEMI-largeur en bandes. Le rendu n'en veut jamais la valeur telle
+     *               quelle mais toujours {@code 2*half - 1}, c'est-a-dire la largeur moins une
+     * @param halfH  la demi-hauteur, prise de la meme facon
+     */
+    public record Frame(int strip, int down, int half, int halfH) { }
+
     public record Resource(int index, String file) {
 
         /** Le nom sans son chemin ni son extension. */
