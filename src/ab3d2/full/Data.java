@@ -2,6 +2,7 @@ package ab3d2.full;
 
 import ab3d2.full.defs.Database;
 import ab3d2.full.defs.DatabaseReader;
+import ab3d2.full.level.Backdrop;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
@@ -38,6 +39,7 @@ public final class Data {
     private static final Map<String, FloorTexture> FLOORS = new HashMap<>();
     private static ShadeTable shades;
     private static WaterFrames water;
+    private static Backdrop sky;
     private static Database database;
     private static SinCos sinCos;
     private static int[] iterations;
@@ -235,6 +237,28 @@ public final class Data {
             }
         }
         return water;
+    }
+
+    /**
+     * L'image du ciel.
+     *
+     * <p>Elle ne vit pas avec le depot mais avec les disquettes, et son nom dit "packed"
+     * alors qu'elle ne l'est pas : six cent quarante-huit fois deux cent quarante octets, tels
+     * quels.
+     */
+    public static synchronized Backdrop sky() {
+        if (sky == null) {
+            Path file = asset("ab3:includes/rawbackpacked");
+            if (file == null) {
+                throw new IllegalStateException("image du ciel introuvable");
+            }
+            try {
+                sky = Backdrop.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("image du ciel illisible : " + file, e);
+            }
+        }
+        return sky;
     }
 
     /** La table de sinus. */

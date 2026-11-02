@@ -246,11 +246,22 @@ tasks.register('waterPaintCheck', JavaExec) {
     systemProperty 'ab3d2.waterpaint', new File(refRoot, 'waterpaint.json').absolutePath
 }
 
+tasks.register('skyCheck', JavaExec) {
+    group = 'verification'
+    description = "Le ciel, confronte au portage ligne par ligne et pixel par pixel"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.SkyCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.sky', new File(refRoot, 'sky.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck'
 }
