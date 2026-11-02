@@ -140,8 +140,8 @@ public final class LevelCheck {
                 eq(pb, "entite " + i + " hauteur", a.height(), e.get("height").getAsInt());
             }
             eq(pb, "entite " + i + " message", a.message(), e.get("displayText").getAsInt());
-            eq(pb, "entite " + i + " etage", a.upperZone() ? 1 : 0,
-                    e.get("upperZone").getAsBoolean() ? 1 : 0);
+            eq(pb, "entite " + i + " etage", a.upperZone(),
+                    e.get("upperZone").getAsInt());
         }
 
         // --- les aretes : la table globale ---

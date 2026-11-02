@@ -105,18 +105,34 @@ public final class ObjectView {
      * fournit, une par entite et dans le MEME ordre — l'ordre decide du rang de point, donc de
      * tout le reste.
      *
-     * @param x    position, en unites du monde
-     * @param z    position
-     * @param zone secteur, negatif si la chose n'est pas dans le niveau
-     * @param aux  vrai si la chose est auxiliaire, auquel cas elle n'a pas de point
+     * <p>Elle en porte DEUX secteurs, et ce n'est pas une redondance. Le vrai, celui que la
+     * simulation tient a jour, dit si la chose est dans le niveau. L'autre est une COPIE que
+     * le jeu ne rafraichit qu'une image sur cinq, et c'est elle, et elle seule, qui decide
+     * dans quel secteur la chose se DESSINE — de sorte qu'une chose qui change de secteur
+     * reste jusqu'a quatre images dans l'ancien.
+     *
+     * @param x        position, en unites du monde
+     * @param z        position
+     * @param zone     secteur, negatif si la chose n'est pas dans le niveau
+     * @param drawZone le secteur ou la chose se DESSINE : la copie, en retard d'au plus quatre
+     *                 images sur le vrai
+     * @param upper    l'etage, tel OCTET que le fichier le porte — voir
+     *                 {@link ab3d2.full.level.Level.Entity}
+     * @param aux      vrai si la chose est auxiliaire, auquel cas elle n'a pas de point
+     * @param point    son rang dans la table des points
      */
-    public record Thing(int x, int z, int zone, boolean aux) { }
+    public record Thing(int x, int z, int zone, int drawZone, int upper, boolean aux,
+            int point) { }
 
-    /** Les choses telles que le niveau les pose, avant que rien n'ait bouge. */
+    /**
+     * Les choses telles que le niveau les pose, avant que rien n'ait bouge.
+     *
+     * <p>Les deux secteurs y sont egaux : c'est l'etat ou la copie vient d'etre faite.
+     */
     public static List<Thing> atRest(List<ab3d2.full.level.Level.Entity> entities) {
         return entities.stream()
-                .map(e -> new Thing(e.x(), e.z(), e.zone(),
-                        e.kind() == ab3d2.full.level.Level.Kind.AUX))
+                .map(e -> new Thing(e.x(), e.z(), e.zone(), e.zone(), e.upperZone(),
+                        e.kind() == ab3d2.full.level.Level.Kind.AUX, e.point()))
                 .toList();
     }
 

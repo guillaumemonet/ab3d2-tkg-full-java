@@ -581,7 +581,7 @@ public final class LevelReader {
                     f.s16(p),
                     f.s16(p + 4),
                     f.s16(o + ENT_ZONE),
-                    f.u8(o + ENT_UPPER_ZONE) != 0,
+                    f.u8(o + ENT_UPPER_ZONE),
                     f.s16(o + ENT_BRIGHTNESS),
                     f.s32(o + ENT_UNLOCKS),
                     f.s16(o + ENT_MESSAGE),

@@ -88,7 +88,10 @@ public record Level(
      * @param x          position, reprise de la table des points d'objets
      * @param z          position
      * @param zone       secteur de départ ; négatif = retirée du niveau
-     * @param upperZone  vrai si l'entité est à l'étage supérieur d'un secteur à deux niveaux
+     * @param upperZone  l'étage, tel OCTET que le fichier le porte, et non un oui ou non : le
+ *                   jeu le compare par OU EXCLUSIF à l'octet de l'étage en cours, lui-même
+ *                   zéro ou deux cent cinquante-cinq. Une entité portant toute autre valeur
+ *                   n'est donc d'AUCUN des deux étages — et il y en a une, dans le niveau n
      * @param brightness luminosité propre, ajoutée à celle de la distance
      * @param unlocks    bits des portes et ascenseurs que cette entité VERROUILLE tant qu'elle
      *                   est présente — autrement dit les clés qu'elle porte
@@ -112,7 +115,7 @@ public record Level(
             int x,
             int z,
             int zone,
-            boolean upperZone,
+            int upperZone,
             int brightness,
             int unlocks,
             int message,

@@ -115,14 +115,15 @@ public final class Collide {
             if (def == null) {
                 continue;
             }
-            if ((((o.upperZone() ? 0xFF : 0) ^ d6) & 0xFF) != 0) {
+            if (((o.upperZone() ^ d6) & 0xFF) != 0) {
                 continue;                              // eor.b d6,d1 ; bne
             }
             // Le second test de points de vie (comportement 2, DESTRUCTABLE) porte sur
             // EntT_HitPoints_b, pas sur la definition : StillHere le remet a 1 a chaque frame tant
             // que l'objet est dans le niveau, et Destructable le met a 0 en le detruisant — donc
             // « encore la » (zone >= 0, deja teste) suffit.
-            int h = ObjectRuntime.objectHeight(lvl, o.zone(), o.upperZone(), s.animDelta(), def);
+            int h = ObjectRuntime.objectHeight(lvl, o.zone(), o.upperZone() != 0, s.animDelta(),
+                    def);
             if (hits(1, h, o.x(), o.z(), newx, newz, oldx, oldz, d4, d5)) {
                 return true;
             }

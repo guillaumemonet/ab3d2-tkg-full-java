@@ -268,11 +268,22 @@ tasks.register('objXformCheck', JavaExec) {
     systemProperty 'ab3d2.objxform', new File(refRoot, 'objxform.json').absolutePath
 }
 
+tasks.register('spriteOrderCheck', JavaExec) {
+    group = 'verification'
+    description = "Le tri des choses, confronte au portage case par case"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.SpriteOrderCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.spriteorder', new File(refRoot, 'spriteorder.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck'
 }

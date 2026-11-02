@@ -183,7 +183,7 @@ public final class ObjectRuntime {
 
     /** Plr1_CheckObjectCollide. */
     private boolean collide(PlayerSim player, Thing o) {
-        if (player.stoodInTop != o.entity.upperZone()) {
+        if (player.stoodInTop != (o.entity.upperZone() != 0)) {
             return false;                              // pas au même étage
         }
         if (player.zone != o.zone) {
@@ -195,7 +195,8 @@ public final class ObjectRuntime {
         }
         int d7 = player.yOff + (player.height >> 1);
         d7 = d7 >> 7;
-        d7 = (short) (d7 - objectHeight(lvl, o.zone, o.entity.upperZone(), o.animDelta, def));
+        d7 = (short) (d7 - objectHeight(lvl, o.zone, o.entity.upperZone() != 0, o.animDelta,
+                def));
         if (d7 <= 0) {
             d7 = (short) -d7;
         }
@@ -245,7 +246,8 @@ public final class ObjectRuntime {
         }
         inventory.add(def.ammoGive(), def.gunGive());
         if (sfx != null) {                             // ODefT_SFX_w (Newaliencontrol.java:538)
-            sfx.playAt(def.sfx(), o.entity.x(), o.entity.z(), objectHeight(lvl, o.zone, o.entity.upperZone(), o.animDelta, def));
+            sfx.playAt(def.sfx(), o.entity.x(), o.entity.z(),
+                    objectHeight(lvl, o.zone, o.entity.upperZone() != 0, o.animDelta, def));
         }
         if (messages != null) {                        // Plr1_CollectItem : texte du niveau, sinon NOM
             if (o.entity.message() >= 0 && levelMessages != null
