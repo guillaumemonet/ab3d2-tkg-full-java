@@ -111,6 +111,17 @@ tasks.register('zoneOrderCheck', JavaExec) {
     systemProperty 'ab3d2.zoneorder', new File(refRoot, 'zoneorder.json').absolutePath
 }
 
+tasks.register('zoneGraphCheck', JavaExec) {
+    group = 'verification'
+    description = "La mise en scene : ce que la boucle maitresse decide de dessiner"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ZoneGraphCheck'
+    maxHeapSize = '4g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.zonegraph', new File(refRoot, 'zonegraph.json').absolutePath
+}
+
 tasks.register('clipCheck', JavaExec) {
     group = 'verification'
     description = "La fenetre de dessin des secteurs, confrontee au portage"
@@ -307,5 +318,6 @@ tasks.register('checkAll') {
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck'
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
+            'zoneGraphCheck'
 }
