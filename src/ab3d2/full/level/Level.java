@@ -41,7 +41,23 @@ public record Level(
         List<Switch> switches,
         List<Clip> clips,
         List<Link> links,
-        int exitZone) {
+        int exitZone,
+        int playerEntity) {
+
+    /**
+     * Le rang de l'entite qui porte l'ARME EN MAIN du premier joueur.
+     *
+     * <p>Le jeu ne la nomme pas : il la reconnait a ce qu'elle se tient cent trente octets
+     * apres l'objet du joueur dans la table — deux enregistrements, plus les deux octets que la
+     * routine a deja consommes. C'est de l'arithmetique de pointeurs, et c'est tout ce qui la
+     * distingue d'un objet du decor.
+     *
+     * <p>Elle sert a un seul endroit : un modele a profondeur NULLE est normalement derriere
+     * l'oeil et n'est pas dessine. Celui-la l'est, a la profondeur un.
+     */
+    public int weaponEntity() {
+        return playerEntity + 2;
+    }
 
     /** Position de départ d'un joueur. */
     public record Start(int x, int z, int zone) { }

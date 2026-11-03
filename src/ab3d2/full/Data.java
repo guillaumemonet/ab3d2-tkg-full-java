@@ -9,6 +9,7 @@ import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.ShadeTable;
 import ab3d2.full.level.SpriteSheet;
+import ab3d2.full.level.VectorModel;
 import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
 import ab3d2.full.render.EdgePvs;
@@ -43,6 +44,7 @@ public final class Data {
     private static WaterFrames water;
     private static Backdrop sky;
     private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
+    private static final Map<Integer, VectorModel> MODELS = new HashMap<>();
     private static Database database;
     private static Palette palette;
     private static SinCos sinCos;
@@ -271,6 +273,28 @@ public final class Data {
      * <p>Trois fichiers du meme nom, d'extensions differentes. Le nom que la base donne n'en
      * porte aucune : c'est le chargeur qui les ajoute, et c'est ce qu'on refait ici.
      */
+    /**
+     * Un modele en relief, designe par son rang dans la base de liaison.
+     *
+     * <p>Plusieurs rangs peuvent nommer le MEME fichier — trois d'entre eux sont la clef de
+     * passe — et chacun garde alors sa propre lecture, comme le jeu qui charge le fichier
+     * autant de fois qu'il est nomme.
+     */
+    public static synchronized VectorModel model(int index) {
+        return MODELS.computeIfAbsent(index, k -> {
+            String nom = database().vectorModels().get(k).file().trim();
+            Path f = asset(nom);
+            if (f == null) {
+                throw new IllegalStateException("modele introuvable : " + nom);
+            }
+            try {
+                return VectorModel.read(f, database().vectorModels().get(k).name());
+            } catch (IOException e) {
+                throw new UncheckedIOException("modele illisible : " + nom, e);
+            }
+        });
+    }
+
     public static synchronized SpriteSheet sheet(int index) {
         return SHEETS.computeIfAbsent(index, k -> {
             String nom = database().spriteSheets().get(k).file().trim();

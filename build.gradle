@@ -359,6 +359,17 @@ tasks.register('brightRingsCheck', JavaExec) {
     systemProperty 'ab3d2.brightrings', new File(refRoot, 'brightrings.json').absolutePath
 }
 
+tasks.register('modelPointsCheck', JavaExec) {
+    group = 'verification'
+    description = "Les points d'un modele : grille d'eclairage, rotation, projection, luminosite"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ModelPointsCheck'
+    maxHeapSize = '6g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.modelpoints', new File(refRoot, 'modelpoints.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
@@ -366,5 +377,5 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck'
+            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck'
 }

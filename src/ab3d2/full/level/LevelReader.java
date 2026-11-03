@@ -40,6 +40,12 @@ public final class LevelReader {
     private static final int NUM_OBJECTS = 20;
     private static final int OFFSET_OBJECTS = 30;
     private static final int OFFSET_OBJECT_POINTS = 42;
+
+    /** Ou se tient l'objet du premier joueur : c'est lui qui designe l'arme en main. */
+    private static final int OFFSET_PLAYER1 = 46;
+
+    /** La taille d'un enregistrement d'objet. */
+    private static final int OBJECT_SIZE = 64;
     /** Juste après l'en-tête commencent les coordonnées des points de contrôle. */
     private static final int HEADER_SIZE = 54;
 
@@ -240,7 +246,8 @@ public final class LevelReader {
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
                 f.u16(h + NUM_OBJECTS) + 1, List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
-                List.copyOf(switches), clips.groups(), links, exitZone);
+                List.copyOf(switches), clips.groups(), links, exitZone,
+                (f.s32(h + OFFSET_PLAYER1) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE);
     }
 
     /**
