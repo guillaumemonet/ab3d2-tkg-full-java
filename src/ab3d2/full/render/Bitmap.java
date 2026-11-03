@@ -417,8 +417,11 @@ public final class Bitmap {
      * <p>Il y faut une image de demi-largeur NULLE, c'est-a-dire une case inutilisee de la
      * table des images : la largeur moins une vaut alors moins un, lue comme soixante-cinq
      * mille, et le produit explose.
+     *
+     * <p>{@link Glare} s'en sert aussi : le miroitement est une routine a part, mais c'est le
+     * meme debordement, et il ne doit pas en exister deux ecritures.
      */
-    private static int divu(int a, int b) {
+    static int divu(int a, int b) {
         long q = (a & 0xFFFFFFFFL) / (b & 0xFFFF);
         if (q > 0xFFFF) {
             return a & 0xFFFF;                         // debordement : l'operande reste

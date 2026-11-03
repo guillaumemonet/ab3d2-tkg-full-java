@@ -122,6 +122,9 @@ public final class Shot {
         for (ab3d2.full.sim.ObjectRuntime.Thing t : world.objects.activatables()) {
             parEntite.put(t.entity, t);
         }
+        for (ab3d2.full.sim.ObjectRuntime.Thing t : world.objects.decorations()) {
+            parEntite.put(t.entity, t);
+        }
         List<ObjectView.Thing> choses = new ArrayList<>(lvl.entities().size());
         List<Bitmap.Thing> apparences = new ArrayList<>(lvl.entities().size());
         int animees = 0;

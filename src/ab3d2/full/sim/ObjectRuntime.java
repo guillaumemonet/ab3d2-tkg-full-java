@@ -23,14 +23,16 @@ import java.util.List;
  */
 public final class ObjectRuntime {
 
-    /** ENT_TYPE_* (Defs) : 0 = ramassable, 1 = activable (interrupteurs, chargeurs). */
+    /** ENT_TYPE_* (Defs) : 0 = ramassable, 1 = activable, 2 = destructible, 3 = decor. */
     private static final int ENT_TYPE_COLLECTABLE = 0;
     private static final int ENT_TYPE_ACTIVATABLE = 1;
+    private static final int ENT_TYPE_DECORATION = 3;
 
     private final LevelSim lvl;
     private final Database glf;
     private final List<Thing> collectables = new ArrayList<>();
     private final List<Thing> activatables = new ArrayList<>();
+    private final List<Thing> decorations = new ArrayList<>();
     private final List<Thing> collectedThisFrame = new ArrayList<>();
 
     /**
@@ -83,7 +85,8 @@ public final class ObjectRuntime {
                 continue;
             }
             if (def.behaviour() != ENT_TYPE_COLLECTABLE
-                    && def.behaviour() != ENT_TYPE_ACTIVATABLE) {
+                    && def.behaviour() != ENT_TYPE_ACTIVATABLE
+                    && def.behaviour() != ENT_TYPE_DECORATION) {
                 continue;
             }
             Thing t = new Thing(o);
@@ -94,10 +97,34 @@ public final class ObjectRuntime {
             }
             if (def.behaviour() == ENT_TYPE_COLLECTABLE) {
                 collectables.add(t);
-            } else {
+            } else if (def.behaviour() == ENT_TYPE_ACTIVATABLE) {
                 activatables.add(t);
+            } else {
+                decorations.add(t);
             }
         }
+    }
+
+    /**
+     * Le DECOR anime : lampes, flammes, lueurs.
+     *
+     * <p>Port de {@code Decoration} (newaliencontrol.s:480). C'est la plus courte des quatre
+     * routines d'objet, et par soustraction : un decor n'est pas ramassable, ne s'enclenche
+     * pas, ne se casse pas. Il reste qu'il OCCUPE une hauteur — le sol ou le plafond de son
+     * secteur — et qu'il avance son animation. Rien ici ne l'interroge chaque image : la
+     * hauteur se calcule a la demande par {@link #objectHeight}, comme pour les autres.
+     *
+     * <p>Le jeu ne l'anime que lorsqu'il est VU : {@code markVisibleAndWorry} arme un drapeau
+     * sur les objets des secteurs visibles, et les quatre routines commencent par le tester.
+     * Ce portage ne le modelise pas encore ; seule la PHASE des animations peut donc differer,
+     * jamais leur contenu.
+     *
+     * <p>C'est par eux que les MIROITEMENTS arrivent a l'image : les trois definitions d'objet
+     * qui portent une lueur — la douzieme, la treizieme et la vingt-et-unieme — sont toutes du
+     * decor, et sans cette liste aucune n'aurait d'apparence.
+     */
+    public List<Thing> decorations() {
+        return decorations;
     }
 
     /** Les objets ramassables du niveau, avec leur etat. */

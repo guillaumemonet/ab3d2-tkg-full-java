@@ -19,14 +19,18 @@ import java.util.function.IntFunction;
  * ne touche pas un pixel. Celui-ci ne decide rien et les dessine tous. C'est la premiere fois
  * que le rendu de ce portage tourne en entier plutot que morceau par morceau.
  *
+ * <h2>Les trois facons d'etre une chose</h2>
+ *
+ * <p>{@link Appearance} dit laquelle, et le peintre en sert deux. Un SPRITE passe par
+ * {@link Bitmap} puis {@link BitmapPaint}, dans sa boucle simple ou dans son melange additif.
+ * Un MIROITEMENT passe par {@link Glare} puis {@link GlarePaint} — routine a part, table a
+ * part. Un MODELE en trois dimensions n'a pas de voie ici : il est compte et passe.
+ *
  * <h2>Ce qu'il ne dessine pas encore</h2>
  *
- * <p>Les CHOSES manquent, et pas par negligence : leurs champs de dessin — la feuille, l'image,
- * les drapeaux, les demi-tailles — ne vivent pas dans le fichier de niveau. Ils y sont tous a
- * zero, et c'est l'animation des objets qui les remplit a chaque image. Tant qu'elle n'est pas
- * portee, un sprite n'a rien a montrer : {@link #objects} compte les commandes et passe. Les
- * verifications des sprites contournent ce trou en SEMANT ces champs ; une image, elle, ne peut
- * pas se le permettre sans mentir.
+ * <p>Les modeles vectoriels, donc — et c'est la moitie de ce que le jeu montre. L'image
+ * ECLAIREE non plus, dont la palette se construit a chaque image d'apres l'eclairage
+ * directionnel.
  *
  * <p>Les murs se peignent tous par la voie SIMPLE. Le degrade de Gouraud attend les lumieres
  * dynamiques, et le jeu lui-meme retombe sur la voie simple quand les quatre coins s'accordent.
@@ -48,6 +52,8 @@ public final class ScenePainter implements Scene.Painter {
     private final Sprites sprites = new Sprites();
     private final Bitmap bitmap;
     private final BitmapPaint bitmapPaint;
+    private final Glare glare;
+    private final GlarePaint glarePaint;
 
     private ObjectView objectView;
     private List<ObjectView.Thing> choses;
@@ -63,6 +69,7 @@ public final class ScenePainter implements Scene.Painter {
     private int watersDrawn;
     private int skiesDrawn;
     private int thingsDrawn;
+    private int glaresDrawn;
     private int thingsSkipped;
     private int offTable;
 
@@ -95,8 +102,11 @@ public final class ScenePainter implements Scene.Painter {
         this.flatPaint = new FlatPaint(screen);
         this.flatPaint.water(ripples, water, sinCos);
         this.sky = sky;
-        this.bitmap = new Bitmap(glf, new ScaleTable());
+        ScaleTable echelles = new ScaleTable();
+        this.bitmap = new Bitmap(glf, echelles);
         this.bitmapPaint = new BitmapPaint(screen);
+        this.glare = new Glare(glf, echelles);
+        this.glarePaint = new GlarePaint(screen);
     }
 
     /**
@@ -164,8 +174,9 @@ public final class ScenePainter implements Scene.Painter {
     /** Combien de pans, de surfaces, de plans d'eau et de ciels ont ete peints. */
     public String tally() {
         return wallsDrawn + " pans, " + flatsDrawn + " surfaces, " + watersDrawn + " plans"
-                + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses ("
-                + thingsSkipped + " passees), " + offTable + " hors table";
+                + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
+                + glaresDrawn + " miroitements (" + thingsSkipped + " passees), " + offTable
+                + " hors table";
     }
 
     @Override
@@ -231,21 +242,43 @@ public final class ScenePainter implements Scene.Painter {
         bitmap.view(view.fullScreen(), view.centreX(), centreY, playerY,
                 pass.objectsTop(o.moment()), pass.objectsBottom(o.moment()),
                 0, view.height(), pass.leftClip(), pass.rightClip());
+        glare.view(view.fullScreen(), view.centreX(), centreY, playerY,
+                pass.objectsTop(o.moment()), pass.objectsBottom(o.moment()),
+                0, view.height(), pass.leftClip(), pass.rightClip());
         sprites.sort(choses, objectView, pass.zone(), pass.upper() ? 1 : 0,
                 pass.leftClip(), pass.rightClip());
         for (int i = 0; i < sprites.count(); i++) {
             int rang = sprites.at(i);
             Bitmap.Thing quoi = apparences.get(rang);
-            if (quoi.halfWidth() == 0 || quoi.halfWidth() == Appearance.VECTOR_MARK
-                    || quoi.glare() || (quoi.flags() & 127) >= 2) {
-                // Rien a montrer, un modele en trois dimensions, un halo, ou une palette
-                // eclairee : trois voies que ce portage n'a pas encore ouvertes.
+            if (quoi.halfWidth() == 0 || quoi.halfWidth() == Appearance.VECTOR_MARK) {
+                // Rien a montrer, ou un modele en trois dimensions : deux voies que ce
+                // portage n'a pas encore ouvertes.
                 thingsSkipped++;
+                continue;
+            }
+            // tst.l ObjT_YPos_l(a0) ; blt draw_bitmap_glare : le signe du rang de feuille.
+            if (quoi.glare()) {
+                glare.clearOffTable();
+                Glare.Placed lueur = glare.place(quoi, objectView);
+                if (lueur == null) {
+                    continue;
+                }
+                SpriteSheet ou = feuilles.apply(Glare.sheetOf(quoi.sheet()));
+                if (ou == null) {
+                    thingsSkipped++;
+                    continue;
+                }
+                glarePaint.paint(lueur, ou, shades);
+                glaresDrawn++;
                 continue;
             }
             bitmap.clearOffTable();
             Bitmap.Placed pose = bitmap.place(quoi, objectView);
             if (pose == null) {
+                continue;
+            }
+            if (pose.light()) {
+                thingsSkipped++;                       // la palette eclairee n'est pas portee
                 continue;
             }
             SpriteSheet feuille = feuilles.apply(quoi.sheet() & 0x7FFF);
