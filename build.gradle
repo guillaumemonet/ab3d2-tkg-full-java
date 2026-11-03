@@ -349,6 +349,16 @@ tasks.register('glareCheck', JavaExec) {
     systemProperty 'ab3d2.glare', new File(refRoot, 'glare.json').absolutePath
 }
 
+tasks.register('brightRingsCheck', JavaExec) {
+    group = 'verification'
+    description = "Les anneaux de lumiere : de quel cote vient la clarte, en seize directions"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.BrightRingsCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.brightrings', new File(refRoot, 'brightrings.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
@@ -356,5 +366,5 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'glareCheck'
+            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck'
 }
