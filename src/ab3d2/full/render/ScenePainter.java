@@ -1,13 +1,16 @@
 package ab3d2.full.render;
 
 import ab3d2.full.SinCos;
+import ab3d2.full.defs.Database;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.ShadeTable;
+import ab3d2.full.level.SpriteSheet;
 import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
 
 import java.util.List;
+import java.util.function.IntFunction;
 
 /**
  * Le peintre : il execute ce que {@link Scene} decide.
@@ -42,6 +45,14 @@ public final class ScenePainter implements Scene.Painter {
     private final Flat flat;
     private final FlatPaint flatPaint;
     private final Sky sky;
+    private final Sprites sprites = new Sprites();
+    private final Bitmap bitmap;
+    private final BitmapPaint bitmapPaint;
+
+    private ObjectView objectView;
+    private List<ObjectView.Thing> choses;
+    private List<Bitmap.Thing> apparences;
+    private IntFunction<SpriteSheet> feuilles;
 
     private int playerY;
     private int centreY;
@@ -51,6 +62,7 @@ public final class ScenePainter implements Scene.Painter {
     private int flatsDrawn;
     private int watersDrawn;
     private int skiesDrawn;
+    private int thingsDrawn;
     private int thingsSkipped;
     private int offTable;
 
@@ -65,10 +77,12 @@ public final class ScenePainter implements Scene.Painter {
      * @param water  l'animation de l'eau
      * @param sinCos la table de sinus
      * @param sky    le ciel, ou {@code null} si le niveau n'en a pas
+     * @param iterations la table des pas du placage des murs
+     * @param glf    la base de liaison, pour les tailles d'images
      */
     public ScenePainter(Screen screen, View view, Lights lights, List<WallTexture> walls,
             FloorTexture floors, ShadeTable shades, WaterFrames ripples, Water water,
-            SinCos sinCos, Sky sky, int[] iterations) {
+            SinCos sinCos, Sky sky, int[] iterations, Database glf) {
         this.screen = screen;
         this.view = view;
         this.lights = lights;
@@ -81,6 +95,30 @@ public final class ScenePainter implements Scene.Painter {
         this.flatPaint = new FlatPaint(screen);
         this.flatPaint.water(ripples, water, sinCos);
         this.sky = sky;
+        this.bitmap = new Bitmap(glf, new ScaleTable());
+        this.bitmapPaint = new BitmapPaint(screen);
+    }
+
+    /**
+     * Donne au peintre de quoi dessiner les CHOSES.
+     *
+     * <p>Les deux listes sont indexees par le rang de l'entite dans le niveau, et ont donc la
+     * meme longueur que lui : c'est ce rang que le tri manipule, et une chose absente doit
+     * garder sa place. Une chose dont l'apparence porte une demi-largeur NULLE n'est pas
+     * dessinee — c'est la sortie que prend le jeu lui-meme, et c'est ce qui arrive a tout ce
+     * que la simulation n'anime pas encore.
+     *
+     * @param objectView les points des choses, deja tournes
+     * @param choses     ou chaque chose se trouve
+     * @param apparences ce que chaque chose montre
+     * @param feuilles   ou trouver une feuille de sprites par son rang
+     */
+    public void things(ObjectView objectView, List<ObjectView.Thing> choses,
+            List<Bitmap.Thing> apparences, IntFunction<SpriteSheet> feuilles) {
+        this.objectView = objectView;
+        this.choses = choses;
+        this.apparences = apparences;
+        this.feuilles = feuilles;
     }
 
     /**
@@ -126,8 +164,8 @@ public final class ScenePainter implements Scene.Painter {
     /** Combien de pans, de surfaces, de plans d'eau et de ciels ont ete peints. */
     public String tally() {
         return wallsDrawn + " pans, " + flatsDrawn + " surfaces, " + watersDrawn + " plans"
-                + " d'eau, " + skiesDrawn + " ciels, " + thingsSkipped + " commandes d'objets"
-                + " passees, " + offTable + " hors table";
+                + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses ("
+                + thingsSkipped + " passees), " + offTable + " hors table";
     }
 
     @Override
@@ -184,7 +222,44 @@ public final class ScenePainter implements Scene.Painter {
 
     @Override
     public void objects(Scene.Pass pass, Level.Objects o) {
-        thingsSkipped++;                               // voir l'avertissement en tete de classe
+        if (choses == null) {
+            thingsSkipped++;
+            return;
+        }
+        // draw_TopY_3D_l / draw_BottomY_3D_l : le moment de la commande decide de quelle
+        // tranche du secteur les choses ont le droit d'occuper.
+        bitmap.view(view.fullScreen(), view.centreX(), centreY, playerY,
+                pass.objectsTop(o.moment()), pass.objectsBottom(o.moment()),
+                0, view.height(), pass.leftClip(), pass.rightClip());
+        sprites.sort(choses, objectView, pass.zone(), pass.upper() ? 1 : 0,
+                pass.leftClip(), pass.rightClip());
+        for (int i = 0; i < sprites.count(); i++) {
+            int rang = sprites.at(i);
+            Bitmap.Thing quoi = apparences.get(rang);
+            if (quoi.halfWidth() == 0 || quoi.halfWidth() == Appearance.VECTOR_MARK
+                    || quoi.glare() || (quoi.flags() & 127) >= 2) {
+                // Rien a montrer, un modele en trois dimensions, un halo, ou une palette
+                // eclairee : trois voies que ce portage n'a pas encore ouvertes.
+                thingsSkipped++;
+                continue;
+            }
+            bitmap.clearOffTable();
+            Bitmap.Placed pose = bitmap.place(quoi, objectView);
+            if (pose == null) {
+                continue;
+            }
+            SpriteSheet feuille = feuilles.apply(quoi.sheet() & 0x7FFF);
+            if (feuille == null) {
+                thingsSkipped++;
+                continue;
+            }
+            if (pose.additive()) {
+                bitmapPaint.paintAdditive(pose, feuille);
+            } else {
+                bitmapPaint.paint(pose, feuille);
+            }
+            thingsDrawn++;
+        }
     }
 
     @Override

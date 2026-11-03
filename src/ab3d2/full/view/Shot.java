@@ -2,7 +2,11 @@ package ab3d2.full.view;
 
 import ab3d2.full.Data;
 import ab3d2.full.level.Level;
+import ab3d2.full.defs.Database;
 import ab3d2.full.level.Palette;
+import ab3d2.full.render.Appearance;
+import ab3d2.full.render.Bitmap;
+import ab3d2.full.render.ObjectView;
 import ab3d2.full.render.EdgePvs;
 import ab3d2.full.render.Lights;
 import ab3d2.full.render.Scene;
@@ -21,6 +25,8 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Une IMAGE, prise depuis un point du niveau.
@@ -102,14 +108,60 @@ public final class Shot {
 
         ScenePainter peintre = new ScenePainter(screen, view, lights, Data.walls(lettre),
                 Data.floors(lettre), Data.shades(), Data.water(), new Water(), Data.sinCos(),
-                ciel, Data.iterations());
+                ciel, Data.iterations(), Data.database());
         peintre.eye(x, z, hauteur, angle, Data.sinCos());
 
-        peintre.backdrop(zone);
+        // Les CHOSES. Les deux listes suivent le rang des entites du niveau, car c'est ce rang
+        // que le tri manipule : une chose que la simulation n'anime pas doit garder sa place,
+        // et son apparence reste alors vide — la pose l'ecarte d'elle-meme.
+        java.util.Map<Level.Entity, ab3d2.full.sim.ObjectRuntime.Thing> parEntite =
+                new java.util.IdentityHashMap<>();
+        for (ab3d2.full.sim.ObjectRuntime.Thing t : world.objects.collectables()) {
+            parEntite.put(t.entity, t);
+        }
+        for (ab3d2.full.sim.ObjectRuntime.Thing t : world.objects.activatables()) {
+            parEntite.put(t.entity, t);
+        }
+        List<ObjectView.Thing> choses = new ArrayList<>(lvl.entities().size());
+        List<Bitmap.Thing> apparences = new ArrayList<>(lvl.entities().size());
+        int animees = 0;
+        for (Level.Entity ent : lvl.entities()) {
+            ab3d2.full.sim.ObjectRuntime.Thing t = parEntite.get(ent);
+            int ou = t != null ? t.zone : ent.zone();
+            choses.add(new ObjectView.Thing(ent.x(), ent.z(), ou, ou,
+                    ent.upperZone(), ent.kind() == Level.Kind.AUX, ent.point()));
+            Appearance vu = null;
+            int h = 0;
+            if (t != null) {
+                Database.ObjectDef def = Data.database().object(ent.def());
+                List<Database.AnimStep> scenario =
+                        t.activated ? def.activeAnim() : def.idleAnim();
+                if (!scenario.isEmpty()) {
+                    Database.AnimStep pas =
+                            scenario.get(Math.floorMod(t.animStep, scenario.size()));
+                    vu = Appearance.of(pas, def.gfxType());
+                    h = ab3d2.full.sim.ObjectRuntime.objectHeight(world.lvl, t.zone,
+                            ent.upperZone() != 0, t.animDelta, def);
+                    animees++;
+                }
+            }
+            apparences.add(vu == null
+                    ? new Bitmap.Thing(ent.point(), 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                    : new Bitmap.Thing(ent.point(), 0, h, vu.halfWidth(), vu.halfDepth(),
+                            vu.sheet(), vu.flags(), vu.frame(), 0, 0));
+        }
+        ObjectView objectView = new ObjectView(Data.sinCos());
+        objectView.update(choses, lvl.objectPoints(), x, z, angle, 0, true);
+        peintre.things(objectView, choses, apparences, Data::sheet);
+
+        // tst.b (a0)+ ; beq nobackgraphics : c'est l'octet du secteur du joueur qui decide.
+        if (from.drawBackdrop()) {
+            peintre.backdrop(zone);
+        }
         new Scene().draw(lvl, from, order, edges, lights, view, hauteur, peintre);
 
-        System.out.printf("niveau %c, secteur %d (%d, %d), angle %d, oeil %d%n",
-                lettre, zone, x, z, angle, hauteur);
+        System.out.printf("niveau %c, secteur %d (%d, %d), angle %d, oeil %d, %d choses"
+                + " animees%n", lettre, zone, x, z, angle, hauteur, animees);
         System.out.println("  " + peintre.tally());
 
         Palette palette = Data.palette();
