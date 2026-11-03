@@ -55,13 +55,15 @@ import static ab3d2.full.M68k.setw;
  *
  * <h2>Ce que l'epreuve ne separe pas</h2>
  *
- * <p>Cinquante-et-une mutations, quarante-neuf mordent. Les deux qui survivent sont la meme :
+ * <p>Soixante-treize mutations sur cette classe et {@link ModelParts}, soixante-dix mordent.
+ * Deux des trois survivantes sont la meme :
  * les anneaux et la grille sont lus dans [0, 45] et pas une valeur n'y est NEGATIVE, sur deux
  * cent trente-six mille points. C'est une consequence de la soustraction finale des anneaux,
  * qui ne garde que des restes negatifs et les NIE : ce qui en sort ne peut pas etre negatif.
  * Les deux gardes — celle de la grille, celle de la luminosite — sont portees comme l'original
  * les ecrit, et mesurees plutot qu'excusees. La butee HAUTE, elle, sert : la grille monte a
- * quarante-cinq et la luminosite s'arrete a trente-et-un.
+ * quarante-cinq et la luminosite s'arrete a trente-et-un. La troisieme survivante tient au
+ * tampon des parties, et se mesure la-bas.
  *
  * <p>Un point derriere l'oeil recoit {@code 32767} dans les deux coordonnees. Un point au-dela
  * de seize mille trois cent quatre-vingt-trois fait ABANDONNER l'objet entier, au milieu de la
@@ -84,12 +86,24 @@ public final class ModelPoints {
     /** Seize rangs de seize : l'elevation en nibble haut, l'azimut en nibble bas. */
     private final byte[] grid = new byte[RING * RING];
 
-    private int[] x3 = new int[0];
-    private int[] y3 = new int[0];
-    private int[] z3 = new int[0];
-    private int[] screenX = new int[0];
-    private int[] screenY = new int[0];
-    private int[] bright = new int[0];
+    /**
+     * Les tables de points, a la taille que le jeu leur donne, et JAMAIS effacees.
+     *
+     * <p>Ce sont des tables de travail partagees par tous les objets de l'image : un modele
+     * n'en remplit que le debut, et ce qui depasse reste de l'objet precedent. Cela compte,
+     * parce que le tri des parties s'autorise a lire au-dela du compte de points du modele —
+     * la guepe le fait sur quatre de ses parties — et lit alors ces restes-la. Les effacer
+     * donnerait une autre image que le jeu.
+     */
+    private static final int MAX_3D = 300;
+    private static final int MAX_2D = 250;
+
+    private final int[] x3 = new int[MAX_3D];
+    private final int[] y3 = new int[MAX_3D];
+    private final int[] z3 = new int[MAX_3D];
+    private final int[] screenX = new int[MAX_2D];
+    private final int[] screenY = new int[MAX_2D];
+    private final int[] bright = new int[MAX_2D];
     private int count;
     private boolean abandoned;
     private int oddAngles;
@@ -101,6 +115,11 @@ public final class ModelPoints {
     /** Combien de points ce modele porte. */
     public int count() {
         return count;
+    }
+
+    /** Jusqu'ou les tables de points vont, modele ou pas. */
+    public int capacity() {
+        return MAX_3D;
     }
 
     /** Vrai si l'objet a ete abandonne en cours de projection : trop loin. */
@@ -241,14 +260,6 @@ public final class ModelPoints {
             int worldX, int depth, int objY, int eyeY, int centreX, int centreY) {
         VectorModel.Frame frame = model.frames().get(frameIndex);
         count = model.pointCount();
-        if (x3.length < count) {
-            x3 = new int[count];
-            y3 = new int[count];
-            z3 = new int[count];
-            screenX = new int[count];
-            screenY = new int[count];
-            bright = new int[count];
-        }
         abandoned = false;
 
         // ---- rotate_object (1895) ----

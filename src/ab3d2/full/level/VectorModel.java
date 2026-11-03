@@ -22,7 +22,15 @@ import java.util.List;
  *
  * <p>Un bloc d'image commence par un mot double de DRAPEAUX, un bit par partie : c'est lui qui
  * allume ou eteint les morceaux de l'objet, et c'est ainsi qu'un canon rentre dans sa tourelle
- * ou qu'une porte s'ouvre sans changer de geometrie. Suivent un octet de NORMALE par point —
+ * ou qu'une porte s'ouvre sans changer de geometrie.
+ *
+ * <h2>Les parties</h2>
+ *
+ * <p>Un modele n'est pas une liste de faces : c'est une liste de PARTIES, chacune portant ses
+ * faces. Deux mots par partie — ou sont ses faces, et quel point la represente — et une valeur
+ * negative ferme la liste. Le point choisi sert a mesurer la distance de la partie a l'oeil,
+ * et donc a decider dans quel ordre les parties se dessinent : c'est le tri en profondeur, que
+ * le premier mot du fichier reclame ou non. Suivent un octet de NORMALE par point —
  * nibble haut l'elevation, nibble bas l'azimut —, complete a un nombre pair, puis les points
  * eux-memes, trois mots chacun.
  *
@@ -37,10 +45,25 @@ public record VectorModel(
         boolean sort,
         int pointCount,
         List<Frame> frames,
-        int[] lines) {
+        List<Part> parts) {
 
     /** Une pose : ses drapeaux de parties, ses normales, ses points, ses angles de faces. */
     public record Frame(int onOff, int[] normals, int[] x, int[] y, int[] z, int[] angles) { }
+
+    /**
+     * Une partie du modele.
+     *
+     * @param at    ou sont ses faces, compte depuis le deuxieme mot du fichier
+     * @param point le DEPLACEMENT de son point representatif dans la table des points tournes,
+     *              dix octets par point — ce n'est pas un rang
+     */
+    public record Part(int at, int point) {
+
+        /** Le rang du point representatif. */
+        public int pointIndex() {
+            return point / 10;
+        }
+    }
 
     /**
      * Lit un modele.
@@ -98,11 +121,16 @@ public record VectorModel(
             frames.add(new Frame(onOff, normals, x, y, z, angles));
         }
 
-        int[] lines = new int[Math.max(0, (firstPts - linesAt) / 2)];
-        for (int i = 0; i < lines.length; i++) {
-            lines[i] = uword(raw, linesAt + i * 2);
+        // La table des parties ouvre le bloc des faces, et se ferme sur une valeur negative.
+        List<Part> parts = new ArrayList<>();
+        for (int at = linesAt; at + 3 < firstPts; at += 4) {
+            int off = word(raw, at);
+            if (off < 0) {
+                break;
+            }
+            parts.add(new Part(off, uword(raw, at + 2)));
         }
-        return new VectorModel(name, sort, pointCount, List.copyOf(frames), lines);
+        return new VectorModel(name, sort, pointCount, List.copyOf(frames), List.copyOf(parts));
     }
 
     private static int word(byte[] b, int at) {

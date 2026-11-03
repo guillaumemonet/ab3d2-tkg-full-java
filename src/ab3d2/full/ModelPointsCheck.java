@@ -4,6 +4,7 @@ import ab3d2.full.level.Level;
 import ab3d2.full.level.VectorModel;
 import ab3d2.full.render.BrightRings;
 import ab3d2.full.render.Lights;
+import ab3d2.full.render.ModelParts;
 import ab3d2.full.render.ModelPoints;
 import ab3d2.full.render.ObjectView;
 import ab3d2.full.render.Screen;
@@ -67,6 +68,8 @@ public final class ModelPointsCheck {
         int ecartes = 0;
         int abandons = 0;
         int armes = 0;
+        int debordements = 0;
+        long morceaux = 0;
         long points = 0;
         long octets = 0;
         int impairs = 0;
@@ -75,6 +78,7 @@ public final class ModelPointsCheck {
 
         ObjectView view = new ObjectView(Data.sinCos());
         ModelPoints mp = new ModelPoints(Data.sinCos());
+        ModelParts parts = new ModelParts();
         Lights lights = null;
         BrightRings rings = null;
         boolean horsTables = false;
@@ -194,6 +198,35 @@ public final class ModelPointsCheck {
                     continue;
                 }
 
+                // ---- les parties, et leur ordre ----
+                parts.clearOverflow();
+                boolean tenu = parts.sort(vm, pose, mp);
+                JsonArray parties = o.getAsJsonArray("parts");
+                if (!tenu) {
+                    debordements++;
+                } else if (parts.count() != parties.size()) {
+                    ecarts += note("%s : %d parties, l'oracle en dit %d", quoi, parts.count(),
+                            parties.size());
+                    continue;
+                } else {
+                    morceaux += parts.count();
+                    for (int k = 0; k < parts.count() && !casse; k++) {
+                        JsonArray q = k < parties.size() ? parties.get(k).getAsJsonArray() : null;
+                        if (parts.distance(k) != q.get(0).getAsInt()) {
+                            ecarts += note("%s, partie %d : distance = %d, l'oracle dit %d",
+                                    quoi, k, parts.distance(k), q.get(0).getAsInt());
+                            casse = true;
+                        } else if (parts.where(k) != q.get(1).getAsInt()) {
+                            ecarts += note("%s, partie %d : faces a %d, l'oracle dit %d",
+                                    quoi, k, parts.where(k), q.get(1).getAsInt());
+                            casse = true;
+                        }
+                    }
+                    if (casse) {
+                        continue;
+                    }
+                }
+
                 JsonArray pts = o.getAsJsonArray("points");
                 if (pts.size() != mp.count()) {
                     ecarts += note("%s : %d points, l'oracle en dit %d", quoi, mp.count(),
@@ -224,9 +257,10 @@ public final class ModelPointsCheck {
         }
 
         System.out.printf("%n%d vues, %d modeles, %d points, %d octets de grille, %d ecartes,"
-                + " %d abandonnes, %d arme(s) en main, %d angle(s) impair(s), %d ecart(s)"
-                + " -> %s%n", cas.size(),
-                modeles, points, octets, ecartes, abandons, armes, impairs, ecarts,
+                + " %d abandonnes, %d arme(s) en main, %d parties (%d hors modele),"
+                + " %d debordement(s), %d angle(s) impair(s), %d ecart(s) -> %s%n", cas.size(),
+                modeles, points, octets, ecartes, abandons, armes, morceaux,
+                parts.beyondModel(), debordements, impairs, ecarts,
                 ecarts == 0 ? "PASS" : "FAIL");
         if (ecarts != 0) {
             System.exit(1);
