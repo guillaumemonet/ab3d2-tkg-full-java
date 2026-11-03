@@ -111,6 +111,22 @@ tasks.register('zoneOrderCheck', JavaExec) {
     systemProperty 'ab3d2.zoneorder', new File(refRoot, 'zoneorder.json').absolutePath
 }
 
+tasks.register('shot', JavaExec) {
+    group = 'application'
+    description = "Une image prise depuis un point du niveau"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.Shot'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
+    if (project.hasProperty('zone')) { systemProperty 'ab3d2.zone', project.property('zone') }
+    if (project.hasProperty('angle')) { systemProperty 'ab3d2.angle', project.property('angle') }
+    if (project.hasProperty('eye')) { systemProperty 'ab3d2.eye', project.property('eye') }
+    if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
+    systemProperty 'ab3d2.out', project.hasProperty('out')
+            ? project.property('out') : new File(projectDir, 'build/shot.png').absolutePath
+}
+
 tasks.register('zoneGraphCheck', JavaExec) {
     group = 'verification'
     description = "La mise en scene : ce que la boucle maitresse decide de dessiner"

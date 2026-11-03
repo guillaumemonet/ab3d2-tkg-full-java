@@ -4,6 +4,7 @@ import ab3d2.full.defs.Database;
 import ab3d2.full.defs.DatabaseReader;
 import ab3d2.full.level.Backdrop;
 import ab3d2.full.level.Level;
+import ab3d2.full.level.Palette;
 import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.ShadeTable;
@@ -43,6 +44,7 @@ public final class Data {
     private static Backdrop sky;
     private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
     private static Database database;
+    private static Palette palette;
     private static SinCos sinCos;
     private static int[] iterations;
 
@@ -284,6 +286,27 @@ public final class Data {
                 throw new UncheckedIOException("feuille illisible : " + nom, e);
             }
         });
+    }
+
+    /**
+     * Les deux cent cinquante-six couleurs de l'ecran.
+     *
+     * <p>Tout le rendu travaille en rangs ; la couleur n'apparait qu'au moment de montrer
+     * l'image.
+     */
+    public static synchronized Palette palette() {
+        if (palette == null) {
+            Path file = asset("EDIT/Includes/256pal");
+            if (file == null) {
+                throw new IllegalStateException("palette d'ecran introuvable");
+            }
+            try {
+                palette = Palette.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("palette illisible : " + file, e);
+            }
+        }
+        return palette;
     }
 
     /** La table de sinus. */
