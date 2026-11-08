@@ -17,13 +17,12 @@ import ab3d2.full.sim.World;
  *   <li>mille images par niveau passent sans qu'une seule exception sorte — ce qui veut dire
  *       que toutes les tables tiennent, y compris celles que le rendu indexe par des valeurs
  *       que la simulation fabrique ;</li>
- *   <li>combien d'images sortent VIDES, et a quel endroit. Il y en a : un joueur qui marche
- *       droit devant finit contre un mur, et la l'ecran devient noir. La sonde est sans appel —
- *       au meme instant, l'oeil decale de trente-deux unites vers {@code -x} ou {@code -z}
- *       redonne un ecran PLEIN, et tourne de quatre-vingt-dix degres aussi. L'oeil est donc
- *       passe de l'autre cote des faces du secteur ou la simulation le croit encore : c'est la
- *       COLLISION qu'il faut reprendre, pas le rendu. On les compte donc sans les sanctionner,
- *       pour voir ce nombre descendre le jour ou ce sera corrige ;</li>
+ *   <li>combien d'images sortent MAIGRES (moins de la moitie des pixels poses) et combien
+ *       sortent tout a fait NOIRES. Ce sont ces deux nombres qui ont debusque le pan de mur
+ *       jete au lieu d'etre peint : mille quarante-six images maigres sur seize mille, et
+ *       l'ecran noir des qu'on se collait a un mur. Il en reste quatorze noires sur seize
+ *       mille, et celles-la viennent d'un cas different — le point de vue pose exactement sur
+ *       la ligne d'un mur, ou les quatre pans du secteur passent derriere la camera ;</li>
  *   <li>les monstres finissent par arriver a l'image — sans quoi la quatrieme boucle de sprite
  *       serait branchee pour rien.</li>
  * </ul>
@@ -58,20 +57,6 @@ public final class GameTest {
         System.exit(tout ? 0 : 1);
     }
 
-    /** Combien de pixels l'image porte. */
-    private static int compte(Viewer viewer, Screen screen) {
-        int mis = 0;
-        for (int y = 0; y < viewer.view().height(); y++) {
-            int de = screen.line(y);
-            for (int k = 0; k < Screen.WIDTH; k++) {
-                if (screen.pixels()[de + k] != 0) {
-                    mis++;
-                }
-            }
-        }
-        return mis;
-    }
-
     private static boolean run(char lettre) {
         Level lvl = Data.level(lettre);
         if (lvl == null) {
@@ -91,6 +76,7 @@ public final class GameTest {
 
         int dessinees = 0;
         int vides = 0;
+        int noirs = 0;
         int monstres = 0;
         int accroches = 0;
         long poses = 0;
@@ -125,6 +111,9 @@ public final class GameTest {
                 }
                 poses += mis;
                 pire = Math.min(pire, mis);
+                if (mis == 0) {
+                    noirs++;
+                }
                 if (mis < pixels * PLEIN) {
                     if (vides < 40) {
                         if (dump) {
@@ -156,12 +145,12 @@ public final class GameTest {
         // d'ou elles viennent (voir l'en-tete), et ce n'est pas le rendu.
         boolean ok = dessinees > IMAGES / 2;
         System.out.printf("=== GameTest %c : %d images dessinees, %.1f%% de pixels poses"
-                + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d image(s) vide(s)"
-                + " -> %s%n",
+                + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d maigre(s)"
+                + " dont %d noire(s) -> %s%n",
                 lettre, dessinees,
                 dessinees == 0 ? 0.0 : 100.0 * poses / ((double) dessinees * pixels),
                 pire == Integer.MAX_VALUE ? 0.0 : 100.0 * pire / pixels,
-                monstres, accroches, vides, ok ? "ok" : "ECHEC");
+                monstres, accroches, vides, noirs, ok ? "ok" : "ECHEC");
         return ok;
     }
 }

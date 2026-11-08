@@ -42,6 +42,12 @@ public final class Shot {
         int secteur = Integer.getInteger("ab3d2.zone", -1);
         int echelle = Integer.getInteger("ab3d2.scale", 3);
         int tours = Integer.getInteger("ab3d2.frames", 0);
+        int secteurDemande = Integer.getInteger("ab3d2.zone", -1);
+        if (secteurDemande >= 0) {
+            // Une image au moins : c'est la simulation qui pose l'oeil a la bonne hauteur, et
+            // le sol d'un secteur a deux etages ne se devine pas depuis le fichier.
+            tours = Math.max(1, tours);
+        }
         Path sortie = Path.of(System.getProperty("ab3d2.out", "shot.png"));
 
         // Le point de vue vient de la SIMULATION, et non d'une valeur inventee : c'est elle qui
@@ -53,6 +59,18 @@ public final class Shot {
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
         if (secteur >= 0) {
+            // Le point de controle d'un secteur n'est PAS garanti dedans : c'est un jalon de
+            // navigation, et plusieurs tombent de l'autre cote d'une ouverture (le 100 du
+            // niveau f est dans le 99). Pose dans le mauvais secteur, le rendu ecarte tout et
+            // l'image sort NOIRE. On suit donc les ouvertures jusqu'a celui qui le contient.
+            int vrai = contenant(world, secteur,
+                    lvl.controlPoints().get(lvl.zones().get(secteur).controlPoint()).x(),
+                    lvl.controlPoints().get(lvl.zones().get(secteur).controlPoint()).z());
+            if (vrai != secteur) {
+                System.out.printf("  le point de controle du secteur %d est dans le secteur"
+                        + " %d : c'est de la qu'on regarde%n", secteur, vrai);
+                secteur = vrai;
+            }
             Level.Zone depart = lvl.zones().get(secteur);
             int ou = depart.controlPoint();
             world.player.xOff = lvl.controlPoints().get(ou).x() << 16;
@@ -75,7 +93,7 @@ public final class Shot {
             int cp = zz.controlPoint();
             x = lvl.controlPoints().get(cp).x();
             z = lvl.controlPoints().get(cp).z();
-            hauteur = Integer.getInteger("ab3d2.eye", zz.floor() - PlayerSim.PLR_STAND_HEIGHT);
+            hauteur = Integer.getInteger("ab3d2.eye", world.player.yOff);
         }
 
         // Aucune image jouee : l'eclairage n'a jamais ete calcule, il faut le faire une fois.
@@ -93,6 +111,35 @@ public final class Shot {
 
         ecrire(viewer.screen(), viewer.view(), echelle, sortie);
         System.out.println("  -> " + sortie.toAbsolutePath());
+    }
+
+    /**
+     * Quel secteur contient vraiment ce point ?
+     *
+     * <p>Meme test que {@code MoveObject} : un point est du bon cote d'une arete quand
+     * {@code (x-ex)*edz - (z-ez)*edx >= 0}. S'il est du mauvais cote d'une arete qui JOINT un
+     * voisin, c'est que le point est chez le voisin ; on l'y suit.
+     */
+    private static int contenant(World world, int zone, int x, int z) {
+        for (int saut = 0; saut < 8; saut++) {
+            int passe = -1;
+            for (int ei : world.lvl.zones[zone].edgeList) {
+                if (ei < 0) {
+                    break;                             // fin du contour
+                }
+                int d = ab3d2.full.M68k.muls(x - world.lvl.edgeX[ei], world.lvl.edgeDz[ei])
+                        - ab3d2.full.M68k.muls(z - world.lvl.edgeZ[ei], world.lvl.edgeDx[ei]);
+                if (d < 0 && world.lvl.edgeJoin[ei] >= 0) {
+                    passe = world.lvl.edgeJoin[ei];
+                    break;
+                }
+            }
+            if (passe < 0) {
+                return zone;
+            }
+            zone = passe;
+        }
+        return zone;
     }
 
     /** Du tampon d'octets a un PNG, chaque octet passant par la palette du jeu. */

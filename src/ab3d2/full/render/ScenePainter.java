@@ -95,6 +95,8 @@ public final class ScenePainter implements Scene.Painter {
     private int modelsDrawn;
     private int modelFacesDrawn;
     private int offTable;
+    private int wallStrips;
+    private int flatSpans;
 
     /**
      * @param screen le tampon ou tout se depose
@@ -229,10 +231,30 @@ public final class ScenePainter implements Scene.Painter {
         skiesDrawn++;
     }
 
+    /**
+     * Remet les comptes a zero : ce que {@link #tally()} dira ne vaudra que pour l'image qui
+     * commence. Sans cet appel les comptes s'additionnent, ce qui ne sert qu'a une image unique.
+     */
+    public void beginFrame() {
+        wallsDrawn = 0;
+        flatsDrawn = 0;
+        watersDrawn = 0;
+        skiesDrawn = 0;
+        thingsDrawn = 0;
+        glaresDrawn = 0;
+        thingsSkipped = 0;
+        litDrawn = 0;
+        modelsDrawn = 0;
+        modelFacesDrawn = 0;
+        offTable = 0;
+        wallStrips = 0;
+        flatSpans = 0;
+    }
+
     /** Combien de pans, de surfaces, de plans d'eau et de ciels ont ete peints. */
     public String tally() {
-        return wallsDrawn + " pans, " + flatsDrawn + " surfaces, " + watersDrawn + " plans"
-                + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
+        return wallsDrawn + " pans (" + wallStrips + " colonnes), "
+                + flatsDrawn + " surfaces (" + flatSpans + " tranches), " + watersDrawn + " plans d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
                 + glaresDrawn + " miroitements, " + modelsDrawn + " modeles ("
                 + modelFacesDrawn + " faces), " + litDrawn + " eclairees ("
                 + thingsSkipped + " passees), " + offTable
@@ -250,12 +272,17 @@ public final class ScenePainter implements Scene.Painter {
         wall.draw(view, w, playerY, centreY, pass.leftClip(), pass.rightClip(), gauche, droite,
                 true);
         if (wall.outOfTable() > 0) {
+            // La table des pas ne couvre que 512 largeurs. Au-dela, l'original lit APRES elle —
+            // ce qu'il y trouve n'est pas reproductible, mais il DESSINE. Ne rien dessiner
+            // serait pire que tout : colle contre un mur, chacun de ses pans depasse la table,
+            // et l'ecran devient NOIR. On peint donc l'extension que Wall.beyond calcule, et on
+            // se contente de compter les cas.
             offTable++;
-            return;                                    // voir Wall.beyond : pan non dessinable
         }
         wallPaint.wall(w, peau, 0);
         for (Wall.Strip s : wall.strips()) {
             wallPaint.paint(s);
+            wallStrips++;
         }
         wallsDrawn++;
     }
@@ -283,6 +310,7 @@ public final class ScenePainter implements Scene.Painter {
             } else {
                 flatPaint.paint(span);
             }
+            flatSpans++;
         }
         if (eau) {
             watersDrawn++;

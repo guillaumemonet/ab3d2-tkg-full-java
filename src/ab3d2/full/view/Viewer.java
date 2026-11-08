@@ -156,6 +156,7 @@ public final class Viewer {
         order.update(lvl, from, x, z);
 
         screen.clear();
+        peintre.beginFrame();
         peintre.eye(x, z, eye, angle, Data.sinCos());
         things(world);
         objectView.update(choses, lvl.objectPoints(), x, z, angle, 0, true);
