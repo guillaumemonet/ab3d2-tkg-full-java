@@ -1305,7 +1305,46 @@ public final class Aliens {
         doAttackAnim(a, null);
     }
 
-    private void doAttackAnim(Alien a, PlayerSim p) {
+    /**
+     * Harnais : pose ce que {@link #itsAnAlien} aurait pose pour ce monstre, puis joue la
+     * queue d'animation seule.
+     *
+     * <p>Le jeu n'appelle jamais ceci ; l'oracle {@code alienanim} s'en sert pour eprouver la
+     * routine image par image, sans avoir a faire vivre tout un niveau.
+     */
+    void animateForCheck(Alien a, PlayerSim p, int quelAux) {
+        Database.AlienDef def = glf.alien(a.type);
+        vecObj = def.gfxType() & 0xFF;
+        auxObj = quelAux;
+        doAttackAnim(a, p);
+    }
+
+    /** Le type de dessin du monstre en cours ({@code AI_VecObj_w}). */
+    int vecObj() {
+        return vecObj;
+    }
+
+    /** La definition d'objet accrochee au monstre en cours ({@code AUXOBJ}). */
+    int auxObj() {
+        return auxObj;
+    }
+
+    /** {@code ai_AnimFacing_w} : l'increment d'angle que l'image d'un modele impose. */
+    int animFacing() {
+        return animFacing;
+    }
+
+    /** {@code ai_DoAction_b} : l'action que l'image reclame (mordre, tirer). */
+    int doAction() {
+        return doAction;
+    }
+
+    /** {@code ai_FinishedAnim_b} : vrai si l'animation vient de boucler. */
+    boolean finishedAnim() {
+        return finishedAnim;
+    }
+
+    void doAttackAnim(Alien a, PlayerSim p) {
         int opt = a.wsView;
         if (opt == 0 && vecObj != 1 && p != null) {
             opt = viewpointToDraw(a, p) * 2;           // marche : 4 vues (face, droite, dos, gauche)

@@ -31,7 +31,9 @@ import ab3d2.full.defs.Database;
  *
  * @param sheet     le mot de feuille, tel que l'enregistrement le porte — negatif pour un
  *                  miroitement
- * @param flags     les drapeaux de dessin ; toujours nuls ici, l'animation les efface
+ * @param flags     les drapeaux de dessin. Nuls pour une chose du decor, dont l'animation les
+ *                  efface ; pour un MONSTRE ils portent l'image retournee et le type de dessin,
+ *                  et c'est par eux que l'eclairage directionnel s'allume
  * @param frame     l'image dans la feuille
  * @param halfWidth la demi-largeur dans le monde, ou deux cent cinquante-cinq pour un modele
  * @param halfDepth la demi-hauteur dans le monde
@@ -54,6 +56,9 @@ public record Appearance(int sheet, int flags, int frame, int halfWidth, int hal
 
     /** La demi-largeur qui ne designe pas une taille mais un modele en trois dimensions. */
     public static final int VECTOR_MARK = 255;
+
+    /** Le drapeau de l'image retournee, bit sept de l'octet de drapeaux. */
+    public static final int FLIPPED = 0x80;
 
     /** Le type de dessin d'un modele, dans la definition de l'objet. */
     private static final int GFX_VECTOR = 1;
@@ -79,6 +84,44 @@ public record Appearance(int sheet, int flags, int frame, int halfWidth, int hal
         int feuille = (-(byte) pas.gfx()) & 0xFFFF;
         return new Appearance(feuille, 0, pas.frame(),
                 (pas.word2() >>> 8) & 0xFF, pas.word2() & 0xFF);
+    }
+
+    /**
+     * Ce qu'un MONSTRE donne a voir : la queue de {@code ai_DoAttackAnim} (ai.s:2012).
+     *
+     * <p>Rien ici ne ressemble a la routine du decor, et c'est la que les drapeaux de dessin
+     * NAISSENT. Trois choses s'y jouent, dans cet ordre :
+     *
+     * <ol>
+     *   <li>{@code move.l #0,8(a0)} efface les quatre octets de dessin : les drapeaux repartent
+     *       de zero a chaque image, et seule celle-ci decide ;</li>
+     *   <li>{@code move.w #-1,6(a0)} pose la MARQUE du modele, puis les demi-tailles ne la
+     *       recouvrent que si le monstre n'en est pas un. Un modele n'a donc pas de taille :
+     *       il a une marque ;</li>
+     *   <li>{@code or.b AI_VecObj_w,10(a0)} ajoute le type de dessin aux drapeaux — et c'est
+     *       ce OU, et lui seul, qui envoie le sprite vers la boucle ECLAIREE. Quinze des vingt
+     *       monstres passent par la.</li>
+     * </ol>
+     *
+     * <p>Noter que le retournement s'ECRIT ({@code move.b #128}) alors que le type de dessin
+     * s'AJOUTE : si l'original avait ecrit les deux, l'un effacerait l'autre.
+     *
+     * @param gfx    la feuille de l'image d'animation (son octet bas)
+     * @param frame  l'image, deja diminuee de un par l'appelant
+     * @param flip   vrai si l'image se dessine en miroir
+     * @param word2  les demi-tailles de l'image d'animation, ignorees pour un modele
+     * @param vecObj {@code AI_VecObj_w} : l'octet bas du type de dessin du monstre
+     */
+    public static Appearance ofAlien(int gfx, int frame, boolean flip, int word2, int vecObj) {
+        int flags = flip ? FLIPPED : 0;                // move.b #128,10(a0)
+        if ((byte) vecObj == GFX_VECTOR) {             // cmp.b #1,AI_VecObj_w ; beq.s .nosize
+            return new Appearance(gfx & 0xFF, flags, frame & 0xFF, VECTOR_MARK, VECTOR_MARK);
+        }
+        if ((byte) vecObj > GFX_VECTOR) {              // bgt.s .setlight
+            flags |= vecObj & 0xFF;                    // or.b d1,10(a0)
+        }
+        return new Appearance(gfx & 0xFF, flags, frame & 0xFF,
+                (word2 >>> 8) & 0xFF, word2 & 0xFF);   // move.w 2(a6,d1.w),6(a0)
     }
 
     /** Vrai si ce n'est pas une image mais un modele en trois dimensions. */

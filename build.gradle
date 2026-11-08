@@ -121,6 +121,16 @@ tasks.register('objAnimCheck', JavaExec) {
     systemProperty 'ab3d2.objanim', new File(refRoot, 'objanim.json').absolutePath
 }
 
+tasks.register('alienAnimCheck', JavaExec) {
+    group = 'verification'
+    description = "Le record de dessin d'un monstre : la queue de son animation"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.AlienAnimCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.alienanim', new File(refRoot, 'alienanim.json').absolutePath
+}
+
 tasks.register('shot', JavaExec) {
     group = 'application'
     description = "Une image prise depuis un point du niveau"
@@ -421,6 +431,6 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
+            'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
             'modelEdgesCheck', 'modelPixelsCheck'
 }
