@@ -392,6 +392,17 @@ tasks.register('modelEdgesCheck', JavaExec) {
     systemProperty 'ab3d2.modeledges', new File(refRoot, 'modeledges.json').absolutePath
 }
 
+tasks.register('modelPixelsCheck', JavaExec) {
+    group = 'verification'
+    description = "Les pixels d'un modele : les quatre remplisseurs de polygones"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ModelPixelsCheck'
+    maxHeapSize = '8g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.modelpixels', new File(refRoot, 'modelpixels.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
@@ -400,5 +411,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
             'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck'
+            'modelEdgesCheck', 'modelPixelsCheck'
 }

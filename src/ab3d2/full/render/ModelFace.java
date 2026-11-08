@@ -201,6 +201,25 @@ public final class ModelFace {
      * <p>Port de {@code .notsec} (objdrawhires.s:2370). Une texture de la seconde banque se
      * reconnait a son mot NEGATIF : le bit de signe est la marque, le reste le deplacement.
      */
+    /**
+     * Lequel des quatre remplisseurs cette face demande.
+     *
+     * <p>Meme ordre de tests que la teinte, et pour cause : c'est le meme enchainement
+     * d'instructions qui decide des deux.
+     */
+    public static int kind(VectorModel.Face face) {
+        if (face.holes()) {                         // tst.b draw_Holes_b ; bne gotholesin
+            return ModelPaint.HOLES;
+        }
+        if (face.gouraud()) {                       // tst.b draw_Gouraud_b ; bne
+            return ModelPaint.GOURAUD;
+        }
+        if (face.glare()) {                         // tst.b draw_PreGouraud_b ; bne predoglare
+            return ModelPaint.GLARE;
+        }
+        return ModelPaint.PLAIN;
+    }
+
     public int texture(VectorModel.Face face) {
         return face.secondBank() ? 65536 + face.texture() : face.texture();
     }

@@ -9,6 +9,7 @@ import ab3d2.full.level.LevelReader;
 import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.ShadeTable;
 import ab3d2.full.level.SpriteSheet;
+import ab3d2.full.level.TextureMaps;
 import ab3d2.full.level.VectorModel;
 import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
@@ -41,6 +42,7 @@ public final class Data {
     private static final Map<String, List<WallTexture>> WALLS = new HashMap<>();
     private static final Map<String, FloorTexture> FLOORS = new HashMap<>();
     private static ShadeTable shades;
+    private static TextureMaps textureMaps;
     private static WaterFrames water;
     private static Backdrop sky;
     private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
@@ -191,6 +193,26 @@ public final class Data {
             }
         }
         return shades;
+    }
+
+    /**
+     * Le bloc de textures des modeles en relief, commun a tout le jeu.
+     *
+     * <p>Les murs n'en sont pas : ils ont leurs propres fichiers, un par texture.
+     */
+    public static synchronized TextureMaps textureMaps() {
+        if (textureMaps == null) {
+            Path file = asset(database().textureFile());
+            if (file == null) {
+                throw new IllegalStateException("bloc de textures introuvable");
+            }
+            try {
+                textureMaps = TextureMaps.read(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("bloc de textures illisible : " + file, e);
+            }
+        }
+        return textureMaps;
     }
 
     /**
