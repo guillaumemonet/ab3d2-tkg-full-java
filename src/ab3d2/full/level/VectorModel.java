@@ -56,12 +56,66 @@ public record VectorModel(
      * @param at    ou sont ses faces, compte depuis le deuxieme mot du fichier
      * @param point le DEPLACEMENT de son point representatif dans la table des points tournes,
      *              dix octets par point — ce n'est pas un rang
+     * @param faces ses faces, dans l'ordre ou elles se dessinent
      */
-    public record Part(int at, int point) {
+    public record Part(int at, int point, List<Face> faces) {
 
         /** Le rang du point representatif. */
         public int pointIndex() {
             return point / 10;
+        }
+    }
+
+    /**
+     * Une FACE : un contour ferme, une texture, et de quoi decider sa teinte.
+     *
+     * <h2>Le contour</h2>
+     *
+     * <p>Le premier mot du dossier compte les aretes MOINS UNE, et le contour porte une entree
+     * de plus que d'aretes : la derniere REPETE la premiere, mot pour mot. C'est ce doublon qui
+     * ferme le polygone — le trace prend les entrees deux par deux et n'a donc rien de special
+     * a faire au dernier tour. Mesure : sur les 1167 faces des vingt modeles, la derniere
+     * entree est l'exacte copie de la premiere, sans exception.
+     *
+     * <p>Chaque entree tient en quatre octets : un mot de rang de point, puis deux octets de
+     * coordonnee dans la texture, l'un et l'autre entre zero et soixante-quatre inclus.
+     *
+     * <h2>La teinte</h2>
+     *
+     * <p>Trois choses closent le dossier. Le mot de TEXTURE, negatif quand elle est rangee dans
+     * la seconde banque — 466 faces sur 1167 le sont. Un octet de CLARTE, qui se lit comme un
+     * pourcentage : cent pour une face normale, et 30, 50 ou 70 pour les dix-huit faces que le
+     * modeleur a voulues plus sombres. Un octet de RANG, enfin, qui n'est pas une normale mais
+     * le numero de la face dans le modele entier : il sert a lire son orientation dans la table
+     * d'angles de la pose, et chaque pose a donc ses propres orientations de faces.
+     *
+     * <h2>Les deux mots de drapeaux</h2>
+     *
+     * <p>Le deuxieme mot du dossier et le dernier portent chacun DEUX drapeaux, un par octet,
+     * parce que le jeu les ecrit d'un seul mot sur deux octets voisins. Du premier, seul
+     * l'octet bas sert : les TROUS, c'est-a-dire une texture qui laisse voir au travers — sept
+     * faces dans tout le jeu. Du second viennent le DEGRADE (octet bas) et le MIROITEMENT
+     * (octet haut), et aucune face n'a les deux.
+     *
+     * @param at         ou commence le dossier, compte depuis le deuxieme mot du fichier
+     * @param point      les rangs de points du contour, le dernier repetant le premier
+     * @param u          l'abscisse dans la texture, une par entree
+     * @param v          l'ordonnee dans la texture, une par entree
+     * @param texture    ou commence la texture dans sa banque
+     * @param secondBank si c'est la seconde banque de textures
+     * @param light      la clarte propre de la face, en pourcentage
+     * @param normal     le rang de la face, qui lit son orientation dans la table de la pose
+     * @param holes      si la texture laisse voir au travers
+     * @param gouraud    si la face se degrade d'un sommet a l'autre
+     * @param glare      si la face miroite
+     */
+    public record Face(int at, int[] point, int[] u, int[] v,
+            int texture, boolean secondBank, int light, int normal,
+            boolean holes, boolean gouraud, boolean glare) {
+
+        /** Combien d'aretes le contour a. */
+        public int lines() {
+            return point.length - 1;
         }
     }
 
@@ -128,9 +182,54 @@ public record VectorModel(
             if (off < 0) {
                 break;
             }
-            parts.add(new Part(off, uword(raw, at + 2)));
+            parts.add(new Part(off, uword(raw, at + 2), faces(raw, start, off, name)));
         }
         return new VectorModel(name, sort, pointCount, List.copyOf(frames), List.copyOf(parts));
+    }
+
+    /**
+     * Les faces d'une partie, a la file jusqu'au premier mot de tete NEGATIF.
+     *
+     * <p>Chaque dossier occupe {@code 18 + 4n} octets, ou {@code n} est son mot de tete : deux
+     * mots d'en-tete, {@code n+2} entrees de contour de quatre octets, puis la texture, la
+     * clarte, le rang et le mot de drapeaux de fin.
+     */
+    private static List<Face> faces(byte[] raw, int start, int partAt, String name)
+            throws IOException {
+        List<Face> out = new ArrayList<>();
+        int at = start + partAt;
+        while (true) {
+            if (at + 2 > raw.length) {
+                throw new IOException("faces de " + name + " : dossier tronque");
+            }
+            int n = word(raw, at);
+            if (n < 0) {
+                return List.copyOf(out);
+            }
+            int size = 18 + 4 * n;
+            if (at + size > raw.length) {
+                throw new IOException("faces de " + name + " : dossier hors du fichier");
+            }
+            int count = n + 2;
+            int[] point = new int[count];
+            int[] u = new int[count];
+            int[] v = new int[count];
+            for (int i = 0; i < count; i++) {
+                point[i] = uword(raw, at + 4 + i * 4);
+                u[i] = raw[at + 4 + i * 4 + 2] & 0xFF;
+                v[i] = raw[at + 4 + i * 4 + 3] & 0xFF;
+            }
+            int tex = word(raw, at + 12 + 4 * n);
+            int tail = uword(raw, at + 16 + 4 * n);
+            out.add(new Face(at - start, point, u, v,
+                    tex & 0x7FFF, tex < 0,
+                    raw[at + 14 + 4 * n] & 0xFF,
+                    raw[at + 15 + 4 * n] & 0xFF,
+                    (uword(raw, at + 2) & 0xFF) != 0,
+                    (tail & 0xFF) != 0,
+                    (tail >> 8) != 0));
+            at += size;
+        }
     }
 
     private static int word(byte[] b, int at) {

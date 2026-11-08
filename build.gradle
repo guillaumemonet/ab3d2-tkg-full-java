@@ -370,6 +370,17 @@ tasks.register('modelPointsCheck', JavaExec) {
     systemProperty 'ab3d2.modelpoints', new File(refRoot, 'modelpoints.json').absolutePath
 }
 
+tasks.register('modelFacesCheck', JavaExec) {
+    group = 'verification'
+    description = "Les faces d'un modele : garde-fou, dos tourne, texture et palette"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ModelFacesCheck'
+    maxHeapSize = '6g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.modelfaces', new File(refRoot, 'modelfaces.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
@@ -377,5 +388,5 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck'
+            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck'
 }
