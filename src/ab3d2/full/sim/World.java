@@ -54,6 +54,15 @@ public final class World {
     public final ObjectRuntime objects;
     public final Anims anims;
     public final SfxQueue sfx = new SfxQueue();
+
+    /**
+     * L'eclairage, quand la boucle en fournit un. {@code null} : rien ne clignote et aucune
+     * source mobile n'eclaire — c'est l'etat des harnais, qui ne dessinent pas.
+     */
+    public ZoneLight light;
+
+    /** Anim_Timer_w : le compte a rebours du clignotement, decremente a chaque image. */
+    private int brightTimer;
     public final Messages messages = new Messages();
 
     /** L'arme en main. */
@@ -123,6 +132,7 @@ public final class World {
      */
     public void frame(Input in) {
         frame++;
+        brightTimer--;                                 // Anim_Timer_w, au balayage
 
         // L'action se prend au FRONT montant : rester appuye n'actionne qu'une fois.
         boolean tap = in.action && !previousAction;
@@ -143,6 +153,13 @@ public final class World {
         player.keyboardControl();                      // l'intention
         player.fall();                                 // la pesanteur, le sol, le plafond
         player.control();                              // la collision, puis la position commise
+
+        // donetalking (hires.s:2567) : les luminosites du secteur regarde et de son entourage
+        // se REFONT ici, apres le joueur et AVANT l'IA. C'est ce qui laisse les torches des
+        // monstres et la lueur des tirs ecrire par-dessus ; l'ordre inverse les effacerait.
+        if (light != null) {
+            light.frame(player.zone);
+        }
 
         // Un objet encore au sol VERROUILLE les portes dont il tient la cle : ramasser, c'est
         // ouvrir.
@@ -166,6 +183,13 @@ public final class World {
         anims.tempFrames = 1;
         anims.run();                                   // les ascenseurs, puis les portes
         player.floorSpd = anims.playerFloorSpd;        // le sol qui se derobe sous les pieds
+
+        // newanims.s:801 : une image sur cinq, les sequences de clignotement avancent. Elles
+        // touchent la table de DEPART, donc leur effet n'arrive qu'a l'image suivante.
+        if (light != null && brightTimer <= 0) {
+            light.tick();
+            brightTimer = 5;                           // move.w #5,Anim_Timer_w
+        }
     }
 
     /** La sante du joueur. */

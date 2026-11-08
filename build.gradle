@@ -131,6 +131,29 @@ tasks.register('alienAnimCheck', JavaExec) {
     systemProperty 'ab3d2.alienanim', new File(refRoot, 'alienanim.json').absolutePath
 }
 
+tasks.register('gameTest', JavaExec) {
+    group = 'verification'
+    description = "La boucle de jeu, sans fenetre : mille images par niveau"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.GameTest'
+    systemProperty 'ab3d2.dump', project.hasProperty('dump') ? 'true' : 'false'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
+}
+
+tasks.register('game', JavaExec) {
+    group = 'application'
+    description = "Le jeu : la simulation et le rendu, cinquante fois par seconde"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.Game'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
+    if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
+}
+
 tasks.register('shot', JavaExec) {
     group = 'application'
     description = "Une image prise depuis un point du niveau"
@@ -432,6 +455,6 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
+            'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
             'modelEdgesCheck', 'modelPixelsCheck'
 }

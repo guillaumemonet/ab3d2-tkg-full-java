@@ -64,7 +64,7 @@ import static ab3d2.full.M68k.setw;
  * ecrivent donc en dehors des emplacements du secteur qu'ils pretendent eclairer, et rien dans
  * la simulation portee ne les appelle.
  */
-public final class Lights implements DynLight {
+public final class Lights implements ab3d2.full.sim.ZoneLight {
 
     /** Combien de points de bord par secteur, et combien de valeurs par point. */
     public static final int POINTS = 10;
@@ -209,6 +209,13 @@ public final class Lights implements DynLight {
      * <p>Les secteurs sont parcourus DEUX fois, les luminosites de secteur d'abord et celles de
      * points ensuite, parce que le code d'origine le fait ainsi.
      */
+    public void frame(int zone) {
+        if (zone >= 0 && zone < level.zones().size()) {
+            frame(level.zones().get(zone));
+        }
+    }
+
+    /** computeZoneBrightness, le secteur deja trouve. */
     public void frame(Level.Zone from) {
         for (Level.Visible v : from.visible()) {
             Level.Zone z = level.zones().get(v.zone());
