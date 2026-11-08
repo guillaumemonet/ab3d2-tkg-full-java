@@ -62,6 +62,18 @@ public final class Shot {
         // secteur moins sa taille. Pose a zero, l'oeil serait pile au ras du sol et l'image
         // s'arreterait net a l'horizon.
         World world = World.of(lettre);
+        // Le point de vue se pose AVANT de faire tourner le monde. C'est la position du JOUEUR
+        // qui reveille les monstres — leur secteur doit figurer dans sa liste de visibilite —
+        // et un point de vue pose apres coup les laisserait tous endormis, donc invisibles :
+        // leurs octets de dessin sont a zero tant qu'ils n'ont pas pense.
+        if (secteur >= 0) {
+            Level.Zone depart = lvl.zones().get(secteur);
+            int ou = depart.controlPoint();
+            world.player.xOff = lvl.controlPoints().get(ou).x() << 16;
+            world.player.zOff = lvl.controlPoints().get(ou).z() << 16;
+            world.player.zone = secteur;
+            world.player.yOff = depart.floor() - PlayerSim.PLR_STAND_HEIGHT;
+        }
         for (int t = 0; t < tours; t++) {
             world.frame(new World.Input());
         }
@@ -125,14 +137,78 @@ public final class Shot {
         for (ab3d2.full.sim.ObjectRuntime.Thing t : world.objects.decorations()) {
             parEntite.put(t.entity, t);
         }
+        // Les MONSTRES viennent de la SIMULATION et non du fichier : leurs champs de dessin y
+        // sont tous a zero. Chacun garde le rang de l'entite dont il est ne, et son graphique
+        // AUXILIAIRE occupe l'entite qui le PRECEDE — c'est la que l'animation l'ecrit
+        // (ENT_PREV), et c'est pour cela que l'auxiliaire emprunte le point de son porteur.
+        java.util.Map<Integer, ab3d2.full.sim.Aliens.Alien> monstres = new java.util.HashMap<>();
+        int eveilles = 0;
+        for (ab3d2.full.sim.Aliens.Alien m : world.aliens.aliens()) {
+            if (!m.alive || m.zone < 0 || m.index >= lvl.entities().size()) {
+                continue;
+            }
+            if (m.ownBright != 0) {
+                eveilles++;
+            }
+            if (m.drawn) {
+                monstres.put(m.index, m);
+            }
+        }
+        System.out.printf("  monstres : %d en place, %d qui pensent, %d avec un dessin%n",
+                world.aliens.aliens().size(), eveilles, monstres.size());
+
         List<ObjectView.Thing> choses = new ArrayList<>(lvl.entities().size());
         List<Bitmap.Thing> apparences = new ArrayList<>(lvl.entities().size());
         int[] orientations = new int[lvl.entities().size()];
         int animees = 0;
+        int vivants = 0;
+        int accroches = 0;
         for (Level.Entity ent : lvl.entities()) {
+            int rang = choses.size();
             // EntT_CurrentAngle_w est le MEME champ que l'angle du fichier : la simulation ne
             // fait tourner que le joueur et les aliens, pas le decor.
-            orientations[choses.size()] = ent.angle();
+            orientations[rang] = ent.angle();
+
+            ab3d2.full.sim.Aliens.Alien monstre = monstres.get(rang);
+            if (monstre != null) {
+                Database.AlienDef quel = Data.database().alien(monstre.type);
+                Appearance vu = Appearance.ofAlien(monstre.sheet, monstre.frame, monstre.flip,
+                        monstre.drawWord2, quel.gfxType() & 0xFF);
+                orientations[rang] = monstre.angle;
+                choses.add(new ObjectView.Thing(monstre.x, monstre.z, monstre.zone,
+                        monstre.zone, monstre.upperZone ? 0xFF : 0, false, ent.point()));
+                apparences.add(new Bitmap.Thing(ent.point(), monstre.ownBright, monstre.height,
+                        vu.halfWidth(), vu.halfDepth(), vu.sheet(), vu.flags(), vu.frame(),
+                        0, 0));
+                vivants++;
+                continue;
+            }
+
+            // L'auxiliaire du monstre qui SUIT. Il est libere a chaque image et rempli
+            // seulement si l'image en cours le reclame ; libere, son secteur vaut -1 et le tri
+            // ne le voit pas.
+            ab3d2.full.sim.Aliens.Alien porteur =
+                    ent.kind() == Level.Kind.AUX ? monstres.get(rang + 1) : null;
+            if (porteur != null) {
+                Database.ObjectDef quel = porteur.auxFrame < 0 ? null
+                        : Data.database().object(Data.database().alien(porteur.type).auxiliary());
+                if (quel == null || porteur.auxFrame >= quel.idleAnim().size()) {
+                    choses.add(new ObjectView.Thing(ent.x(), ent.z(), -1, -1,
+                            ent.upperZone(), true, ent.point()));
+                    apparences.add(new Bitmap.Thing(ent.point(), 0, 0, 0, 0, 0, 0, 0, 0, 0));
+                    continue;
+                }
+                Appearance vu = Appearance.of(quel.idleAnim().get(porteur.auxFrame),
+                        quel.gfxType());
+                choses.add(new ObjectView.Thing(porteur.x, porteur.z, porteur.zone,
+                        porteur.zone, porteur.upperZone ? 0xFF : 0, true, ent.point()));
+                apparences.add(new Bitmap.Thing(ent.point(), 0, porteur.height,
+                        vu.halfWidth(), vu.halfDepth(), vu.sheet(), vu.flags(), vu.frame(),
+                        porteur.auxX, porteur.auxY));
+                accroches++;
+                continue;
+            }
+
             ab3d2.full.sim.ObjectRuntime.Thing t = parEntite.get(ent);
             int ou = t != null ? t.zone : ent.zone();
             choses.add(new ObjectView.Thing(ent.x(), ent.z(), ou, ou,
@@ -172,7 +248,8 @@ public final class Shot {
         new Scene().draw(lvl, from, order, edges, lights, view, hauteur, peintre);
 
         System.out.printf("niveau %c, secteur %d (%d, %d), angle %d, oeil %d, %d choses"
-                + " animees%n", lettre, zone, x, z, angle, hauteur, animees);
+                + " animees, %d monstres vivants (%d graphiques accroches)%n",
+                lettre, zone, x, z, angle, hauteur, animees, vivants, accroches);
         System.out.println("  " + peintre.tally());
 
         Palette palette = Data.palette();

@@ -84,6 +84,19 @@ public final class Aliens {
         public int sheet, frame;
         public boolean flip;
         public int drawWord2;
+        /**
+         * {@code 2(a0)} : la luminosite propre de l'entite, posee par {@code AI_MainRoutine}.
+         * Elle vaut moins vingt pour tout monstre qui PENSE, et reste a zero tant qu'il dort.
+         */
+        public int ownBright;
+        /**
+         * Vrai des que {@code ai_DoAttackAnim} a ecrit les octets de dessin.
+         *
+         * <p>Dans le fichier de niveau ils sont a ZERO, et un monstre qui n'a pas encore pense
+         * n'a donc pas de demi-largeur : le dessin l'ecarte de lui-meme. Sans ce drapeau on
+         * donnerait a un modele en relief sa marque avant qu'il ait vecu.
+         */
+        public boolean drawn;
         /** Vrai tant que l'entité existe (l'emplacement est rendu quand l'anim de mort finit). */
         public boolean alive = true;
     }
@@ -475,7 +488,7 @@ public final class Aliens {
 
     /** AI_MainRoutine : dispatch selon EntT_CurrentMode_b. */
     private void aiMainRoutine(Alien a, PlayerSim p) {
-        // move.w #-20,2(a0) : luminosité de dessin propre à l'entité (non utilisée ici)
+        a.ownBright = -20;                             // move.w #-20,2(a0)
         int mode = (byte) a.mode;
         if (mode < 1) {
             doDefault(a, p);
@@ -1363,6 +1376,7 @@ public final class Aliens {
             return;
         }
         Database.AlienFrame f = frames.get(Math.min(Math.max(d1, 0), frames.size() - 1));
+        a.drawn = true;                                  // les octets de dessin existent
         a.sheet = f.gfx();
         int d0 = f.frame();                              // octet signé : négatif = image miroir
         a.flip = d0 <= 0;
