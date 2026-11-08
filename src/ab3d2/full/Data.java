@@ -43,6 +43,7 @@ public final class Data {
     private static final Map<String, FloorTexture> FLOORS = new HashMap<>();
     private static ShadeTable shades;
     private static TextureMaps textureMaps;
+    private static byte[] guff;
     private static WaterFrames water;
     private static Backdrop sky;
     private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
@@ -252,6 +253,31 @@ public final class Data {
             at = found;
         }
         return at;
+    }
+
+    /**
+     * Les mille sept cent quatre-vingt-douze octets de la grille d'eclairage des sprites.
+     *
+     * <p>Le fichier s'appelle {@code guff} et la source elle-meme avoue n'en rien savoir :
+     * {@code ; todo - what is this?}. C'est cent douze lignes de seize octets — sept colonnes
+     * de sept, pour seize positions du point le plus clair —, et c'est de la que sort la
+     * tache de lumiere qu'une image eclairee porte sur elle.
+     *
+     * <p>Sa taille dit son usage mieux qu'un commentaire : le pas vertical est de cent douze
+     * octets et l'indice qui le multiplie va de zero a quinze ; quinze fois cent douze, plus
+     * six fois seize, plus quinze, font mille sept cent quatre-vingt-onze. Le dernier octet du
+     * fichier, et pas un de plus.
+     */
+    public static synchronized byte[] guff() {
+        if (guff == null) {
+            Path file = local().resolve("incbin").resolve("includes").resolve("guff");
+            try {
+                guff = java.nio.file.Files.readAllBytes(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("grille d'eclairage introuvable : " + file, e);
+            }
+        }
+        return guff;
     }
 
     /** Les huit images de l'ondulation de l'eau. */

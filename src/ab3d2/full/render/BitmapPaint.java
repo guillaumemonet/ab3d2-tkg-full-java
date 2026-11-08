@@ -195,4 +195,67 @@ public final class BitmapPaint {
             }
         }
     }
+
+    /**
+     * Pose les pixels d'un sprite ECLAIRE.
+     *
+     * <p>Le parcours des colonnes est celui de {@link #paint}. Ce qui se passe DANS la colonne
+     * ne lui ressemble en rien :
+     *
+     * <ul>
+     *   <li>la bande n'est pas faite de tiers. Les autres sprites logent trois sous-pixels de
+     *       cinq bits dans chaque mot de seize, et le haut de l'adresse dit lequel lire ;
+     *       celui-ci lit un octet PLEIN par ligne, et avance d'un octet;</li>
+     *   <li>l'adresse de la bande n'est pas masquee a vingt-quatre bits. Le masque et l'octet
+     *       de format vont ensemble, et ni l'un ni l'autre n'a de sens ici ;</li>
+     *   <li>l'octet pose ne vient pas d'une rampe de la feuille mais de la palette que
+     *       {@link LitPalette} vient de construire pour CE sprite-la.</li>
+     * </ul>
+     *
+     * <p>La teinte zero reste la transparence, comme pour la boucle simple.
+     *
+     * @param p     ce que {@link Bitmap} a decide
+     * @param sheet la feuille de sprites
+     * @param pals  la palette construite pour ce sprite
+     */
+    public void paintLit(Bitmap.Placed p, SpriteSheet sheet, LitPalette pals) {
+        byte[] pixels = screen.pixels();
+        int d7 = 0;                                    // l'accumulateur de bande
+        int column = 0;                                // a1 : la colonne a l'ecran
+
+        for (int c = p.columns(); c > 0; c--) {        // .draw_light_loop (dbra d3)
+            int strip = p.strip() + s16(d7 >>> 16);    // lea (a5,d7.w*4),a5
+            d7 += p.stripStep();                       // add.l a2,d7
+
+            int to = screen.line(p.top()) + p.left() + s16(column);
+            column++;
+
+            int entry = sheet.strip(strip);
+            if (sheet.beyond(strip)) {
+                offStrip++;
+            }
+            if (entry == 0) {
+                continue;                              // .blank_strip
+            }
+            int at = entry;                            // add.l d1,a0 — SANS masque
+
+            int frac = p.texStart();                   // d6
+            int row = p.texStart();                    // d1
+            for (int r = p.rows(); r > 0; r--) {       // .draw_vertical_strip (dbra d4)
+                // (a0,d1.w) etend le SIGNE du mot : une ligne negative lit AVANT la bande.
+                int texel = sheet.litTexel(at, s16(row));  // move.b (a0,d1.w),d0
+                if (texel < 0) {
+                    offSheet++;
+                } else if (texel != 0) {               // beq.s .skip_black
+                    pixels[to] = (byte) pals.at(texel);  // move.b (a4,d0.w),(a6)
+                }
+                to += Screen.WIDTH;                    // adda.w #SCREEN_WIDTH,a6
+
+                long somme = (frac & 0xFFFFFFFFL) + (p.texStep() & 0xFFFFFFFFL);
+                int retenue = (int) (somme >>> 32);
+                frac = (int) somme;
+                row = setw(row, (row & 0xFFFF) + (p.texStep() & 0xFFFF) + retenue);
+            }
+        }
+    }
 }

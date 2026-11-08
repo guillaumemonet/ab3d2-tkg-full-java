@@ -338,6 +338,17 @@ tasks.register('bitmapPaintCheck', JavaExec) {
     systemProperty 'ab3d2.bitmappaint', new File(refRoot, 'bitmappaint.json').absolutePath
 }
 
+tasks.register('bitmapLitCheck', JavaExec) {
+    group = 'verification'
+    description = "La palette et les pixels de l'image eclairee, confrontes au portage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.BitmapLitCheck'
+    maxHeapSize = '4g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.bitmaplit', new File(refRoot, 'bitmaplit.json').absolutePath
+}
+
 tasks.register('glareCheck', JavaExec) {
     group = 'verification'
     description = "Le miroitement : la pose et les pixels, confrontes au portage"
@@ -409,7 +420,7 @@ tasks.register('checkAll') {
     dependsOn 'levelCheck', 'defsCheck', 'xformCheck', 'zoneOrderCheck', 'moveTest',
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
-            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
+            'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
             'modelEdgesCheck', 'modelPixelsCheck'
 }

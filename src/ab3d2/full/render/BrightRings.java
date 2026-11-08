@@ -190,6 +190,29 @@ public final class BrightRings {
     }
 
     /**
+     * Efface les quatre anneaux, et n'eclaire que le secteur ou l'objet se tient.
+     *
+     * <p>Port de {@code draw_ResetAngleBrights} (1383). Les quatre anneaux partent a
+     * {@code $80}, la marque du RIEN — pas une luminosite nulle, une absence —, puis le
+     * secteur courant seul y pose ses points.
+     *
+     * <p>Ce n'est pas une etape de {@link #calc} qu'on aurait extraite par commodite : les
+     * SPRITES ECLAIRES s'arretent ici. Ils ne voient ni les secteurs voisins, ni les murs
+     * pleins, ni le lissage, ni la fusion des quatre anneaux en deux. Leur eclairage est donc
+     * bien plus pauvre que celui des modeles en relief, et c'est l'original qui le veut :
+     * {@code draw_bitmap_lighted} appelle cette routine-ci, pas {@code draw_CalcBrightRings}.
+     *
+     * @param zone  le secteur ou l'objet est dessine
+     * @param upper vrai s'il est a l'etage haut
+     * @param x     sa position
+     * @param z     sa position
+     */
+    public void reset(int zone, boolean upper, int x, int z) {
+        Arrays.fill(ring, EMPTY);                      // 16 × move.l #$80808080,(a2)+
+        zoneRing(zone, upper, x, z, 0);                // bsr draw_CalcBrightsInZone
+    }
+
+    /**
      * Refait les quatre anneaux pour un objet.
      *
      * @param zone  le secteur ou l'objet est dessine
@@ -198,9 +221,7 @@ public final class BrightRings {
      * @param z     sa position
      */
     public void calc(int zone, boolean upper, int x, int z) {
-        // ---- draw_ResetAngleBrights (1383) ----
-        Arrays.fill(ring, EMPTY);                      // 16 × move.l #$80808080,(a2)+
-        zoneRing(zone, upper, x, z, 0);                // bsr draw_CalcBrightsInZone
+        reset(zone, upper, x, z);                      // bsr draw_ResetAngleBrights
         int at = 2 * RING;                             // move.l #draw_AngleBrights_vl+32,a2
 
         // ---- draw_CalcBrightRings (1415), .do_all_walls ----

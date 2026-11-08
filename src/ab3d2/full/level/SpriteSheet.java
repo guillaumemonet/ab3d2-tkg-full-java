@@ -40,6 +40,13 @@ import java.nio.file.Path;
  */
 public record SpriteSheet(byte[] wad, int[] strips, byte[] pal) {
 
+    /** Ce que pese une des quatre palettes eclairees. */
+    public static final int LIT_PAL = 256;
+
+    /** Ce que pese une rampe dans une palette eclairee : huit couleurs. */
+    public static final int LIT_RAMP = 8;
+
+
     /** Lit les trois fichiers d'une feuille. */
     public static SpriteSheet read(Path wadFile, Path ptrFile, Path palFile) throws IOException {
         byte[] ptr = Files.readAllBytes(ptrFile);
@@ -102,6 +109,40 @@ public record SpriteSheet(byte[] wad, int[] strips, byte[] pal) {
             return -1;
         }
         return pal[index] & 0xFF;
+    }
+
+    /**
+     * L'octet PLEIN qu'une image eclairee pose a cette ligne, ou {@code -1} hors du fichier.
+     *
+     * <p>L'image eclairee ne partage rien avec les autres : pas de format, pas de tiers, pas
+     * de bandes a trois sous-pixels par mot. Un octet entier par ligne, et un pas d'UN octet.
+     * C'est pourquoi sa teinte va jusqu'a deux cent cinquante-cinq quand les autres s'arretent
+     * a trente et un.
+     *
+     * @param at  l'adresse de la bande, telle que la table la donne — SANS masque
+     * @param row la ligne dans la bande
+     */
+    public int litTexel(int at, int row) {
+        int i = at + row;
+        return i < 0 || i >= wad.length ? -1 : wad[i] & 0xFF;
+    }
+
+    /**
+     * Une des huit couleurs d'une rampe de la palette eclairee, ou {@code -1} hors de la table.
+     *
+     * <p>Les huit mille cent quatre-vingt-douze octets que lit {@link #blend} et les mille
+     * vingt-quatre que lit celle-ci sont le MEME fichier, parcouru de deux facons. Ici la
+     * geometrie est a trois etages : laquelle des quatre palettes eclairees, puis laquelle des
+     * trente-deux rampes, puis laquelle des huit couleurs. Quatre fois trente-deux fois huit
+     * font mille vingt-quatre — et de fait les feuilles des aliens pesent exactement cela.
+     *
+     * @param lightPal laquelle des quatre palettes, que les drapeaux de la chose designent
+     * @param bright   la rampe, deja ramenee entre zero et trente et un
+     * @param k        laquelle des huit couleurs
+     */
+    public int lit(int lightPal, int bright, int k) {
+        int i = lightPal * LIT_PAL + bright * LIT_RAMP + k;
+        return i < 0 || i >= pal.length ? -1 : pal[i] & 0xFF;
     }
 
     /** La couleur d'ecran que la rampe donne a cette teinte, ou {@code -1} hors de la table. */

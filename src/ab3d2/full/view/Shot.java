@@ -163,6 +163,7 @@ public final class Shot {
         peintre.models(Data::model, Data.textureMaps(),
                 new ab3d2.full.render.BrightRings(lvl, lights, Data.sinCos()),
                 orientations, lvl.weaponEntity());
+        peintre.lit(new ab3d2.full.render.LitPalette(Data.guff()));
 
         // tst.b (a0)+ ; beq nobackgraphics : c'est l'octet du secteur du joueur qui decide.
         if (from.drawBackdrop()) {

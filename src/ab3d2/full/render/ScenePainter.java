@@ -68,6 +68,7 @@ public final class ScenePainter implements Scene.Painter {
     private final Map<VectorModel, Map<Integer, List<VectorModel.Face>>> parModele =
             new IdentityHashMap<>();
 
+    private LitPalette litPalette;
     private IntFunction<VectorModel> modeles;
     private TextureMaps maps;
     private BrightRings rings;
@@ -90,6 +91,7 @@ public final class ScenePainter implements Scene.Painter {
     private int thingsDrawn;
     private int glaresDrawn;
     private int thingsSkipped;
+    private int litDrawn;
     private int modelsDrawn;
     private int modelFacesDrawn;
     private int offTable;
@@ -176,6 +178,18 @@ public final class ScenePainter implements Scene.Painter {
     }
 
     /**
+     * Donne au peintre de quoi dessiner les images ECLAIREES.
+     *
+     * <p>Les anneaux d'eclairage viennent de {@link #models}, car ce sont les memes. Tant que
+     * les deux ne sont pas fournis, une chose eclairee est comptee et laissee de cote.
+     *
+     * @param pals le constructeur de palette, qui refait la sienne a chaque sprite
+     */
+    public void lit(LitPalette pals) {
+        this.litPalette = pals;
+    }
+
+    /**
      * Pose ce qui ne change pas d'une commande a l'autre.
      *
      * @param playerX l'oeil
@@ -220,7 +234,8 @@ public final class ScenePainter implements Scene.Painter {
         return wallsDrawn + " pans, " + flatsDrawn + " surfaces, " + watersDrawn + " plans"
                 + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
                 + glaresDrawn + " miroitements, " + modelsDrawn + " modeles ("
-                + modelFacesDrawn + " faces) (" + thingsSkipped + " passees), " + offTable
+                + modelFacesDrawn + " faces), " + litDrawn + " eclairees ("
+                + thingsSkipped + " passees), " + offTable
                 + " hors table";
     }
 
@@ -325,13 +340,25 @@ public final class ScenePainter implements Scene.Painter {
             if (pose == null) {
                 continue;
             }
-            if (pose.light()) {
-                thingsSkipped++;                       // la palette eclairee n'est pas portee
-                continue;
-            }
             SpriteSheet feuille = feuilles.apply(quoi.sheet() & 0x7FFF);
             if (feuille == null) {
                 thingsSkipped++;
+                continue;
+            }
+            if (pose.light()) {
+                // tst.b draw_LightIt_b ; bne draw_bitmap_lighted
+                if (litPalette == null || rings == null) {
+                    thingsSkipped++;                   // l'eclairage n'a pas ete fourni
+                    continue;
+                }
+                ObjectView.Thing ou = choses.get(rang);
+                // draw_ResetAngleBrights, et non draw_CalcBrightRings : voir BrightRings.
+                rings.clearOffTable();
+                rings.reset(pass.zone(), ou.upper() != 0, ou.x(), ou.z());
+                litPalette.build(rings.rings(), angle, pose.flip(), pose.bright(),
+                        pose.lightPal(), feuille);
+                bitmapPaint.paintLit(pose, feuille, litPalette);
+                litDrawn++;
                 continue;
             }
             if (pose.additive()) {
