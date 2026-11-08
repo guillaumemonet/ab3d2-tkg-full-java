@@ -6,10 +6,15 @@ import ab3d2.full.level.FloorTexture;
 import ab3d2.full.level.Level;
 import ab3d2.full.level.ShadeTable;
 import ab3d2.full.level.SpriteSheet;
+import ab3d2.full.level.TextureMaps;
+import ab3d2.full.level.VectorModel;
 import ab3d2.full.level.WaterFrames;
 import ab3d2.full.level.WallTexture;
 
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntFunction;
 
 /**
@@ -55,6 +60,20 @@ public final class ScenePainter implements Scene.Painter {
     private final Glare glare;
     private final GlarePaint glarePaint;
 
+    private final ModelPoints modelPoints;
+    private final ModelParts modelParts = new ModelParts();
+    private final ModelFace modelFace = new ModelFace();
+    private final ModelEdges modelEdges = new ModelEdges();
+    private final ModelPaint modelPaint = new ModelPaint();
+    private final Map<VectorModel, Map<Integer, List<VectorModel.Face>>> parModele =
+            new IdentityHashMap<>();
+
+    private IntFunction<VectorModel> modeles;
+    private TextureMaps maps;
+    private BrightRings rings;
+    private int[] objectAngles;
+    private int weapon = -1;
+
     private ObjectView objectView;
     private List<ObjectView.Thing> choses;
     private List<Bitmap.Thing> apparences;
@@ -71,6 +90,8 @@ public final class ScenePainter implements Scene.Painter {
     private int thingsDrawn;
     private int glaresDrawn;
     private int thingsSkipped;
+    private int modelsDrawn;
+    private int modelFacesDrawn;
     private int offTable;
 
     /**
@@ -107,6 +128,7 @@ public final class ScenePainter implements Scene.Painter {
         this.bitmapPaint = new BitmapPaint(screen);
         this.glare = new Glare(glf, echelles);
         this.glarePaint = new GlarePaint(screen);
+        this.modelPoints = new ModelPoints(sinCos);
     }
 
     /**
@@ -129,6 +151,28 @@ public final class ScenePainter implements Scene.Painter {
         this.choses = choses;
         this.apparences = apparences;
         this.feuilles = feuilles;
+    }
+
+    /**
+     * Donne au peintre de quoi dessiner les MODELES EN RELIEF.
+     *
+     * <p>Tant que ceci n'est pas fourni, une chose qui porte la marque du relief est
+     * simplement comptee et laissee de cote.
+     *
+     * @param modeles ou trouver un modele par son rang
+     * @param maps    le bloc de textures des modeles, commun a tout le jeu
+     * @param rings   les anneaux d'eclairage, deja attaches au niveau et aux lumieres
+     * @param angles  l'orientation de chaque chose, indexee par le rang de l'entite
+     * @param weapon  le rang de l'entite qui porte l'arme du joueur, la seule qu'on dessine
+     *                a profondeur nulle
+     */
+    public void models(IntFunction<VectorModel> modeles, TextureMaps maps, BrightRings rings,
+            int[] angles, int weapon) {
+        this.modeles = modeles;
+        this.maps = maps;
+        this.rings = rings;
+        this.objectAngles = angles;
+        this.weapon = weapon;
     }
 
     /**
@@ -175,7 +219,8 @@ public final class ScenePainter implements Scene.Painter {
     public String tally() {
         return wallsDrawn + " pans, " + flatsDrawn + " surfaces, " + watersDrawn + " plans"
                 + " d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
-                + glaresDrawn + " miroitements (" + thingsSkipped + " passees), " + offTable
+                + glaresDrawn + " miroitements, " + modelsDrawn + " modeles ("
+                + modelFacesDrawn + " faces) (" + thingsSkipped + " passees), " + offTable
                 + " hors table";
     }
 
@@ -250,10 +295,13 @@ public final class ScenePainter implements Scene.Painter {
         for (int i = 0; i < sprites.count(); i++) {
             int rang = sprites.at(i);
             Bitmap.Thing quoi = apparences.get(rang);
-            if (quoi.halfWidth() == 0 || quoi.halfWidth() == Appearance.VECTOR_MARK) {
-                // Rien a montrer, ou un modele en trois dimensions : deux voies que ce
-                // portage n'a pas encore ouvertes.
-                thingsSkipped++;
+            if (quoi.halfWidth() == Appearance.VECTOR_MARK) {
+                // cmp.b #$ff,6(a0) : la marque du relief.
+                model(pass, rang, quoi);
+                continue;
+            }
+            if (quoi.halfWidth() == 0) {
+                thingsSkipped++;                       // rien a montrer
                 continue;
             }
             // tst.l ObjT_YPos_l(a0) ; blt draw_bitmap_glare : le signe du rang de feuille.
@@ -293,6 +341,89 @@ public final class ScenePainter implements Scene.Painter {
             }
             thingsDrawn++;
         }
+    }
+
+    /**
+     * Dessine un modele en relief (objdrawhires.s:1684, {@code draw_PolygonModel}).
+     *
+     * <p>Toute la chaine en une page : les anneaux d'eclairage du secteur, la grille seize par
+     * seize qui en decoule, la rotation et la projection des points, le tri des parties en
+     * profondeur, puis face par face le garde-fou, le dos tourne, la teinte, les bords et les
+     * pixels.
+     *
+     * <p>Une chose dont la profondeur est NULLE est derriere l'oeil et ne se dessine pas —
+     * sauf une seule, l'arme du joueur, que le jeu reconnait a sa place dans la table et
+     * dessine a la profondeur un, au milieu de l'ecran plutot qu'au milieu de la vue.
+     */
+    private void model(Scene.Pass pass, int rang, Bitmap.Thing quoi) {
+        if (modeles == null) {
+            thingsSkipped++;                           // le relief n'a pas ete fourni
+            return;
+        }
+        ObjectView.Thing ou = choses.get(rang);
+        int depth = objectView.rotZ(ou.point());
+        int milieu = centreY;
+        if (depth == 0 && rang == weapon) {            // cmp.l #DRAW_VECTOR_NEAR_PLANE,a3
+            depth = 1;                                 // move.w #1,d1
+            milieu = Screen.FULL_HEIGHT / 2;           // move.w #FS_HEIGHT/2,...
+        }
+        if (depth <= 0) {                              // blt polybehind
+            thingsSkipped++;
+            return;
+        }
+        VectorModel modele = modeles.apply(quoi.sheet());
+        if (modele == null || quoi.frame() >= modele.frames().size()) {
+            thingsSkipped++;
+            return;
+        }
+        rings.clearOffTable();
+        rings.calc(pass.zone(), ou.upper() != 0, ou.x(), ou.z());  // draw_CalcBrightRings
+        modelPoints.buildGrid(rings);                  // MYacross
+        if (!modelPoints.project(modele, quoi.frame(), objectAngles[rang], angle,
+                objectView.worldX(ou.point()), depth, quoi.height(), playerY,
+                view.centreX(), milieu)) {
+            thingsSkipped++;                           // no_more_parts : un point trop loin
+            return;
+        }
+        modelParts.clearOverflow();
+        if (!modelParts.sort(modele, quoi.frame(), modelPoints)) {
+            thingsSkipped++;
+            return;
+        }
+        Map<Integer, List<VectorModel.Face>> parDeplacement = parModele.computeIfAbsent(modele,
+                m -> {
+                    Map<Integer, List<VectorModel.Face>> t = new HashMap<>();
+                    for (VectorModel.Part p : m.parts()) {
+                        t.put(p.at(), p.faces());
+                    }
+                    return t;
+                });
+        int[] faceAngles = modele.frames().get(quoi.frame()).angles();
+        int topClip = 0;
+        int botClip = view.height();                   // draw_TopClip_w / draw_BottomClip_w
+        for (int pi = 0; pi < modelParts.count(); pi++) {
+            List<VectorModel.Face> faces = parDeplacement.get(modelParts.where(pi));
+            if (faces == null) {
+                continue;                              // une partie qui sort du modele
+            }
+            for (VectorModel.Face f : faces) {
+                if (modelFace.sort(f, modelPoints) != ModelFace.SHOWN) {
+                    continue;
+                }
+                modelEdges.start();
+                modelEdges.lines(f, modelPoints, pass.leftClip(), pass.rightClip(),
+                        f.gouraud());
+                if (!modelEdges.clip(pass.leftClip(), pass.rightClip())) {
+                    continue;
+                }
+                modelPaint.fill(modelEdges, ModelFace.kind(f), modelFace.texture(f),
+                        modelFace.palette(f, faceAngles, objectAngles[rang], modelPoints,
+                                rings),
+                        maps, shades, screen, topClip, botClip);
+                modelFacesDrawn++;
+            }
+        }
+        modelsDrawn++;
     }
 
     @Override

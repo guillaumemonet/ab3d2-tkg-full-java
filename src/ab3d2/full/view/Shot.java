@@ -127,8 +127,12 @@ public final class Shot {
         }
         List<ObjectView.Thing> choses = new ArrayList<>(lvl.entities().size());
         List<Bitmap.Thing> apparences = new ArrayList<>(lvl.entities().size());
+        int[] orientations = new int[lvl.entities().size()];
         int animees = 0;
         for (Level.Entity ent : lvl.entities()) {
+            // EntT_CurrentAngle_w est le MEME champ que l'angle du fichier : la simulation ne
+            // fait tourner que le joueur et les aliens, pas le decor.
+            orientations[choses.size()] = ent.angle();
             ab3d2.full.sim.ObjectRuntime.Thing t = parEntite.get(ent);
             int ou = t != null ? t.zone : ent.zone();
             choses.add(new ObjectView.Thing(ent.x(), ent.z(), ou, ou,
@@ -156,6 +160,9 @@ public final class Shot {
         ObjectView objectView = new ObjectView(Data.sinCos());
         objectView.update(choses, lvl.objectPoints(), x, z, angle, 0, true);
         peintre.things(objectView, choses, apparences, Data::sheet);
+        peintre.models(Data::model, Data.textureMaps(),
+                new ab3d2.full.render.BrightRings(lvl, lights, Data.sinCos()),
+                orientations, lvl.weaponEntity());
 
         // tst.b (a0)+ ; beq nobackgraphics : c'est l'octet du secteur du joueur qui decide.
         if (from.drawBackdrop()) {
