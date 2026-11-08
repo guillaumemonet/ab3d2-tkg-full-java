@@ -381,6 +381,17 @@ tasks.register('modelFacesCheck', JavaExec) {
     systemProperty 'ab3d2.modelfaces', new File(refRoot, 'modelfaces.json').absolutePath
 }
 
+tasks.register('modelEdgesCheck', JavaExec) {
+    group = 'verification'
+    description = "Les bords d'une face : les deux tables de colonnes et le decoupage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ModelEdgesCheck'
+    maxHeapSize = '6g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.modeledges', new File(refRoot, 'modeledges.json').absolutePath
+}
+
 tasks.register('checkAll') {
     group = 'verification'
     description = "Toutes les verifications contre le corpus de reference"
@@ -388,5 +399,6 @@ tasks.register('checkAll') {
             'alienTest', 'shotTest', 'worldTest', 'clipCheck', 'edgePvsCheck', 'visEdgesCheck',
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck',
-            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck'
+            'zoneGraphCheck', 'objAnimCheck', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
+            'modelEdgesCheck'
 }
