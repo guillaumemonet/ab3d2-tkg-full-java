@@ -139,6 +139,14 @@ public record Database(
      *
      * @param ammoGive ce que son ramassage ajoute aux consommables, case par case
      * @param gunGive  ce que son ramassage ajoute aux objets d'inventaire — armes, jetpack
+     * @param gunGiveOverrun le mot qui SUIT la table des armes donnees, et que le test
+     *                 d'inventaire lit pour de bon. {@code Game_CheckInventoryLimits} boucle
+     *                 douze fois a partir du JETPACK, qui est le deuxieme des douze : la
+     *                 derniere tour lit donc un mot au-dela. Pour les vingt-neuf premieres
+     *                 definitions c'est le bouclier de la suivante, toujours nul ; pour la
+     *                 trentieme c'est le premier mot des ANIMATIONS DE MONSTRES, qui ne l'est
+     *                 pas — et c'est pourquoi la derniere chose ramassable du jeu se ramasse
+     *                 toujours, inventaire plein ou non
      */
     public record ObjectDef(
             int index,
@@ -154,6 +162,7 @@ public record Database(
             int sfx,
             List<Integer> ammoGive,
             List<Integer> gunGive,
+            int gunGiveOverrun,
             List<AnimStep> idleAnim,
             List<AnimStep> activeAnim) {
 

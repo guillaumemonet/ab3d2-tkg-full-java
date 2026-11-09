@@ -120,6 +120,10 @@ public record Level(
      * @param controlPoint       point du maillage ou le monstre se trouve
      * @param targetControlPoint celui vers lequel il se dirige
      * @param height     hauteur de dessin et de collision
+     * @param animStart  le pas d'animation ou la chose COMMENCE ({@code EntT_Timer1_w}) : le
+     *                   fichier le porte, et c'est lui qui desynchronise les lampes entre
+     *                   elles. Deux lampes identiques posees cote a cote ne clignotent pas
+     *                   ensemble parce que l'editeur leur a donne un depart different
      * @param point      rang de l'entité dans la table des points d'objets — celui que la
      *                   rotation de vue indexe. Pour une entité ordinaire c'est son rang parmi
      *                   les entités non auxiliaires ; une auxiliaire porte le rang de celle qui
@@ -142,6 +146,7 @@ public record Level(
             int controlPoint,
             int targetControlPoint,
             int height,
+            int animStart,
             int point) {
 
         /** Vrai si l'entité tient la clé d'au moins une porte ou un ascenseur. */

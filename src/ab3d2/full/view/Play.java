@@ -271,7 +271,11 @@ public final class Play {
                     (int) (a.getBlue() * u + b.getBlue() * t));
         }
 
-        /** Les objets encore au sol : ramassables en vert, interrupteurs en violet. */
+        /**
+         * Les objets encore au sol : ramassables en vert, interrupteurs en violet,
+         * cassables en orange — et en gris une fois casses, ce qui est la seule facon de
+         * voir de la carte que la porte qu'ils tenaient vient de s'ouvrir.
+         */
         private void objets(Graphics2D g) {
             for (ObjectRuntime.Thing t : world.objects.collectables()) {
                 if (t.zone < 0) {
@@ -286,6 +290,13 @@ public final class Play {
                 }
                 point(g, t.entity.x(), t.entity.z(), 4,
                         t.activated ? new Color(240, 240, 255) : new Color(170, 110, 230));
+            }
+            for (ObjectRuntime.Thing t : world.objects.destructibles()) {
+                if (t.zone < 0) {
+                    continue;
+                }
+                point(g, t.entity.x(), t.entity.z(), 5,
+                        t.standing() ? new Color(255, 150, 60) : new Color(110, 110, 110));
             }
         }
 

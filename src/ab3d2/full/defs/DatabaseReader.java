@@ -264,6 +264,8 @@ public final class DatabaseReader {
                     words(f, AMMO_GIVE + i * NUM_INVENTORY_CONSUMABLES * 2,
                             NUM_INVENTORY_CONSUMABLES),
                     words(f, GUN_GIVE + i * NUM_INVENTORY_ITEMS * 2, NUM_INVENTORY_ITEMS),
+                    // Le mot de TROP, celui que le test d'inventaire lit au-dela de la table.
+                    f.u16(GUN_GIVE + i * NUM_INVENTORY_ITEMS * 2 + NUM_INVENTORY_ITEMS * 2),
                     readAnim(f, OBJECT_IDLE_ANIMS + i * ANIM_SIZE),
                     readAnim(f, OBJECT_ACTIVE_ANIMS + i * ANIM_SIZE)));
         }

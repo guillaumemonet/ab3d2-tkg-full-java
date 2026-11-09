@@ -357,13 +357,7 @@ public final class Viewer {
     /** Remplit les deux listes que le peintre lit, une entree par entite du niveau. */
     private void things(World world) {
         parEntite.clear();
-        for (ObjectRuntime.Thing t : world.objects.collectables()) {
-            parEntite.put(t.entity, t);
-        }
-        for (ObjectRuntime.Thing t : world.objects.activatables()) {
-            parEntite.put(t.entity, t);
-        }
-        for (ObjectRuntime.Thing t : world.objects.decorations()) {
+        for (ObjectRuntime.Thing t : world.objects.things()) {
             parEntite.put(t.entity, t);
         }
         // Un monstre garde le rang de l'entite dont il est ne, et son graphique ACCROCHE occupe
@@ -460,16 +454,19 @@ public final class Viewer {
                     ent.upperZone(), ent.kind() == Level.Kind.AUX, ent.point()));
             Appearance vu = null;
             int h = 0;
-            if (t != null) {
+            if (t != null && t.drawn) {
+                // Le pas qu'on VOIT n'est pas celui ou l'animation en est : la routine ecrit
+                // les champs de dessin depuis le pas courant, PUIS range le suivant. La
+                // simulation garde les deux, et c'est le premier qui se dessine.
                 Database.ObjectDef def = glf.object(ent.def());
                 List<Database.AnimStep> scenario =
-                        t.activated ? def.activeAnim() : def.idleAnim();
+                        t.shownActive ? def.activeAnim() : def.idleAnim();
                 if (!scenario.isEmpty()) {
                     Database.AnimStep pas =
-                            scenario.get(Math.floorMod(t.animStep, scenario.size()));
+                            scenario.get(Math.floorMod(t.shownStep, scenario.size()));
                     vu = Appearance.of(pas, def.gfxType());
-                    h = ObjectRuntime.objectHeight(world.lvl, t.zone,
-                            ent.upperZone() != 0, t.animDelta, def);
+                    h = t.height;
+                    orientations[rang] = t.angle;      // un modele CUMULE l'angle de ses pas
                     animees++;
                 }
             }

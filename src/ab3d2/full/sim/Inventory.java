@@ -41,13 +41,17 @@ public final class Inventory {
      * marqueurs narratifs du jeu (définition 0, sans nom, posés devant les portes scellées) :
      * on les « ramasse » et leur texte s'affiche.
      */
-    public boolean canCollect(List<Integer> give, List<Integer> giveItems) {
+    public boolean canCollect(List<Integer> give, List<Integer> giveItems, int debordement) {
         int givesAnything = 0;
         for (int n = ITEM_START; n < ITEM_START + NUM_ITEMS; n++) {
-            if (at(giveItems, n) != 0) {
+            // La boucle du C part du JETPACK et compte douze fois : son dernier tour lit donc
+            // un mot AU-DELA de la table. Pour la derniere definition d'objet ce mot tombe
+            // dans les animations de monstres et n'est pas nul.
+            int donne = n < NUM_ITEMS ? at(giveItems, n) : debordement;
+            if (donne != 0) {
                 return true;                           // solo : un item donné suffit
             }
-            givesAnything |= at(giveItems, n);
+            givesAnything |= donne;
         }
         for (int n = 0; n < NUM_CONSUMABLES; n++) {
             givesAnything += at(give, n);

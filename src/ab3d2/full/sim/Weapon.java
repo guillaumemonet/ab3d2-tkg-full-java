@@ -34,8 +34,8 @@ import java.util.List;
  *       repos ; tirer saute au pas UN, et la suite ramene au repos toute seule ;</li>
  *   <li>changer d'arme ne remet pas l'animation a zero. Le jeu change le TYPE de l'objet et
  *       laisse le compteur de pas ou il etait — c'est pourquoi ce portage tient ce compteur a
- *       part, au lieu de reutiliser {@link ObjectAnim} qui repart de zero en changeant de
- *       script.</li>
+ *       part, au lieu de reutiliser l'animation de {@link ObjectRuntime}, qui repart de
+ *       zero en changeant de script.</li>
  * </ul>
  *
  * <h2>Ce que le corpus ne separe pas</h2>

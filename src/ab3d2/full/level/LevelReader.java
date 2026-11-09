@@ -63,6 +63,7 @@ public final class LevelReader {
     private static final int ENT_CONTROL_POINT = 28;
     private static final int ENT_ANGLE = 30;
     private static final int ENT_TARGET_CONTROL_POINT = 32;
+    private static final int ENT_TIMER1 = 34;
     private static final int ENT_UNLOCKS = 50;
     private static final int ENT_DEF = 54;
     private static final int ENT_UPPER_ZONE = 63;
@@ -599,6 +600,7 @@ public final class LevelReader {
                     f.s16(o + ENT_CONTROL_POINT),
                     f.s16(o + ENT_TARGET_CONTROL_POINT),
                     f.s16(o + ENT_HEIGHT),
+                    f.u16(o + ENT_TIMER1),
                     pointIndex));
         }
         return out;

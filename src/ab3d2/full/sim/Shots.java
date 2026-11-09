@@ -81,6 +81,18 @@ public final class Shots {
     private final List<Shot> pool = new ArrayList<>();
     /** Entites que les balles peuvent toucher (posees par le jeu). */
     private Aliens targets;
+    /** Les choses du niveau : seules les CASSABLES comptent comme cibles. */
+    private ObjectRuntime objects;
+    /**
+     * Monstres et choses cassables melanges, dans l'ORDRE DU NIVEAU.
+     *
+     * <p>L'original ne connait qu'UNE liste d'entites et la parcourt telle quelle
+     * (newanims.s:2545) : la premiere qu'il rencontre sur le segment prend le coup. Separer les
+     * monstres des choses donnerait une autre cible le jour ou une balle en traverse deux dans
+     * la meme image, et c'est exactement ce qui arrive quand on tire dans un ventilateur devant
+     * lequel passe un alien.
+     */
+    private final List<Object> inOrder = new ArrayList<>();
     /** File de bruitages (null = muet). */
     public SfxQueue sfx;
     /** Lumieres dynamiques : un projectile lumineux eclaire la piece (null = aucune). */
@@ -112,9 +124,37 @@ public final class Shots {
         return pool;
     }
 
+    /**
+     * Branche les CHOSES : sans elles une balle ne peut casser ni ordinateur ni ventilateur,
+     * et trois niveaux n'ont pas de sortie.
+     */
+    public void setObjects(ObjectRuntime o) {
+        this.objects = o;
+        rebuildOrder();
+    }
+
+    /** Refait la liste melangee, une fois pour toutes : ni les monstres ni les choses ne
+     *  changent de rang. */
+    private void rebuildOrder() {
+        inOrder.clear();
+        if (targets != null) {
+            inOrder.addAll(targets.aliens());
+        }
+        if (objects != null) {
+            inOrder.addAll(objects.destructibles());
+        }
+        inOrder.sort(java.util.Comparator.comparingInt(Shots::rankOf));
+    }
+
+    /** Le rang d'une cible dans le niveau. */
+    private static int rankOf(Object o) {
+        return o instanceof Aliens.Alien a ? a.index : ((ObjectRuntime.Thing) o).rank;
+    }
+
     /** Branche les monstres : sans eux une balle ne peut toucher que les murs. */
     public void setTargets(Aliens a) {
         this.targets = a;
+        rebuildOrder();
     }
 
     /** Nombre d'emplacements ALIEN occupes (validation). */
@@ -317,7 +357,7 @@ public final class Shots {
         setupBulletMove();
         move.thingHeight = 0;                          // move.l #0,thingheight (vs 10*128 en vol)
         int guard = 0;
-        Aliens.Alien struck = null;
+        Object struck = null;
         while (true) {                                 // .again
             // La zone AVANT le pas : c'est celle d'ou part le segment qu'on va tester. Prendre
             // celle d'apres laisserait passer un monstre des que le rayon change de zone.
@@ -328,7 +368,7 @@ public final class Shots {
             // joueur ne veut pas d'aide a la visee. On teste donc les monstres le long du RAYON,
             // segment par segment : c'est la geometrie seule qui decide. Sans ce test, les armes
             // hitscan ne faisaient aucun degat.
-            struck = firstAlienOnSegment(s16(move.oldx), s16(move.oldz), s16(move.newx),
+            struck = firstOnSegment(s16(move.oldx), s16(move.oldz), s16(move.newx),
                     s16(move.newz), s16(move.newy >> 7), segZone, move.zone,
                     player.stoodInTop);
             if (struck != null || move.hitwall || ++guard > 64) { // tst.b hitwall ; bne .nofurther
@@ -338,14 +378,22 @@ public final class Shots {
         }
         // .nofurther : marque l'impact
         Database.BulletDef bul = glf == null ? null : glf.bullet(bulType);
-        if (struck != null && targets != null) {
+        if (struck != null) {
             // Une arme hitscan tire ShootT_BulCount_w PROJECTILES par coup — deux plombs pour le
             // fusil — et le jeu les trace un a un (.fire_hitscanned_bullets). Notre rayon est
             // unique et sans dispersion : les N plombs toucheraient donc la meme cible, ce qui
             // revient a lui appliquer N fois les degats. Sans ca le fusil ne faisait que la
             // MOITIE du mal qu'il doit faire.
             int pellets = Math.max(1, bulletCount);
-            targets.hit(struck, (bul == null ? 0 : (bul.hitDamage() & 0xFF)) * pellets);
+            int mal = (bul == null ? 0 : (bul.hitDamage() & 0xFF)) * pellets;
+            if (struck instanceof Aliens.Alien a) {
+                targets.hit(a, mal);
+            } else {
+                // plr1_HitscanSucceded prend les degats dans le MOT HAUT de BulT_HitDamage_l ;
+                // les projectiles, eux, prennent son octet bas. On garde celui du projectile,
+                // pour que les deux familles d'armes fassent le meme mal a la meme chose.
+                damage((ObjectRuntime.Thing) struck, mal);
+            }
         }
         Shot s = free();
         if (s == null) {
@@ -368,8 +416,8 @@ public final class Shots {
                 iz = s16(iz - divs(muls(dz, IMPACT_BACKOFF), len));
             }
         }
-        s.x = (struck != null ? struck.x : ix) << 16;  // move.w newx,(a1,d2.w*8)
-        s.z = (struck != null ? struck.z : iz) << 16;
+        s.x = (struck != null ? targetX(struck) : ix) << 16;  // move.w newx,(a1,d2.w*8)
+        s.z = (struck != null ? targetZ(struck) : iz) << 16;
         s.popping = true;                              // move.b #1,ShotT_Status_b(a0)
         s.gravity = 0;
         s.velX = 0;
@@ -825,21 +873,54 @@ public final class Shots {
             impactSound(s, glf == null ? null : glf.bullet(s.type));
             return;
         }
-        if (targets == null || (s.enemyFlags & 1) == 0) {  // btst typeId,EnemyFlags (alien = 0)
-            return;
-        }
-        for (Aliens.Alien a : targets.aliens()) {
-            if (!a.alive || a.zone < 0 || a.upperZone != s.upperZone || a.hitPoints == 0) {
+        for (Object cible : inOrder) {
+            if (cible instanceof Aliens.Alien a) {
+                // btst typeId,EnemyFlags : le monstre est le type ZERO.
+                if ((s.enemyFlags & 1) == 0 || !a.alive || a.zone < 0
+                        || a.upperZone != s.upperZone || a.hitPoints == 0) {
+                    continue;
+                }
+                if (hitsEntity(s, oldXw, oldZw, a.x, a.z, s16(a.height), 80)) {
+                    targets.hit(a, s.power);
+                    s.anim = 0;
+                    s.popping = true;
+                    impactSound(s, glf == null ? null : glf.bullet(s.type));
+                    return;                            // .hitnasty
+                }
                 continue;
             }
-            if (hitsEntity(s, oldXw, oldZw, a.x, a.z, s16(a.height), 80)) {
-                targets.hit(a, s.power);
+            // Une CHOSE : le type UN. L'original ne la retient que si sa definition la dit
+            // cassable (newanims.s:2563) — un ramassable, un interrupteur ou une lampe laissent
+            // passer la balle. La liste n'en contient donc que des cassables.
+            ObjectRuntime.Thing t = (ObjectRuntime.Thing) cible;
+            if ((s.enemyFlags & 2) == 0 || t.zone < 0 || t.hitPoints == 0) {
+                continue;
+            }
+            // L'etage se compare par OU EXCLUSIF d'octets, et non par oui ou non : une entite
+            // qui ne porte ni zero ni deux cent cinquante-cinq n'est d'AUCUN des deux.
+            if (((t.entity.upperZone() ^ (s.upperZone ? 0xFF : 0)) & 0xFF) != 0) {
+                continue;
+            }
+            if (hitsEntity(s, oldXw, oldZw, t.entity.x(), t.entity.z(), s16(t.height), 80)) {
+                damage(t, s.power);
+                // move.w, et non add.w : la poussee d'un coup REMPLACE la precedente.
+                t.impactX = s16(s.velX >> 16);
+                t.impactZ = s16(s.velZ >> 16);
                 s.anim = 0;
                 s.popping = true;
                 impactSound(s, glf == null ? null : glf.bullet(s.type));
                 return;                                // .hitnasty
             }
         }
+    }
+
+    /**
+     * {@code add.b d6,EntT_DamageTaken_b(a3)} : les degats s'accumulent sur un OCTET, et
+     * DEBORDENT. Deux cent soixante points de degats en font quatre, et une chose qu'on
+     * acharne assez longtemps se retrouve intacte.
+     */
+    private static void damage(ObjectRuntime.Thing t, int power) {
+        t.damageTaken = (t.damageTaken + power) & 0xFF;
     }
 
     /** Le test geometrique commun : l'entite est-elle sur le segment parcouru cette frame ? */
@@ -886,25 +967,44 @@ public final class Shots {
     }
 
     /**
-     * Le premier monstre rencontre sur un segment du rayon, ou {@code null}. Meme tolerance que
-     * pour les projectiles, pour que les deux familles d'armes touchent pareil.
+     * La premiere cible rencontree sur un segment du rayon, ou {@code null} — un monstre ou
+     * une chose cassable, dans l'ordre du niveau. Meme tolerance que pour les projectiles,
+     * pour que les deux familles d'armes touchent pareil.
      */
-    private Aliens.Alien firstAlienOnSegment(int x0, int z0, int x1, int z1, int rayHeight,
-                                             int zoneFrom, int zoneTo, boolean upper) {
-        if (targets == null) {
-            return null;
-        }
-        for (Aliens.Alien a : targets.aliens()) {
-            // Le segment peut enjamber deux zones : on accepte les monstres de l'une ou l'autre.
-            if (!a.alive || (a.zone != zoneFrom && a.zone != zoneTo)
-                    || a.upperZone != upper || a.hitPoints == 0) {
+    private Object firstOnSegment(int x0, int z0, int x1, int z1, int rayHeight,
+                                  int zoneFrom, int zoneTo, boolean upper) {
+        for (Object cible : inOrder) {
+            // Le segment peut enjamber deux zones : on accepte les cibles de l'une ou l'autre.
+            if (cible instanceof Aliens.Alien a) {
+                if (!a.alive || (a.zone != zoneFrom && a.zone != zoneTo)
+                        || a.upperZone != upper || a.hitPoints == 0) {
+                    continue;
+                }
+                if (hitsSegment(x0, z0, x1, z1, rayHeight, a.x, a.z, s16(a.height), 80)) {
+                    return a;
+                }
                 continue;
             }
-            if (hitsSegment(x0, z0, x1, z1, rayHeight, a.x, a.z, s16(a.height), 80)) {
-                return a;
+            ObjectRuntime.Thing t = (ObjectRuntime.Thing) cible;
+            if (t.zone < 0 || (t.zone != zoneFrom && t.zone != zoneTo) || t.hitPoints == 0
+                    || ((t.entity.upperZone() ^ (upper ? 0xFF : 0)) & 0xFF) != 0) {
+                continue;
+            }
+            if (hitsSegment(x0, z0, x1, z1, rayHeight, t.entity.x(), t.entity.z(),
+                    s16(t.height), 80)) {
+                return t;
             }
         }
         return null;
+    }
+
+    /** Ou se trouve une cible, monstre ou chose. */
+    private static int targetX(Object o) {
+        return o instanceof Aliens.Alien a ? a.x : ((ObjectRuntime.Thing) o).entity.x();
+    }
+
+    private static int targetZ(Object o) {
+        return o instanceof Aliens.Alien a ? a.z : ((ObjectRuntime.Thing) o).entity.z();
     }
 
     /** bulletImpactFX : bruit d'impact (BulT_ImpactSFX_l - 1) puis SOUFFLE s'il explose. */

@@ -12,7 +12,7 @@ import ab3d2.full.defs.Database;
  *
  * <p>Port de la partie DESSIN de {@code animObj} ({@code DEFANIMOBJ} / {@code ACTANIMOBJ}).
  * Le reste de cette routine — avancer au pas suivant, cumuler la hauteur, faire tourner un
- * modele — est de la simulation, et {@link ab3d2.full.sim.ObjectAnim} le porte deja.
+ * modele — est de la simulation, et {@link ab3d2.full.sim.ObjectRuntime} le porte deja.
  *
  * <h2>Trois facons d'etre vu</h2>
  *

@@ -111,6 +111,16 @@ tasks.register('zoneOrderCheck', JavaExec) {
     systemProperty 'ab3d2.zoneorder', new File(refRoot, 'zoneorder.json').absolutePath
 }
 
+tasks.register('objectLifeCheck', JavaExec) {
+    group = 'verification'
+    description = "La vie des objets : les quatre familles, image apres image"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.ObjectLifeCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.objectlife', new File(refRoot, 'objectlife.json').absolutePath
+}
+
 tasks.register('objAnimCheck', JavaExec) {
     group = 'verification'
     description = "L'apparence des choses : ce qu'un pas d'animation donne a voir"
@@ -507,5 +517,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck'
 }

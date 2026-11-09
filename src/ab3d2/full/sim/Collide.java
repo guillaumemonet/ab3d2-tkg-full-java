@@ -22,8 +22,13 @@ import static ab3d2.full.M68k.setw;
  *
  * <p>Le decor : seules les definitions d'objet de comportement &gt;= 2
  * ({@code ODefT_Behaviour_w}, qui est le MEME mot que {@code ENT_TYPE_*}) sont solides, soit
- * DESTRUCTABLE (2, tant qu'il lui reste des points de vie) et DECORATION (3). Ni les
- * ramassables ni les interrupteurs n'arretent le joueur.
+ * DESTRUCTABLE (2) et DECORATION (3). Ni les ramassables ni les interrupteurs n'arretent le
+ * joueur.
+ *
+ * <p>Et le DESTRUCTIBLE n'est solide que DEBOUT : l'original le distingue des deux autres par
+ * un second test, {@code tst.b EntT_HitPoints_b ; ble} (objectmove.s:1722), que
+ * {@code Destructable} remet a un tant que la chose tient et met a zero des qu'elle est cassee.
+ * C'est la tout le benefice de tirer dans un ventilateur : le passage s'ouvre.
  *
  * <p><b>Quirk fidelement reproduit</b> : l'original lit les deux extents verticaux dans
  * {@code 2(a2,d3.w*8)} et {@code 4(a2,d3.w*8)} avec <b>a2 jamais initialise</b> dans la routine.
@@ -52,30 +57,19 @@ public final class Collide {
 
     private final LevelSim lvl;
     private final Database glf;
-    /** Le decor solide du niveau (ODefT_Behaviour_w >= 2). */
-    private final List<Solid> solids = new ArrayList<>();
+    /** Le decor solide du niveau (ODefT_Behaviour_w >= 2), avec son etat vivant. */
+    private final List<ObjectRuntime.Thing> solids = new ArrayList<>();
 
-    /**
-     * Un element de decor solide et le decalage vertical de son animation.
-     *
-     * <p>Le decalage compte : c'est lui qui place la caisse ou la console a la bonne hauteur,
-     * donc ce que le joueur heurte.
-     */
-    private record Solid(Level.Entity entity, int animDelta) { }
     /** Les monstres (ObjT_TypeID_b = 0) ; null = niveau sans IA. */
     public Aliens aliens;
 
-    public Collide(LevelSim lvl, Level data, Database glf) {
+    public Collide(LevelSim lvl, Database glf, ObjectRuntime objects) {
         this.lvl = lvl;
         this.glf = glf;
-        for (Level.Entity o : data.entities()) {
-            if (o.kind() != Level.Kind.OBJECT) {
-                continue;
-            }
-            Database.ObjectDef def = glf == null ? null : glf.object(o.def());
+        for (ObjectRuntime.Thing t : objects.things()) {
+            Database.ObjectDef def = glf == null ? null : glf.object(t.entity.def());
             if (def != null && def.behaviour() >= 2) { // cmp.w #2,ODefT_Behaviour_w ; blt skip
-                int delta = def.idleAnim().isEmpty() ? 0 : def.idleAnim().get(0).delta();
-                solids.add(new Solid(o, delta));
+                solids.add(t);
             }
         }
     }
@@ -106,9 +100,9 @@ public final class Collide {
                 }
             }
         }
-        for (Solid s : solids) {
-            Level.Entity o = s.entity();
-            if (o.zone() < 0 || o.zone() != zone) {
+        for (ObjectRuntime.Thing t : solids) {
+            Level.Entity o = t.entity;
+            if (t.zone < 0 || t.zone != zone) {
                 continue;
             }
             Database.ObjectDef def = glf.object(o.def());
@@ -118,13 +112,13 @@ public final class Collide {
             if (((o.upperZone() ^ d6) & 0xFF) != 0) {
                 continue;                              // eor.b d6,d1 ; bne
             }
-            // Le second test de points de vie (comportement 2, DESTRUCTABLE) porte sur
-            // EntT_HitPoints_b, pas sur la definition : StillHere le remet a 1 a chaque frame tant
-            // que l'objet est dans le niveau, et Destructable le met a 0 en le detruisant — donc
-            // « encore la » (zone >= 0, deja teste) suffit.
-            int h = ObjectRuntime.objectHeight(lvl, o.zone(), o.upperZone() != 0, s.animDelta(),
-                    def);
-            if (hits(1, h, o.x(), o.z(), newx, newz, oldx, oldz, d4, d5)) {
+            // Le DESTRUCTIBLE cesse d'arreter le joueur des qu'il est casse : le second test de
+            // l'original porte sur EntT_HitPoints_b, que Destructable met a zero. Le DECOR, lui,
+            // n'a pas de points de vie et ne passe pas par ce test.
+            if (def.behaviour() == 2 && !t.standing()) {
+                continue;                              // tst.b EntT_HitPoints_b ; ble
+            }
+            if (hits(1, t.height, o.x(), o.z(), newx, newz, oldx, oldz, d4, d5)) {
                 return true;
             }
         }

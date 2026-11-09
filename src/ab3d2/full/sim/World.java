@@ -119,13 +119,14 @@ public final class World {
         shots.nav = nav;
         shots.sfx = sfx;
         shots.setTargets(aliens);
+        shots.setObjects(objects);                     // les cassables sont des cibles
         shots.setPlayer(player);
         aliens.shots = shots;                          // la gerbe de morceaux a la mort
         aliens.sfx = sfx;
         aliens.setFire(shots::fireAtPlayer);
         player.sfx = sfx;
         player.inventory = objects.inventory;          // le jetpack puise son carburant ici
-        player.collide = new Collide(lvl, level, glf);
+        player.collide = new Collide(lvl, glf, objects);
         player.collide.aliens = aliens;
 
         anims.run();                                   // pose les toits et les sols de depart

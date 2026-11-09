@@ -124,9 +124,18 @@ public final class MoveTest {
         int locks0 = pk.run(p, false);
         // On lit le secteur COURANT et non celui du fichier : se poser sur un objet en ramasse
         // souvent plusieurs d'un coup, et ceux-la ne sont plus a prendre.
+        int horsAtteinte = 0;
         for (ObjectRuntime.Thing t : pk.collectables()) {
             Level.Entity o = t.entity;
             if (t.zone < 0) {
+                continue;
+            }
+            // L'etage se compare par OU EXCLUSIF d'octets : une entite qui ne porte ni zero
+            // ni deux cent cinquante-cinq n'est d'AUCUN des deux, et le joueur — dont l'octet
+            // ne vaut jamais que l'un ou l'autre — ne peut PAS l'atteindre. Le niveau n en a
+            // une, et elle restera au sol jusqu'a la fin du jeu.
+            if (o.upperZone() != 0 && o.upperZone() != 0xFF) {
+                horsAtteinte++;
                 continue;
             }
             // NB : un objet qui ne donne RIEN est quand meme ramassable (Game_CheckInventoryLimits
@@ -165,10 +174,27 @@ public final class MoveTest {
                 switched++;
             }
         }
+        // Et les CASSABLES tiennent leurs serrures tant qu'ils tiennent debout : trois niveaux
+        // ont leur porte de sortie derriere un ordinateur-relais, et deux un ventilateur a
+        // percer. On leur donne de quoi tomber.
+        int casses = 0;
+        for (ObjectRuntime.Thing t : pk.destructibles()) {
+            Database.ObjectDef def = glf.object(t.entity.def());
+            if (t.zone < 0 || def == null) {
+                continue;
+            }
+            t.damageTaken = Math.min(255, def.hitPoints());
+            pk.run(p, false);
+            if (!t.standing()) {
+                casses++;
+            }
+        }
         int locks1 = pk.run(p, false);
         boolean ok = taken == total && locks1 == 0;
-        System.out.printf("  ramassage : %d/%d objets pris, %d interrupteurs | verrous 0x%04X -> 0x%04X%s%n",
-                taken, total, switched, locks0, locks1, ok ? "" : "  [!] ECHEC");
+        System.out.printf("  ramassage : %d/%d objets pris (%d hors d'atteinte),"
+                + " %d interrupteurs, %d casses | verrous 0x%04X -> 0x%04X%s%n",
+                taken, total, horsAtteinte, switched, casses, locks0, locks1,
+                ok ? "" : "  [!] ECHEC");
         return ok;
     }
 
@@ -269,7 +295,11 @@ public final class MoveTest {
             return true;
         }
         LevelSim sim = LevelSim.of(lvl);
-        Collide col = new Collide(sim, lvl, glf);
+        ObjectRuntime objets = new ObjectRuntime(sim, lvl, glf);
+        // Une image a vide : c'est elle qui pose la hauteur de chaque chose, celle que le
+        // joueur heurte. Sans elle le decor flotterait a la hauteur zero.
+        objets.run(new PlayerSim(sim, lvl, Data.sinCos()), false);
+        Collide col = new Collide(sim, glf, objets);
         col.aliens = new Aliens(sim, lvl, glf, Data.sinCos(), new Nav(lvl), new Los(sim, lvl));
 
         int decor = 0;
