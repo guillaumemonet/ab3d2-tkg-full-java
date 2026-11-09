@@ -23,6 +23,7 @@ import ab3d2.full.sim.Aliens;
 import ab3d2.full.sim.ObjectRuntime;
 import ab3d2.full.sim.SfxQueue;
 import ab3d2.full.sim.World;
+import ab3d2.full.sound.Music;
 import ab3d2.full.sound.Paula;
 import ab3d2.full.sound.Samples;
 
@@ -71,6 +72,7 @@ public final class Viewer {
     private final MessageBoard board;
     private final Paula paula;
     private final Speaker speaker;
+    private final Music music;
     private final char lettre;
 
     private final List<ObjectView.Thing> choses = new ArrayList<>();
@@ -140,6 +142,23 @@ public final class Viewer {
         this.board = new MessageBoard(police);
         this.paula = new Paula(Samples.load(Data.database().soundFiles(), Data::asset));
         this.speaker = new Speaker(paula);
+        // La MUSIQUE prend les deux cases de GAUCHE que le jeu lui reserve au chargement
+        // du niveau (hires.s:614). Le canal qu'elles forment — le zero — sort donc du
+        // melangeur, et c'est le lecteur de module qui l'alimente.
+        Music quel = null;
+        try {
+            Database.LevelInfo info = Data.database().levels().get(lettre - 'a');
+            java.nio.file.Path f = Data.asset(info.music());
+            if (f != null && java.nio.file.Files.isRegularFile(f)) {
+                quel = new Music(java.nio.file.Files.readAllBytes(f));
+                quel.init(paula);
+                paula.claim(0, true);              // st CHANNELDATA
+                paula.claim(2, true);              // st CHANNELDATA+8
+            }
+        } catch (java.io.IOException | RuntimeException e) {
+            quel = null;
+        }
+        this.music = quel;
     }
 
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
@@ -258,6 +277,14 @@ public final class Viewer {
         hud.frame(pixels, Screen.WIDTH, munitions, world.health(), armes, world.gun);
     }
 
+    /** Le reglage joueur {@code Prefs_PlayMusic_b}, arme au depart. */
+    public boolean playMusic = true;
+
+    /** Le lecteur de musique, ou null si le module manque. */
+    public Music music() {
+        return music;
+    }
+
     /** Le moteur audio de cette vue. */
     public Paula paula() {
         return paula;
@@ -294,6 +321,9 @@ public final class Viewer {
      * @param angle son orientation
      */
     public void sound(World world, int x, int z, int angle) {
+        if (music != null && playMusic) {
+            music.tick(paula);                     // jsr mt_music, une fois par image
+        }
         int sin = Data.sinCos().sin(angle);
         int cos = Data.sinCos().cos(angle);
         int px = ab3d2.full.M68k.s16(x);

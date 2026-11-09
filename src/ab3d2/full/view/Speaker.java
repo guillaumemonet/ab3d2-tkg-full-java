@@ -100,29 +100,32 @@ public final class Speaker {
 
     /** Les quatre canaux, a leur volume, sommes en deux voies de seize bits. */
     private void convertir() {
-        byte[] c0 = paula.channel(0);
-        byte[] c1 = paula.channel(1);
-        byte[] c2 = paula.channel(2);
-        byte[] c3 = paula.channel(3);
-        int v0 = paula.volume(0);
-        int v1 = paula.volume(1);
-        int v2 = paula.volume(2);
-        int v3 = paula.volume(3);
+        paula.render(gauche, droite);
         for (int i = 0; i < Paula.FRAME_BYTES; i++) {
-            // Canaux zero et trois a gauche, un et deux a droite : le cablage de la puce.
-            int g = c0[i] * v0 + c3[i] * v3;
-            int d = c1[i] * v1 + c2[i] * v2;
-            // Chaque canal vaut au plus cent vingt-huit fois soixante-quatre ; deux canaux
-            // sommes tiennent donc sur quinze bits, et un seul doublement les porte a l'echelle
-            // de seize. Rien ne sature, et c'est voulu : le jeu, lui, saturait.
-            g <<= 1;
-            d <<= 1;
+            // Deux canaux de cent vingt-huit au plus : la somme tient sur neuf bits, et six
+            // decalages la portent a l'echelle de seize en laissant de la marge. Le jeu, lui,
+            // saturait sur du materiel ; ici rien ne depasse.
+            int g = borne(gauche[i] << 6);
+            int d = borne(droite[i] << 6);
             int at = i * 4;
             pcm[at] = (byte) (g >> 8);
             pcm[at + 1] = (byte) g;
             pcm[at + 2] = (byte) (d >> 8);
             pcm[at + 3] = (byte) d;
         }
+    }
+
+    private final int[] gauche = new int[Paula.FRAME_BYTES];
+    private final int[] droite = new int[Paula.FRAME_BYTES];
+
+    private static int borne(int v) {
+        if (v > 32767) {
+            return 32767;
+        }
+        if (v < -32768) {
+            return -32768;
+        }
+        return v;
     }
 
     /**

@@ -57,6 +57,7 @@ public final class Game {
         viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
+        viewer.playMusic = !Boolean.getBoolean("ab3d2.nomusic");
         if (!Boolean.getBoolean("ab3d2.mute") && !viewer.openSound()) {
             System.out.println("son indisponible : le jeu sera muet");
         }

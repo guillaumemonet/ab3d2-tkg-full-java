@@ -155,6 +155,9 @@ public final class Paula {
             left[i] = new Voice();
             right[i] = new Voice();
         }
+        for (int i = 0; i < 4; i++) {
+            hw[i] = new Hardware();
+        }
         // Les deux dernieres cases de chaque cote sont INDISPONIBLES au depart
         // (dc.l $FF000000), et le reglage huit canaux les libere (seq CHANNELDATA+8...).
         buildTable();
@@ -178,6 +181,193 @@ public final class Paula {
                 tab[at++] = (byte) d0;                 // move.b d0,(a1)+
             }
         }
+    }
+
+    // ------------------------------------------------------------------------------
+    // LES REGISTRES DE LA PUCE, tels que la MUSIQUE les ecrit.
+    //
+    // Le melangeur, lui, n'ecrit jamais de periode : il produit toujours ses deux cents
+    // octets a la periode quatre cent quarante-trois, celle que le jeu pose au demarrage. La
+    // musique, elle, change de periode a chaque note — c'est ainsi qu'un seul echantillon
+    // donne toutes les notes. Un canal tenu par la musique est donc RELU a une autre cadence
+    // que celle de la sortie, et c'est le seul endroit de ce portage ou un echantillon est
+    // reechantillonne.
+    // ------------------------------------------------------------------------------
+
+    /** Ce qu'un canal joue quand la musique le tient. */
+    private static final class Hardware {
+        byte[] data;
+        int start;
+        int lengthWords;
+        int period;
+        /** Le segment en cours de lecture : la puce le LATCHE au demarrage du canal. */
+        byte[] segData;
+        int segStart;
+        int segWords;
+        double segPos;
+        boolean active;
+    }
+
+    private final Hardware[] hw = new Hardware[4];
+
+    /** {@code move.l d,(a5)} : ou le canal lit. */
+    public void audLC(int ch, byte[] data, int start) {
+        hw[ch].data = data;
+        hw[ch].start = start;
+    }
+
+    /** {@code move.w d,4(a5)} : combien de MOTS il lit. */
+    public void audLEN(int ch, int words) {
+        hw[ch].lengthWords = words & 0xFFFF;
+    }
+
+    /** {@code move.w d,6(a5)} : sa periode, donc sa hauteur. */
+    public void audPER(int ch, int period) {
+        hw[ch].period = period & 0xFFFF;
+    }
+
+    /** {@code move.w d,8(a5)} : son volume. C'est le MEME registre que celui du melangeur. */
+    public void audVOL(int ch, int vol) {
+        paulaVol[ch] = vol & 0xFFFF;
+    }
+
+    /**
+     * {@code move.w d,$dff096} : demarre ou arrete des canaux.
+     *
+     * <p>Le bit de poids fort dit s'il faut ARMER ou ETEINDRE ; les quatre bits bas disent
+     * lesquels. Au demarrage, la puce prend une COPIE de l'adresse et de la longueur : c'est
+     * ce qui permet au lecteur de musique d'y ecrire aussitot apres le point de BOUCLE, sans
+     * couper la note qui commence.
+     */
+    public void dmacon(int value) {
+        value &= 0xFFFF;
+        if ((value & 0x8000) == 0) {
+            dmaconBits &= ~value;                      // on ETEINT les canaux nommes
+            for (int ch = 0; ch < 4; ch++) {
+                if ((value >> ch & 1) != 0) {
+                    hw[ch].active = false;
+                }
+            }
+            return;
+        }
+        int bits = value & 0x7FFF;
+        for (int ch = 0; ch < 4; ch++) {
+            int bit = 1 << ch;
+            // La copie ne se prend qu'au PASSAGE de l'arret a la marche : rearmer un canal qui
+            // tourne deja ne le fait pas repartir, et c'est sur cela que repose la ruse du
+            // point de boucle.
+            if ((bits & bit) != 0 && (dmaconBits & bit) == 0) {
+                hw[ch].active = true;
+                hw[ch].segData = hw[ch].data;
+                hw[ch].segStart = hw[ch].start;
+                hw[ch].segWords = hw[ch].lengthWords;
+                hw[ch].segPos = 0;
+            }
+        }
+        dmaconBits |= bits;
+    }
+
+    /** Quels canaux la puce a en marche. */
+    private int dmaconBits;
+
+    /** Le registre de marche, pour qui veut l'eprouver. */
+    public int dmaconBits() {
+        return dmaconBits;
+    }
+
+    /** Ou en est la lecture d'un canal tenu par la musique, en octets. */
+    public int hwPos(int ch) {
+        return (int) hw[ch].segPos;
+    }
+
+    /** Le segment que la puce a copie au demarrage de ce canal : son depart. */
+    public int hwSegStart(int ch, int nul) {
+        if (hw[ch].segData == null) {
+            return -1;
+        }
+        return hw[ch].segStart == nul ? -2 : hw[ch].segStart;
+    }
+
+    /** Et sa longueur, en mots. */
+    public int hwSegWords(int ch) {
+        return hw[ch].segWords;
+    }
+
+    /**
+     * L'adresse que les registres portent MAINTENANT, ou moins un si aucune.
+     *
+     * <p>{@code nul} est le depart de l'echantillon NUL, que l'appelant connait : il ne vit pas
+     * dans le module, et c'est le seul moyen de le nommer d'un cote comme de l'autre.
+     */
+    public int hwStart(int ch, int nul) {
+        if (hw[ch].data == null) {
+            return -1;
+        }
+        return hw[ch].start == nul ? -2 : hw[ch].start;
+    }
+
+    /** La longueur qu'ils portent, en mots. */
+    public int hwWords(int ch) {
+        return hw[ch].lengthWords;
+    }
+
+    /** La periode qu'ils portent. */
+    public int hwPeriod(int ch) {
+        return hw[ch].period;
+    }
+
+    /** Vrai si ce canal est tenu par la musique plutot que par le melangeur. */
+    public boolean driven(int ch) {
+        return hw[ch].active;
+    }
+
+    /**
+     * Les deux voies de la trame qui vient d'etre melangee.
+     *
+     * <p>Sur Amiga, les canaux ZERO et TROIS sortent a gauche, UN et DEUX a droite. Ce n'est
+     * pas un choix, c'est le cablage.
+     */
+    public void render(int[] gauche, int[] droite) {
+        for (int i = 0; i < FRAME_BYTES; i++) {
+            gauche[i] = sample(0, i) + sample(3, i);
+            droite[i] = sample(1, i) + sample(2, i);
+        }
+    }
+
+    /**
+     * Un echantillon de sortie d'un canal, a l'echelle de son volume.
+     *
+     * <p>Un canal melange se lit tel quel : il a ete produit a la periode de sortie. Un canal
+     * tenu par la musique avance d'autant plus vite que sa periode est COURTE, et reboucle
+     * sur ce que le lecteur a pose dans ses registres une fois la note lancee.
+     */
+    private int sample(int ch, int i) {
+        Hardware h = hw[ch];
+        if (!h.active) {
+            return out[ch][i] * paulaVol[ch] / MAX_VOLUME;
+        }
+        if (h.period <= 0 || paulaVol[ch] == 0) {
+            return 0;
+        }
+        int octets = h.segWords * 2;
+        int at = (int) h.segPos;
+        if (h.segData == null || octets < 2 || at >= octets) {
+            // Le segment est fini : la puce reprend ce que les registres disent MAINTENANT,
+            // c'est-a-dire le point de boucle que le lecteur y a ecrit.
+            h.segData = h.data;
+            h.segStart = h.start;
+            h.segWords = h.lengthWords;
+            h.segPos = 0;
+            at = 0;
+            octets = h.segWords * 2;
+            if (h.segData == null || octets < 2) {
+                return 0;
+            }
+        }
+        int k = h.segStart + at;
+        int v = k >= 0 && k < h.segData.length ? h.segData[k] : 0;
+        h.segPos += (double) PERIOD / h.period;
+        return v * paulaVol[ch] / MAX_VOLUME;
     }
 
     /** La table des rampes, pour qui veut l'eprouver. */

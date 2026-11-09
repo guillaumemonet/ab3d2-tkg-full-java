@@ -151,6 +151,16 @@ tasks.register('paulaCheck', JavaExec) {
     systemProperty 'ab3d2.paula', new File(refRoot, 'paula.json').absolutePath
 }
 
+tasks.register('musicCheck', JavaExec) {
+    group = 'verification'
+    description = "Le lecteur de musique : mille images de morceau, registre par registre"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sound.MusicCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.music', new File(refRoot, 'music.json').absolutePath
+}
+
 tasks.register('alienAnimCheck', JavaExec) {
     group = 'verification'
     description = "Le record de dessin d'un monstre : la queue de son animation"
@@ -182,6 +192,7 @@ tasks.register('game', JavaExec) {
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
     systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
+    systemProperty 'ab3d2.nomusic', project.hasProperty('nomusic') ? 'true' : 'false'
     systemProperty 'ab3d2.mute', project.hasProperty('mute') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
@@ -197,6 +208,7 @@ tasks.register('shot', JavaExec) {
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
     systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
+    systemProperty 'ab3d2.nomusic', project.hasProperty('nomusic') ? 'true' : 'false'
     systemProperty 'ab3d2.mute', project.hasProperty('mute') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
@@ -495,5 +507,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck'
 }

@@ -60,6 +60,7 @@ public final class Shot {
         viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
+        viewer.playMusic = !Boolean.getBoolean("ab3d2.nomusic");
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
