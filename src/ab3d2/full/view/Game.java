@@ -54,6 +54,10 @@ public final class Game {
         Viewer viewer = new Viewer(lettre, lvl);
         // L'eclairage est le MEME objet des deux cotes : la simulation y ecrit (torches, tirs),
         // le peintre y lit. C'est le seul point ou les deux moities du jeu se touchent.
+        // Les deux reglages d'eclairage du joueur : 'eclairage simple' eteint le degrade
+        // des murs, et le degrade des sols est allume au demarrage.
+        viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
+        viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();

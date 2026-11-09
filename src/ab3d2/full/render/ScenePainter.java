@@ -1,5 +1,7 @@
 package ab3d2.full.render;
 
+import static ab3d2.full.M68k.s16;
+
 import ab3d2.full.SinCos;
 import ab3d2.full.defs.Database;
 import ab3d2.full.level.FloorTexture;
@@ -51,6 +53,8 @@ public final class ScenePainter implements Scene.Painter {
 
     private final Wall wall;
     private final WallPaint wallPaint;
+    private final GouraudWall gourWall;
+    private final GouraudWallPaint gourWallPaint;
     private final Flat flat;
     private final FlatPaint flatPaint;
     private final Sky sky;
@@ -75,6 +79,20 @@ public final class ScenePainter implements Scene.Painter {
     private int[] objectAngles;
     private int weapon = -1;
 
+    /**
+     * {@code Draw_ForceSimpleWalls_b} : le reglage joueur « eclairage simple ». Il force la voie
+     * SIMPLE pour tous les pans, et MOYENNE les deux luminosites de chaque bout. Il vient de
+     * {@code Prefs_SimpleLighting_b}, nul au depart.
+     */
+    public boolean forceSimpleWalls;
+
+    /**
+     * {@code draw_GouraudFlatsSelected_b} : le reglage joueur pour les SOLS. Il vaut  au
+     * demarrage ({@code Hires:1933}), donc le degrade est la facon NORMALE de peindre un sol ;
+     * l'eau, elle, l'eteint toujours.
+     */
+    public boolean gouraudFlats = true;
+
     private ObjectView objectView;
     private List<ObjectView.Thing> choses;
     private List<Bitmap.Thing> apparences;
@@ -96,6 +114,7 @@ public final class ScenePainter implements Scene.Painter {
     private int modelFacesDrawn;
     private int offTable;
     private int wallStrips;
+    private int gourWallsDrawn;
     private int flatSpans;
 
     /**
@@ -123,6 +142,8 @@ public final class ScenePainter implements Scene.Painter {
         this.shades = shades;
         this.wall = new Wall(iterations);
         this.wallPaint = new WallPaint(screen);
+        this.gourWall = new GouraudWall(iterations);
+        this.gourWallPaint = new GouraudWallPaint(screen);
         this.flat = new Flat();
         this.flatPaint = new FlatPaint(screen);
         this.flatPaint.water(ripples, water, sinCos);
@@ -205,11 +226,12 @@ public final class ScenePainter implements Scene.Painter {
         this.angle = angle;
         this.centreY = view.height() / 2;
         wallPaint.eye(0, view.height(), 0, view.fullScreen());
+        gourWallPaint.eye(0, view.height(), 0, view.fullScreen());
         flat.eye(view, playerX, playerZ, playerY, 0, 0, sinCos.sin(angle), sinCos.cos(angle),
                 centreY, 0);
         flat.water(true);
         flat.clearWaterTint();
-        flat.gouraud(false);
+        flat.gouraud(gouraudFlats);
     }
 
     /**
@@ -248,7 +270,13 @@ public final class ScenePainter implements Scene.Painter {
         modelFacesDrawn = 0;
         offTable = 0;
         wallStrips = 0;
+        gourWallsDrawn = 0;
         flatSpans = 0;
+    }
+
+    /** Combien de pans de l'image ont pris la voie du DEGRADE. */
+    public int gouraudWalls() {
+        return gourWallsDrawn;
     }
 
     /** Combien de pans, de surfaces, de plans d'eau et de ciels ont ete peints. */
@@ -257,7 +285,8 @@ public final class ScenePainter implements Scene.Painter {
                 + flatsDrawn + " surfaces (" + flatSpans + " tranches), " + watersDrawn + " plans d'eau, " + skiesDrawn + " ciels, " + thingsDrawn + " choses, "
                 + glaresDrawn + " miroitements, " + modelsDrawn + " modeles ("
                 + modelFacesDrawn + " faces), " + litDrawn + " eclairees ("
-                + thingsSkipped + " passees), " + offTable
+                + thingsSkipped + " passees, " + gourWallsDrawn + " pans en degrade), "
+                + offTable
                 + " hors table";
     }
 
@@ -267,8 +296,42 @@ public final class ScenePainter implements Scene.Painter {
         if (peau == null) {
             return;
         }
+        // Les QUATRE coins. Le bas et le haut d'un meme bout ne se lisent pas au meme endroit :
+        // le champ de luminosite du mur porte deux quartets, l'un pour chaque etage.
         int gauche = Scene.wallBright(lights, pass, w, false, false);
         int droite = Scene.wallBright(lights, pass, w, false, true);
+        int gaucheHaut = Scene.wallBright(lights, pass, w, true, false);
+        int droiteHaut = Scene.wallBright(lights, pass, w, true, true);
+
+        // .check_corners (Hireswall.cantTell, fin) : un ecart de PLUS DE DEUX entre le bas et le
+        // haut, a l'un ou l'autre bout, et le pan se peint en degrade. Le reglage « eclairage
+        // simple » court-circuite le tri et MOYENNE les deux luminosites de chaque bout.
+        boolean simple;
+        if (forceSimpleWalls) {
+            gauche = s16(s16(gauche + gaucheHaut) >> 1);     // add.w ; asr.w #1
+            droite = s16(s16(droite + droiteHaut) >> 1);
+            simple = true;
+        } else {
+            simple = Math.abs(s16(gauche - gaucheHaut)) <= 2
+                    && Math.abs(s16(droite - droiteHaut)) <= 2;
+        }
+
+        if (!simple) {
+            gourWall.draw(view, w, playerY, centreY, pass.leftClip(), pass.rightClip(),
+                    gauche, droite, gaucheHaut, droiteHaut, true);
+            if (gourWall.outOfTable() > 0) {
+                offTable++;                            // voir le pan simple : on peint quand meme
+            }
+            gourWallPaint.wall(w, peau, 0);
+            for (GouraudWall.Strip st : gourWall.strips()) {
+                gourWallPaint.paint(st);
+                wallStrips++;
+            }
+            gourWallsDrawn++;
+            wallsDrawn++;
+            return;
+        }
+
         wall.draw(view, w, playerY, centreY, pass.leftClip(), pass.rightClip(), gauche, droite,
                 true);
         if (wall.outOfTable() > 0) {

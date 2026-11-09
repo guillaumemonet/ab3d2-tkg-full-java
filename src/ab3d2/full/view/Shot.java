@@ -55,6 +55,10 @@ public final class Shot {
         // moins sa taille. Pose a zero, l'oeil serait au ras du sol et l'image s'arreterait net.
         World world = World.of(lettre);
         Viewer viewer = new Viewer(lettre, lvl);
+        // Les deux reglages d'eclairage du joueur : 'eclairage simple' eteint le degrade
+        // des murs, et le degrade des sols est allume au demarrage.
+        viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
+        viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();

@@ -133,9 +133,24 @@ public final class Viewer {
         return order.count();
     }
 
-    /** Le compte rendu du peintre, cumule depuis le debut. */
+    /** Le compte rendu du peintre pour la derniere image. */
     public String tally() {
         return peintre.tally();
+    }
+
+    /** Combien de pans de la derniere image ont pris la voie du DEGRADE. */
+    public int gouraudWalls() {
+        return peintre.gouraudWalls();
+    }
+
+    /** Le reglage joueur « eclairage simple » : il eteint le degrade des murs. */
+    public void simpleWalls(boolean simple) {
+        peintre.forceSimpleWalls = simple;
+    }
+
+    /** Le reglage joueur du degrade des SOLS. */
+    public void gouraudFlats(boolean oui) {
+        peintre.gouraudFlats = oui;
     }
 
     /**

@@ -148,6 +148,8 @@ tasks.register('game', JavaExec) {
     description = "Le jeu : la simulation et le rendu, cinquante fois par seconde"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.full.view.Game'
+    systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
+    systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
     if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
@@ -159,6 +161,8 @@ tasks.register('shot', JavaExec) {
     description = "Une image prise depuis un point du niveau"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.full.view.Shot'
+    systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
+    systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
     if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }

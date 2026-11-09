@@ -79,6 +79,7 @@ public final class GameTest {
         int noirs = 0;
         int monstres = 0;
         int accroches = 0;
+        int degrades = 0;
         long poses = 0;
         int pire = Integer.MAX_VALUE;
         try {
@@ -99,6 +100,7 @@ public final class GameTest {
                 dessinees++;
                 monstres = Math.max(monstres, viewer.vivants);
                 accroches = Math.max(accroches, viewer.accroches);
+                degrades += viewer.gouraudWalls();
 
                 int mis = 0;
                 for (int y = 0; y < viewer.view().height(); y++) {
@@ -145,12 +147,12 @@ public final class GameTest {
         // d'ou elles viennent (voir l'en-tete), et ce n'est pas le rendu.
         boolean ok = dessinees > IMAGES / 2;
         System.out.printf("=== GameTest %c : %d images dessinees, %.1f%% de pixels poses"
-                + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d maigre(s)"
-                + " dont %d noire(s) -> %s%n",
+                + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d pans en degrade,"
+                + " %d maigre(s) dont %d noire(s) -> %s%n",
                 lettre, dessinees,
                 dessinees == 0 ? 0.0 : 100.0 * poses / ((double) dessinees * pixels),
                 pire == Integer.MAX_VALUE ? 0.0 : 100.0 * pire / pixels,
-                monstres, accroches, vides, noirs, ok ? "ok" : "ECHEC");
+                monstres, accroches, degrades, vides, noirs, ok ? "ok" : "ECHEC");
         return ok;
     }
 }
