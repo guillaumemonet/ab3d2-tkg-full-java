@@ -149,6 +149,7 @@ public final class MoveTest {
             LevelSim.Zone z = sim.zones[t.zone];
             p.yOff = p.snapYOff =
                     (o.upperZone() != 0 ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
+            pk.worryAll();
             pk.run(p, false);
             if (!pk.collected().isEmpty()) {
                 taken++;
@@ -169,6 +170,7 @@ public final class MoveTest {
             LevelSim.Zone z = sim.zones[t.zone];
             p.yOff = p.snapYOff =
                     (o.upperZone() != 0 ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
+            pk.worryAll();
             pk.run(p, true);
             if (t.activated) {
                 switched++;
@@ -184,11 +186,13 @@ public final class MoveTest {
                 continue;
             }
             t.damageTaken = Math.min(255, def.hitPoints());
+            pk.worryAll();
             pk.run(p, false);
             if (!t.standing()) {
                 casses++;
             }
         }
+        pk.worryAll();
         int locks1 = pk.run(p, false);
         boolean ok = taken == total && locks1 == 0;
         System.out.printf("  ramassage : %d/%d objets pris (%d hors d'atteinte),"
@@ -298,6 +302,7 @@ public final class MoveTest {
         ObjectRuntime objets = new ObjectRuntime(sim, lvl, glf);
         // Une image a vide : c'est elle qui pose la hauteur de chaque chose, celle que le
         // joueur heurte. Sans elle le decor flotterait a la hauteur zero.
+        objets.worryAll();                             // le harnais regarde partout
         objets.run(new PlayerSim(sim, lvl, Data.sinCos()), false);
         Collide col = new Collide(sim, glf, objets);
         col.aliens = new Aliens(sim, lvl, glf, Data.sinCos(), new Nav(lvl), new Los(sim, lvl));

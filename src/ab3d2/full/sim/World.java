@@ -210,6 +210,11 @@ public final class World {
         // le jeu fait avant de dessiner, et elles ne lisent que l'etat qu'on vient d'arreter.
         weapon.place(player, glf, gun, health());
         weapon.animate(glf);
+
+        // markVisibleAndWorry (hires.s:2017) : la DERNIERE chose que la boucle fait, apres
+        // avoir dessine. Ce qu'elle arme ici, c'est l'image SUIVANTE qui le consomme.
+        objects.markVisible(player.zone);
+        aliens.seen = objects.seen();
     }
 
     /** La sante du joueur. */

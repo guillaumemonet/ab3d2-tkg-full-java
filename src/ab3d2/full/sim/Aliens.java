@@ -312,16 +312,27 @@ public final class Aliens {
      * frame : ils partaient tous vers un point de controle et s'entassaient, au lieu d'attendre
      * qu'on les approche.
      */
+    /**
+     * Le releve des secteurs vus, pose par la boucle de jeu a la FIN de l'image precedente —
+     * c'est le moment ou l'original le fait. {@code null} : pas de boucle de jeu (les harnais),
+     * et l'on recalcule alors depuis le secteur courant du joueur.
+     */
+    public boolean[] seen;
+
     private void updateWorry(PlayerSim player) {
-        if (visible == null || visible.length != lvl.zones.length) {
-            visible = new boolean[lvl.zones.length];
-        }
-        java.util.Arrays.fill(visible, false);
-        int pz = player == null ? -1 : player.zone;
-        if (pz >= 0 && pz < pvs.length && pvs[pz] != null) {
-            for (int z : pvs[pz]) {
-                if (z >= 0 && z < visible.length) {
-                    visible[z] = true;
+        if (seen != null && seen.length == lvl.zones.length) {
+            visible = seen;
+        } else {
+            if (visible == null || visible.length != lvl.zones.length) {
+                visible = new boolean[lvl.zones.length];
+            }
+            java.util.Arrays.fill(visible, false);
+            int pz = player == null ? -1 : player.zone;
+            if (pz >= 0 && pz < pvs.length && pvs[pz] != null) {
+                for (int z : pvs[pz]) {
+                    if (z >= 0 && z < visible.length) {
+                        visible[z] = true;
+                    }
                 }
             }
         }

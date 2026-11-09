@@ -47,11 +47,29 @@ import java.util.List;
  *
  * <h2>Ce que le portage ne calcule pas</h2>
  *
- * <p>Le jeu n'anime que les choses qu'il a VUES : {@code markVisibleAndWorry} (hires.s:2058)
- * arme {@code ShotT_Worry_b} sur celles des secteurs visibles, et les quatre familles
- * commencent par le tester. Ici tout est toujours vu. Seule la PHASE des animations peut donc
- * differer — jamais leur contenu — et une chose reste ramassable dans un secteur que le jeu
- * d'origine n'aurait pas dessine.
+ * <h2>Le monde ne vit que ce qu'on regarde</h2>
+ *
+ * <p>Le jeu n'anime que les choses qu'il a VUES. A la FIN de chaque image,
+ * {@code markVisibleAndWorry} (hires.s:2017) prend la liste des secteurs potentiellement
+ * visibles depuis celui du joueur — une table du fichier de niveau, pas un calcul de rendu —
+ * et arme {@code ShotT_Worry_b} sur tout ce qui s'y trouve. Les quatre familles commencent par
+ * le tester : sans lui, ni hauteur, ni animation, ni ramassage.
+ *
+ * <p>Le drapeau se consomme donc avec UNE IMAGE DE RETARD : la boucle le pose apres avoir
+ * dessine, et c'est l'image suivante qui le lit. A la toute premiere, rien n'est arme et rien
+ * ne bouge.
+ *
+ * <p>Et il ne se defait pas pour tout le monde. Seuls le RAMASSABLE et l'INTERRUPTEUR
+ * l'effacent en entrant ({@code and.b #$80}, qui ne garde que le bit de poids fort) ; le DECOR
+ * et le CASSABLE ne l'effacent jamais. Une lampe apercue une fois continue donc de brûler pour
+ * le restant de la partie, meme a l'autre bout de la carte, tandis qu'une trousse de soins se
+ * rendort des qu'on lui tourne le dos. Un interrupteur enclenche que personne ne regarde ne
+ * VIEILLIT meme pas : son delai ne court que sous les yeux du joueur, l'increment du compteur
+ * etant lui aussi derriere la porte.
+ *
+ * <p>Ce que le portage ne tient pas : {@code AI_LookForPlayer1}, que {@code StillHere} appelle
+ * pour armer {@code ObjT_SeePlayer_b}. Il ne servait qu'a l'auto-visee, que ce portage remplace
+ * par la geometrie du rayon.
  *
  * <p>{@code AI_LookForPlayer1}, que {@code StillHere} appelle pour armer
  * {@code ObjT_SeePlayer_b}, n'est pas porte non plus : il ne servait qu'a l'auto-visee, que ce
@@ -59,8 +77,8 @@ import java.util.List;
  *
  * <h2>Ce que le corpus ne separe pas</h2>
  *
- * <p>Trois cent cinq mille etats de chose, six niveaux, trois series, aucun ecart. Sur
- * soixante et une mutations, cinquante-six mordent ; les cinq survivantes se mesurent :
+ * <p>Trois cent soixante-treize mille etats de chose, six niveaux, quatre series, aucun ecart.
+ * Sur soixante-quatorze mutations, soixante-sept mordent ; les sept survivantes se mesurent :
  *
  * <ul>
  *   <li>la hauteur de dessin se TRONQUE au mot, mais le sol d'un secteur decale de sept bits
@@ -74,8 +92,17 @@ import java.util.List;
  *       de soins pleine ;</li>
  *   <li>une CLE se ramasse toujours, inventaire plein ou non — et aucune des seize cartes du
  *       jeu ne pose de chose qui tienne une serrure ET ne donne qu'un consommable. Le raccourci
- *       est la, il est juste, et rien ne l'emprunte.</li>
+ *       est la, il est juste, et rien ne l'emprunte ;</li>
+ *   <li>le {@code and.b #$80} ne garde qu'un bit que rien n'arme jamais sur une CHOSE : seuls
+ *       les projectiles recoivent le {@code st} qui le pose. Effacer le drapeau en entier
+ *       reviendrait au meme ;</li>
+ *   <li>{@code StillHere} teste l'inquietude, puis {@code Decoration} la teste a nouveau : le
+ *       premier des deux tests ne sert a rien. Il est dans l'original, on le garde.</li>
  * </ul>
+ *
+ * <p>Ce qu'aucun oracle ne tient : l'ORDRE de la boucle de jeu. Que {@code markVisible} soit
+ * appele a la fin de l'image et non au debut, c'est {@link World} qui en decide, et rien ne
+ * l'eprouve — le releve, lui, ne fait que rejouer l'ordre que l'oracle a note.
  */
 public final class ObjectRuntime {
 
@@ -138,6 +165,11 @@ public final class ObjectRuntime {
         /** {@code EntT_ImpactX_w} / {@code EntT_ImpactZ_w} : la poussee du dernier coup recu. */
         public int impactX;
         public int impactZ;
+        /**
+         * {@code ShotT_Worry_b} : la chose est-elle VUE ? Nul, elle ne s'anime pas, ne se
+         * ramasse pas, et sa hauteur reste ou elle etait.
+         */
+        public int worry;
         /** Vrai si l'animation a tourne au moins une fois : sinon le dessin n'a rien a montrer. */
         public boolean drawn;
 
@@ -166,10 +198,27 @@ public final class ObjectRuntime {
     /** Les 10 textes du niveau, pour les choses qui portent un {@code EntT_DisplayText_w}. */
     private final java.util.List<String> levelMessages;
 
+    /** Pour chaque secteur, ceux qu'on peut voir depuis lui ({@code ZoneT_PotVisibleZoneList_vw}). */
+    private final int[][] pvs;
+    /** Les secteurs vus a la fin de l'image precedente. */
+    private final boolean[] seen;
+
     public ObjectRuntime(LevelSim lvl, Level data, Database glf) {
         this.lvl = lvl;
         this.glf = glf;
         this.levelMessages = data.messages();
+        this.pvs = new int[lvl.zones.length][];
+        this.seen = new boolean[lvl.zones.length];
+        for (Level.Zone z : data.zones()) {
+            if (z.id() < 0 || z.id() >= pvs.length) {
+                continue;
+            }
+            int[] v = new int[z.visible().size()];
+            for (int i = 0; i < v.length; i++) {
+                v[i] = z.visible().get(i).zone();
+            }
+            pvs[z.id()] = v;
+        }
         this.inventory = new Inventory(Database.MAX_INVENTORY);
         int rank = -1;
         for (Level.Entity o : data.entities()) {
@@ -196,6 +245,48 @@ public final class ObjectRuntime {
     /** Toutes les choses du niveau, dans l'ordre ou la boucle les visite. */
     public List<Thing> things() {
         return all;
+    }
+
+    /**
+     * markVisibleAndWorry (hires.s:2017), la part qui concerne les OBJETS : tout ce qui se
+     * trouve dans un secteur potentiellement visible depuis celui du joueur est ARME.
+     *
+     * <p>La boucle d'origine melange ici monstres et choses, mais son test d'equipe ne vaut
+     * que pour le type ZERO ({@code move.l #%000001,d7}) : une chose n'est jamais armee par
+     * l'alerte d'une equipe, seulement par la vue.
+     *
+     * <p>Rien n'efface le drapeau ici : c'est a chaque famille de le faire, et deux d'entre
+     * elles ne le font pas.
+     */
+    public void markVisible(int playerZone) {
+        java.util.Arrays.fill(seen, false);
+        if (playerZone >= 0 && playerZone < pvs.length && pvs[playerZone] != null) {
+            for (int z : pvs[playerZone]) {
+                if (z >= 0 && z < seen.length) {
+                    seen[z] = true;                    // bset d1,(a1,d0.w)
+                }
+            }
+        }
+        for (Thing t : all) {
+            if (t.zone >= 0 && t.zone < seen.length && seen[t.zone]) {
+                t.worry |= 127;                        // or.b #127,ShotT_Worry_b(a0)
+            }
+        }
+    }
+
+    /** Les secteurs vus a la fin de l'image precedente, pour qui partage le meme releve. */
+    public boolean[] seen() {
+        return seen;
+    }
+
+    /**
+     * Tout est vu. Les harnais n'ont pas de boucle de jeu, donc pas d'image precedente : ils
+     * regardent partout, ce qui est le monde le plus eveille que le jeu puisse presenter.
+     */
+    public void worryAll() {
+        for (Thing t : all) {
+            t.worry |= 127;
+        }
     }
 
     /**
@@ -272,6 +363,10 @@ public final class ObjectRuntime {
             return 0;
         }
         long locks = t.entity.unlocks() & 0xFFFFFFFFL;
+        if (t.worry == 0) {                            // tst.b ShotT_Worry_b ; bne .worry_about
+            return locks;
+        }
+        t.worry &= 0x80;                               // and.b #$80,ShotT_Worry_b(a0)
         animate(t, def, false);
         if (collide(player, t, def) && collect(t, def)) {
             t.zone = -1;                               // ObjT_ZoneID_w = -1 : retire du niveau
@@ -290,6 +385,10 @@ public final class ObjectRuntime {
             boolean actionTap) {
         if (!t.activated) {
             long locks = t.entity.unlocks() & 0xFFFFFFFFL;
+            if (t.worry == 0) {
+                return locks;
+            }
+            t.worry &= 0x80;                           // and.b #$80,ShotT_Worry_b(a0)
             animate(t, def, false);
             if (collide(player, t, def) && actionTap) {
                 collect(t, def);                       // Plr1_CollectItem (ce qu'il donne)
@@ -300,7 +399,12 @@ public final class ObjectRuntime {
             return locks;
         }
         // ACTIVATED : les serrures sont COMMENTEES dans l'original, un interrupteur enclenche
-        // ne tient plus rien.
+        // ne tient plus rien. Et son compteur n'avance que DERRIERE la porte : un interrupteur
+        // que personne ne regarde ne vieillit pas.
+        if (t.worry == 0) {
+            return 0;
+        }
+        t.worry &= 0x80;                               // and.b #$80,ShotT_Worry_b(a0)
         animate(t, def, true);
         t.activeTimer = M68k.setw(t.activeTimer, t.activeTimer + 1); // add.w Anim_TempFrames_w
         boolean timeout = def.activeTimeout() >= 0
@@ -336,6 +440,11 @@ public final class ObjectRuntime {
         if (t.zone < 0) {
             return 0;
         }
+        if (t.worry == 0) {
+            return 0;
+        }
+        // Pas de « and.b #$80 » ici : le cassable ne relache jamais son drapeau. Vu une fois,
+        // il s'anime pour le restant de la partie.
         animate(t, def, true);                         // ACTANIMOBJ : la chose cassee
         return 0;
     }
@@ -352,12 +461,23 @@ public final class ObjectRuntime {
     private long stillHere(Thing t, Database.ObjectDef def) {
         t.hitPoints = 1;                               // move.b #1,EntT_HitPoints_b
         long locks = t.entity.unlocks() & 0xFFFFFFFFL;
+        if (t.worry == 0) {
+            return locks;
+        }
         decoration(t, def);                            // (chute)
         return locks;
     }
 
-    /** Decoration (newaliencontrol.s:480). */
+    /**
+     * Decoration (newaliencontrol.s:480).
+     *
+     * <p>Pas de « and.b #$80 » ici non plus : le decor garde son drapeau. Une lampe apercue
+     * une fois brule pour le restant de la partie.
+     */
     private void decoration(Thing t, Database.ObjectDef def) {
+        if (t.worry == 0) {
+            return;
+        }
         animate(t, def, false);
     }
 

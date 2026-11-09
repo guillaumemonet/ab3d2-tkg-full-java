@@ -22,7 +22,7 @@ import java.util.List;
  * <p>Jusqu'ici le portage savait ce qu'un PAS d'animation donne a voir ({@code objAnimCheck})
  * mais personne ne faisait avancer ces pas : toutes les choses du jeu restaient figees sur leur
  * premiere image, et les trois familles qui ne sont pas du decor n'etaient eprouvees que par
- * leurs effets de bord. Celle-ci rejoue six niveaux pendant deux cent quarante images et
+ * leurs effets de bord. Celle-ci rejoue six niveaux en quatre series et
  * compare, pour chaque chose et a chaque image, les douze mots de son enregistrement.
  *
  * <p>Le DESTRUCTIBLE y reçoit une echelle de degats POSEE — le seuil moins un, le seuil, le
@@ -57,14 +57,14 @@ public final class ObjectLifeCheck {
         for (var el : root.getAsJsonArray("levels")) {
             JsonObject n = el.getAsJsonObject();
             String nom = n.get("level").getAsString();
-            for (String quelle : new String[] {"idle", "contact", "full"}) {
+            for (String quelle : new String[] {"idle", "contact", "full", "pvs"}) {
                 JsonObject serie = n.getAsJsonObject(quelle);
                 etats += serie.getAsJsonArray("frames").size()
                         * serie.getAsJsonArray("entities").size();
                 ecarts += serie(nom + "/" + quelle, nom.charAt(0), serie);
             }
         }
-        System.out.printf("%n%d etats d'objet sur six niveaux et trois series, %d ecart(s)"
+        System.out.printf("%n%d etats d'objet sur six niveaux et quatre series, %d ecart(s)"
                 + " -> %s%n", etats, ecarts, ecarts == 0 ? "PASS" : "FAIL");
         if (ecarts != 0) {
             System.exit(1);
@@ -93,6 +93,7 @@ public final class ObjectLifeCheck {
         // zone dans la premiere serie, sur une chose a tour de role dans la seconde.
         PlayerSim joueur = new PlayerSim(lvl, data, Data.sinCos());
 
+        boolean parLaVue = n.get("byVisibility").getAsBoolean();
         JsonArray entites = n.getAsJsonArray("entities");
         List<ObjectRuntime.Thing> miennes = objets.things();
         int ecarts = 0;
@@ -148,7 +149,18 @@ public final class ObjectLifeCheck {
             joueur.zOff = j.get("z").getAsInt();
             joueur.yOff = j.get("y").getAsInt();
             joueur.height = j.get("height").getAsInt();
+            // markVisibleAndWorry : dans les trois premieres series l'oracle arme TOUT a
+            // chaque image, ce qui est le monde le plus eveille que le jeu puisse
+            // presenter. La quatrieme laisse la vraie porte decider.
+            if (!parLaVue) {
+                objets.worryAll();
+            }
             int verrous = objets.run(joueur, j.get("action").getAsBoolean());
+            if (parLaVue) {
+                // La DERNIERE chose que la boucle fait : ce qu'elle arme ici, c'est
+                // l'image suivante qui le consomme.
+                objets.markVisible(j.get("lookZone").getAsInt());
+            }
 
             ecarts += eq(nom + ", image " + f + " : verrous", verrous,
                     img.get("locks").getAsInt());
@@ -199,9 +211,18 @@ public final class ObjectLifeCheck {
         ecarts += eq(quoi + "enclenche", t.activated ? 0xFF : 0, o.get("whichAnim").getAsInt());
         ecarts += eq(quoi + "hauteur", t.height & 0xFFFF, o.get("height").getAsInt());
         ecarts += eq(quoi + "angle", t.angle & 0xFFFF, o.get("angle").getAsInt());
+        ecarts += eq(quoi + "inquietude", t.worry, o.get("worry").getAsInt());
 
         // Ce que l'animation vient d'ecrire dans les champs de dessin : la taille au mot six,
         // la feuille et l'image aux octets huit a onze.
+        // Une chose que personne n'a encore regardee n'a JAMAIS ete animee : ses quatre
+        // octets de dessin et son mot de taille sont restes a zero, tels que le fichier de
+        // niveau les laisse.
+        if (!t.drawn) {
+            ecarts += eq(quoi + "demi-tailles", 0, o.get("size").getAsInt());
+            ecarts += eq(quoi + "champs de dessin", 0, o.get("gfx").getAsInt());
+            return ecarts;
+        }
         Database.ObjectDef def = glf.object(t.entity.def());
         List<Database.AnimStep> script = t.shownActive ? def.activeAnim() : def.idleAnim();
         Database.AnimStep pas = script.get(Math.floorMod(t.shownStep, script.size()));
