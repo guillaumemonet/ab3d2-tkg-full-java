@@ -185,7 +185,10 @@ public final class World {
         player.floorDamage();                          // les sols qui rongent
         int hurt = player.applyDamage(objects.inventory, nav);
         if (hurt != 0) {
-            sfx.play(19);                              // le cri
+            // hires.s:2308 : le cri du joueur touche.
+            sfx.id = 0xFFFA;                           // move.w #$fffa,IDNUM
+            sfx.notIfPlaying = false;                  // clr.b notifplaying
+            sfx.here(19, 60, 0, 0);                    // le cri
         }
 
         anims.playerZone = player.zone;

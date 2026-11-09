@@ -57,6 +57,9 @@ public final class Game {
         viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
+        if (!Boolean.getBoolean("ab3d2.mute") && !viewer.openSound()) {
+            System.out.println("son indisponible : le jeu sera muet");
+        }
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
@@ -175,6 +178,8 @@ public final class Game {
             if (zone >= 0) {
                 viewer.draw(world, world.player.xOff >> 16, world.player.zOff >> 16, zone,
                         world.player.angPos, world.player.yOff);
+                viewer.sound(world, world.player.xOff >> 16,
+                        world.player.zOff >> 16, world.player.angPos);
                 viewer.overlay(world, System.currentTimeMillis());
                 convertir();
             }

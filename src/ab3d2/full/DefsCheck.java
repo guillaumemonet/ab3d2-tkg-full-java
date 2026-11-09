@@ -63,6 +63,7 @@ public final class DefsCheck {
         verifieTirs(pb, db, o.getAsJsonArray("alienShootDefs"));
         verifieProjectiles(pb, db, o.getAsJsonArray("bullets"));
         verifieSols(pb, db, o.getAsJsonArray("floorData"));
+        verifieBruitages(pb, db, o.getAsJsonArray("sfx"));
 
         JsonArray amb = o.getAsJsonArray("ambientSfx");
         if (amb != null) {
@@ -300,6 +301,27 @@ public final class DefsCheck {
                     r.get("impactGraphicType").getAsInt());
             anim(pb, q + " animation de vol", a.animData(), r.getAsJsonArray("animData"));
             anim(pb, q + " animation d'impact", a.popData(), r.getAsJsonArray("popData"));
+        }
+    }
+
+    /**
+     * Les NOMS des fichiers de bruitage.
+     *
+     * <p>Ils ne servaient a rien tant que le son n'etait pas porte, et personne ne les
+     * regardait : le pas etait lu a soixante octets, sur la foi d'une declaration qui a
+     * tort, et les noms derivaient de quatre octets par entree. Ils sont espaces de
+     * SOIXANTE-QUATRE, ce qui fait deborder les quatre dernieres entrees sur les noms de
+     * fichiers suivants — le pave de sol et les cartes de textures deviennent des
+     * bruitages, que rien ne joue.
+     */
+    private static void verifieBruitages(List<String> pb, Database db, JsonArray ref) {
+        if (ref == null) {
+            return;
+        }
+        eq(pb, "nb bruitages", db.soundFiles().size(), ref.size());
+        for (int i = 0; i < Math.min(db.soundFiles().size(), ref.size()); i++) {
+            eqStr(pb, "bruitage " + i, db.soundFiles().get(i),
+                    ref.get(i).getAsJsonObject().get("file").getAsString());
         }
     }
 

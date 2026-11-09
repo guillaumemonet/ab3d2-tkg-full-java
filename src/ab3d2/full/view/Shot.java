@@ -106,6 +106,7 @@ public final class Shot {
             viewer.lights().frame(zone);
         }
         viewer.draw(world, x, z, zone, angle, hauteur);
+        viewer.sound(world, x, z, angle);
         // L'habillage : le reticule, les messages, puis le bandeau du tableau de bord.
         viewer.overlay(world, 0);
 

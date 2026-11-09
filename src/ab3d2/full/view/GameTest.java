@@ -70,6 +70,9 @@ public final class GameTest {
         world.shots.dynLight = viewer.lights();
 
         boolean dump = Boolean.getBoolean("ab3d2.dump");
+        if (Boolean.getBoolean("ab3d2.wav")) {
+            viewer.recordSound(java.nio.file.Path.of("build/son_" + lettre + ".wav"));
+        }
         World.Input entree = new World.Input();
         Screen screen = viewer.screen();
         int pixels = Screen.WIDTH * viewer.view().height();
@@ -118,6 +121,8 @@ public final class GameTest {
                 // L'habillage se pose APRES le compte : le bandeau remplit toujours ses
                 // vingt-quatre lignes et gonflerait le remplissage sans rien dire du rendu. On
                 // l'eprouve quand meme — une exception ici fait echouer le niveau.
+                viewer.sound(world, world.player.xOff >> 16,
+                        world.player.zOff >> 16, world.player.angPos);
                 viewer.overlay(world, i * 20L);
                 armes = Math.max(armes, viewer.armeVue ? 1 : 0);
                 if (mis == 0) {
@@ -152,14 +157,16 @@ public final class GameTest {
         // Ce qui FAIT ECHOUER : une exception (rattrapee plus haut) ou une boucle qui ne
         // dessine rien. Les images vides, elles, sont RELEVEES et non sanctionnees : on sait
         // d'ou elles viennent (voir l'en-tete), et ce n'est pas le rendu.
+        viewer.closeSound();                           // ecrit le fichier d'onde
         boolean ok = dessinees > IMAGES / 2;
         System.out.printf("=== GameTest %c : %d images dessinees, %.1f%% de pixels poses"
                 + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d pans en degrade,"
-                + " arme %s, %d maigre(s) dont %d noire(s) -> %s%n",
+                + " arme %s, %d bruit(s), %d maigre(s) dont %d noire(s) -> %s%n",
                 lettre, dessinees,
                 dessinees == 0 ? 0.0 : 100.0 * poses / ((double) dessinees * pixels),
                 pire == Integer.MAX_VALUE ? 0.0 : 100.0 * pire / pixels,
-                monstres, accroches, degrades, armes != 0 ? "vue" : "ABSENTE", vides, noirs,
+                monstres, accroches, degrades, armes != 0 ? "vue" : "ABSENTE",
+                viewer.bruits, vides, noirs,
                 ok ? "ok" : "ECHEC");
         return ok;
     }

@@ -397,7 +397,10 @@ public final class Aliens {
             int d1 = a.timer2;
             Database.AlienFrame f = frames.get(Math.min(Math.max(d1, 0), frames.size() - 1));
             if (f.sfx() != 0 && sfx != null) {       // move.b 5(a6,d1.w),d0 ; subq #1 ; Aud_SampleNum_w
-                sfx.playAt(f.sfx() - 1, a.x, a.z, a.height);
+                // hires.s:6109 : volume 80, identifiant = le POINT du monstre.
+                sfx.id = a.index;                  // move.w (a0),IDNUM
+                sfx.notIfPlaying = false;          // clr.b notifplaying
+                sfx.at(f.sfx() - 1, 80, a.x, a.z);
             }
             if (f.action() != 0) {                       // action sur cette frame
                 a.wsAction = (a.wsAction + 1) & 0xFF;  // add.b #1,(a5)

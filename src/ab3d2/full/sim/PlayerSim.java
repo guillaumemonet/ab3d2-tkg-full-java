@@ -350,7 +350,10 @@ public final class PlayerSim {
         int water = lvl.zones[zone].water;
         if (d1 >= water) {                             // on est dans l'eau
             if (water >= oldHeight && sfx != null) {   // cmp.l plr_OldHeight_l,d0 ; blt .no_splash_fx
-                sfx.play(6);                           // move.w #6,Aud_SampleNum_w : PLOUF
+                // player.s:956 : le PLOUF, pose a cent unites DEVANT le joueur.
+                sfx.id = 0xFFF8;                       // move.w #$fff8,IDNUM
+                sfx.notIfPlaying = false;              // clr.b notifplaying
+                sfx.here(6, 80, 0, 100);               // move.w #6,Aud_SampleNum_w : PLOUF
             }
             decelerate = true;                         // on garde le controle en nageant
             fallDamage = 0;
@@ -424,7 +427,10 @@ public final class PlayerSim {
                 snapZOff = zOff;
                 teleported = true;
                 if (sfx != null) {
-                    sfx.play(26);                      // move.w #26,Aud_SampleNum_w
+                    // hires.s:2934 : le teleporteur. Il n'ecrit PAS « pas si ca joue » et
+                    // herite donc de ce que le bruit precedent y avait laisse.
+                    sfx.id = 0xFFF9;                   // move.w #$fff9,IDNUM
+                    sfx.here(26, 100, 0, 0);           // move.w #26,Aud_SampleNum_w
                 }
                 cantmove = true;                       // bra .cantmove : pas de deplacement
             }
@@ -538,7 +544,9 @@ public final class PlayerSim {
         LevelSim.Zone z = lvl.zones[zone];
         int d0 = z.floorNoise;
         if (z.water < z.floorH && z.water >= yOff && !stoodInTop) {
-            sfx.play(6);                               // .have_water : splash
+            sfx.id = 0xFFF8;                           // move.w #$fff8,IDNUM
+            sfx.notIfPlaying = false;                  // clr.b notifplaying
+            sfx.here(6, 80, 0, 100);                   // .have_water : splash
             return;
         }
         if (stoodInTop) {
@@ -546,7 +554,9 @@ public final class PlayerSim {
         }
         int num = (d0 >= 0 && d0 < floorSfx.length ? floorSfx[d0] : 0) - 1; // subq #1
         if (num >= 0) {
-            sfx.play(num);                             // le pas est « sur » le joueur : sans position
+            sfx.id = 0xFFF8;                           // move.w #$fff8,IDNUM
+            sfx.notIfPlaying = false;                  // clr.b notifplaying
+            sfx.here(num, 80, 0, 100);                 // player.s:1037 : cent unites devant
         }
     }
 

@@ -70,7 +70,20 @@ public final class DatabaseReader {
     private static final int NAME_LENGTH = 20;
     private static final int FILENAME_LENGTH = 64;
     private static final int LEVEL_NAME_LENGTH = 40;
-    private static final int SFX_NAME_LENGTH = 60;
+    /**
+     * Le pas d'un nom de BRUITAGE : soixante-quatre octets, et non soixante.
+     *
+     * <p>La declaration de {@code defs.i} dit soixante ({@code NUM_SFX*60}), et elle a tort :
+     * le chargeur avance de soixante-quatre ({@code adda.w #64,a0}, res.s), et les donnees sont
+     * bien espacees de soixante-quatre. A soixante, les noms derivent de quatre octets par
+     * entree et ne sont plus que des fragments.
+     *
+     * <p>Consequence de cette discordance : les quatre dernieres entrees DEBORDENT sur les noms
+     * de fichiers qui suivent. Le bruitage soixante est le pave de sol, le soixante-et-unieme
+     * les cartes de textures. Le jeu les charge donc comme des echantillons, et personne ne les
+     * joue jamais.
+     */
+    private static final int SFX_NAME_LENGTH = 64;
     private static final int OBJECT_DEF_SIZE = 40;
     private static final int ALIEN_DEF_SIZE = 42;
     private static final int SHOOT_SIZE = 8;

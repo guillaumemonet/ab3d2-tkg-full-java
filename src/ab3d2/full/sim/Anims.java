@@ -159,7 +159,11 @@ public final class Anims {
             }
         }
         if (d0 < ambientSfx.length) {
-            sfx.play(ambientSfx[d0]);                  // (pas de -1 ici, contrairement aux autres)
+            // newanims.s:758 : le VOLUME est le rang du bruit d'ambiance lui-meme, et le
+            // drapeau « pas si ca joue » est ARME — un bruit d'ambiance ne se superpose pas.
+            sfx.id = 0xFFF0;                           // move.w #$fff0,IDNUM
+            sfx.notIfPlaying = true;                   // st.b notifplaying
+            sfx.here(ambientSfx[d0], d0, 0, 0);        // move.l #0,Aud_NoiseX_w
         }
     }
 
@@ -188,7 +192,9 @@ public final class Anims {
             boolean doorClosed = (short) d0 <= (short) d3;   // sle anim_DoorClosed_b
             if (!((short) d0 > (short) d3)) {
                 if (d2 != 0 && sfx != null) {          // tst.w d2 ; beq .nonoise (elle CLAQUE)
-                    sfx.playAt(dr.closedSound() - 1, dr.x(), dr.z(), doorHeight(dr));
+                    sfx.id = 0xFFFD;               // move.w #$fffd,IDNUM
+                    sfx.notIfPlaying = false;      // clr.b notifplaying
+                    sfx.door(dr.closedSound() - 1, 50, dr.x(), dr.z());
                 }
                 d2 = 0;
                 d0 = M68k.setw(d0, d3);                // move.w d3,d0 (quirk d'origine : pas de clamp)
@@ -205,7 +211,9 @@ public final class Anims {
                 if (d2 != 0) {                         // elle vient d'arriver en butee haute
                     doorTimer[i] = 0;                  // move.w #0,(a6) : le compte a rebours
                     if (sfx != null) {                 // de refermeture repart de zero
-                        sfx.playAt(dr.openedSound() - 1, dr.x(), dr.z(), doorHeight(dr));
+                        sfx.id = 0xFFFD;           // move.w #$fffd,IDNUM
+                        sfx.notIfPlaying = false;  // clr.b notifplaying
+                        sfx.door(dr.openedSound() - 1, 50, dr.x(), dr.z());
                     }
                 }
                 d3 = M68k.setw(d3, d1);                // clamp a "ouvert"
@@ -443,7 +451,9 @@ public final class Anims {
                 // bruit de fermeture rejouait un son a chaque frame, indefiniment.
                 if (sfx != null && actionSoundFx >= 0) {
                     Level.Liftable src = door ? doors.get(index) : lifts.get(index);
-                    sfx.playAt(actionSoundFx, src.x(), src.z(), doorHeight(src));
+                    sfx.id = 0xFFFD;               // move.w #$fffd,IDNUM
+                    sfx.notIfPlaying = false;      // clr.b notifplaying
+                    sfx.door(actionSoundFx, 50, src.x(), src.z());
                 }
             }
         }

@@ -137,6 +137,31 @@ public final class ObjectView {
     }
 
     /**
+     * L'abscisse d'un ecart, une fois tourne : {@code x*cos - z*sin}.
+     *
+     * <p>Le resultat est DOUBLE puis echange de moities : on ne garde que ses seize bits de
+     * poids fort, ce qui revient a le ramener de quinze bits.
+     *
+     * <p>Elle est a part parce que le SON s'en sert aussi : le jeu place ses bruits avec les
+     * memes coordonnees tournees que son rendu ({@code ObjRotated_vl}).
+     */
+    public static int rotateX(int dx, int dz, int sin, int cos) {
+        return s16((muls(dx, cos) - muls(dz, sin)) * 2 >>> 16);
+    }
+
+    /**
+     * La profondeur d'un ecart, une fois tournee : {@code x*sin + z*cos}, ramenee de quatorze
+     * bits, puis corrigee du rapport d'aspect quand la vue est en plein ecran.
+     */
+    public static int rotateZ(int dx, int dz, int sin, int cos, boolean full) {
+        int z = muls(dx, sin) + muls(dz, cos);
+        if (full) {
+            return s16(muls(s16((z << 2) >>> 16), ASPECT) >> 8);
+        }
+        return s16((z * 2) >>> 16);
+    }
+
+    /**
      * Tourne les points des choses autour de l'oeil.
      *
      * @param things  les choses, dans l'ordre du niveau
@@ -181,20 +206,10 @@ public final class ObjectView {
             int dx = s16(t.x() - px);                  // sub.w Plr_XOff_l,d0
             int dz = s16(t.z() - pz);                  // sub.w Plr_ZOff_l,d1
 
-            // x' = x*cos - z*sin. Le resultat est DOUBLE puis echange de moities : on ne garde
-            // que ses seize bits de poids fort, ce qui revient a le ramener de quinze bits.
-            int x = s16((muls(dx, cos) - muls(dz, sin)) * 2 >>> 16);
+            int x = rotateX(dx, dz, sin, cos);
             rotX[at] = x;
-
-            // z' = x*sin + z*cos, ramene de quatorze bits par le meme procede, puis corrige du
-            // rapport d'aspect quand la vue est en plein ecran.
-            int z = muls(dx, sin) + muls(dz, cos);
-            if (full) {
-                z = s16(muls(s16((z << 2) >>> 16), ASPECT) >> 8);
-            } else {
-                z = s16((z * 2) >>> 16);
-            }
-            rotZ[at] = z;
+            rotZ[at] = rotateZ(dx, dz, sin, cos, full);
+            int z = rotZ[at];
 
             // Et l'abscisse remise a l'echelle du decor, le balancement du pas compris.
             worldX[at] = (x << 7) + xWobble;           // ext.l d2 ; asl.l #7,d2 ; add.l d3,d2

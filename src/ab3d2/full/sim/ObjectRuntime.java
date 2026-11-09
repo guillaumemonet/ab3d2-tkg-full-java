@@ -273,8 +273,10 @@ public final class ObjectRuntime {
         }
         inventory.add(def.ammoGive(), def.gunGive());
         if (sfx != null) {                             // ODefT_SFX_w (Newaliencontrol.java:538)
-            sfx.playAt(def.sfx(), o.entity.x(), o.entity.z(),
-                    objectHeight(lvl, o.zone, o.entity.upperZone() != 0, o.animDelta, def));
+            // newaliencontrol.s:705 : volume 80, identifiant = le POINT de l'objet.
+            sfx.id = o.entity.point();             // move.w (a0),IDNUM
+            sfx.notIfPlaying = false;              // clr.b notifplaying
+            sfx.at(def.sfx(), 80, o.entity.x(), o.entity.z());
         }
         if (messages != null) {                        // Plr1_CollectItem : texte du niveau, sinon NOM
             if (o.entity.message() >= 0 && levelMessages != null

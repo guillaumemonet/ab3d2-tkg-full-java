@@ -21,7 +21,10 @@ import ab3d2.full.render.Water;
 import ab3d2.full.render.ZoneOrder;
 import ab3d2.full.sim.Aliens;
 import ab3d2.full.sim.ObjectRuntime;
+import ab3d2.full.sim.SfxQueue;
 import ab3d2.full.sim.World;
+import ab3d2.full.sound.Paula;
+import ab3d2.full.sound.Samples;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,6 +69,8 @@ public final class Viewer {
     private final Hud hud;
     private final Text police;
     private final MessageBoard board;
+    private final Paula paula;
+    private final Speaker speaker;
     private final char lettre;
 
     private final List<ObjectView.Thing> choses = new ArrayList<>();
@@ -85,6 +90,9 @@ public final class Viewer {
      * trompeur du reglage.
      */
     public boolean showWeapon = true;
+
+    /** Combien de bruits la simulation a demandes depuis le debut. */
+    public int bruits;
 
     /** Vrai si l'arme en main a ete posee a la derniere image. */
     public boolean armeVue;
@@ -130,6 +138,8 @@ public final class Viewer {
         this.hud = new Hud(Data.borderPacked(), Data.borderChars());
         this.police = new Text(Data.scrollFont(), Data.glyphSpacing());
         this.board = new MessageBoard(police);
+        this.paula = new Paula(Samples.load(Data.database().soundFiles(), Data::asset));
+        this.speaker = new Speaker(paula);
     }
 
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
@@ -246,6 +256,67 @@ public final class Viewer {
         int munitions = arme == null ? 0
                 : world.objects.inventory.ammo(arme.shoot().bulletType());
         hud.frame(pixels, Screen.WIDTH, munitions, world.health(), armes, world.gun);
+    }
+
+    /** Le moteur audio de cette vue. */
+    public Paula paula() {
+        return paula;
+    }
+
+    /** Ouvre la sortie audio de la machine ; faux si elle n'en a pas. */
+    public boolean openSound() {
+        return speaker.open();
+    }
+
+    /** Enregistre aussi le son dans un fichier d'onde. */
+    public void recordSound(java.nio.file.Path f) {
+        speaker.record(f);
+    }
+
+    /** Rend la sortie audio. */
+    public void closeSound() {
+        speaker.close();
+    }
+
+    /**
+     * LE SON d'une image : les bruits que la simulation a demandes, puis ce qu'il faut
+     * melanger pour que la machine ne manque pas de matiere.
+     *
+     * <p>C'est ici que la position d'un bruit devient celle de la VUE. Le jeu ne le fait pas
+     * autrement : ses sites de bruit lisent la table des choses deja tournees par le rendu,
+     * ou refont la rotation sur place. Les deux rotations ne sont pas la meme — celle des
+     * PORTES retranche la ou l'autre ajoute, et ne corrige pas le rapport d'aspect — et on
+     * garde les deux.
+     *
+     * @param world le monde, pour sa file de bruitages
+     * @param x     la pose de l'oeil
+     * @param z     la pose de l'oeil
+     * @param angle son orientation
+     */
+    public void sound(World world, int x, int z, int angle) {
+        int sin = Data.sinCos().sin(angle);
+        int cos = Data.sinCos().cos(angle);
+        int px = ab3d2.full.M68k.s16(x);
+        int pz = ab3d2.full.M68k.s16(z);
+        for (SfxQueue.Event e : world.sfx.drain()) {
+            int nx = e.x;
+            int nz = e.z;
+            if (e.place != SfxQueue.Place.VIEW) {
+                int dx = ab3d2.full.M68k.s16(e.x - px);
+                int dz = ab3d2.full.M68k.s16(e.z - pz);
+                nx = ObjectView.rotateX(dx, dz, sin, cos);
+                if (e.place == SfxQueue.Place.DOOR) {
+                    // newanims.s:905 : muls sin,dx ; muls cos,dz ; SUB ; add.l ; swap.
+                    nz = ab3d2.full.M68k.s16((ab3d2.full.M68k.muls(dx, sin)
+                            - ab3d2.full.M68k.muls(dz, cos)) * 2 >>> 16);
+                } else {
+                    nz = ObjectView.rotateZ(dx, dz, sin, cos, view.fullScreen());
+                }
+            }
+            paula.play(e.num, nx, nz, e.vol, e.id, e.notIfPlaying);
+            bruits++;
+        }
+        speaker.pump();
     }
 
     /** Le panneau des messages, pour qui veut y pousser autre chose que la simulation. */

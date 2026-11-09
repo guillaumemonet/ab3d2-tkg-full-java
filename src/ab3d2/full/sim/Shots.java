@@ -177,14 +177,21 @@ public final class Shots {
         if (ammoInMyGun < g.shoot().bulletCount()) {             // cmp.w d1,d2 ; bge .okcanshoot
             dryFire = true;
             if (sfx != null) {
-                sfx.play(12);                          // move.w #12,Aud_SampleNum_w (noammo)
+                // newplayershoot.s:149 : le clic a vide. L'identifiant n'ecrit que son
+                // octet de POIDS FORT, et l'octet bas garde celui du bruit precedent.
+                sfx.idHigh(0xFB);                      // move.b #$fb,IDNUM
+                sfx.notIfPlaying = false;              // clr.b notifplaying
+                sfx.at(12, 100, s16(player.xOff >> 16), s16(player.zOff >> 16));
             }
             return false;
         }
         // .okcanshoot
         timeToShoot = g.shoot().delay();
         if (sfx != null) {
-            sfx.play(g.shoot().sfx());                           // move.w ShootT_SFX_w(a6),Aud_SampleNum_w
+            // newplayershoot.s:180 : le coup part. Volume 300, trois fois celui du clic.
+            sfx.idHigh(0xFB);                                    // move.b #$fb,IDNUM
+            sfx.notIfPlaying = false;                            // clr.b notifplaying
+            sfx.at(g.shoot().sfx(), 300, s16(player.xOff >> 16), s16(player.zOff >> 16));
         }                         // move.w ShootT_Delay_w(a6),PlrX_TimeToShoot_w
         inv.setAmmo(bulType, s16(ammoInMyGun - g.shoot().bulletCount()));
         fired = true;
@@ -906,7 +913,14 @@ public final class Shots {
             return;
         }
         if (sfx != null) {
-            sfx.playAt(b.impactSfx() - 1, s16(s.x >> 16), s16(s.z >> 16), s.heightWord);
+            // newanims.s:2171 : l'impact. Il n'ecrit PAS « pas si ca joue » et herite donc
+            // de ce que le bruit precedent y avait laisse.
+            // L'identifiant d'origine est le POINT de la balle dans la table du niveau ;
+            // ce portage ne modelise pas encore ces points-la, et prend le rang de
+            // l'emplacement dans le pool. Deux impacts se distinguent donc toujours l'un
+            // de l'autre, mais pas par le meme nombre que le jeu.
+            sfx.id = pool.indexOf(s);              // move.w d1,IDNUM
+            sfx.at(b.impactSfx() - 1, 200, s16(s.x >> 16), s16(s.z >> 16));
         }
         if (b.explosiveForce() != 0) {                   // tst.l BulT_ExplosiveForce_l ; beq .noexplosion
             computeBlast(b.explosiveForce(), s16(s.x >> 16), s16(s.z >> 16), s.heightWord,
