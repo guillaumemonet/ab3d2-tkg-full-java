@@ -59,6 +59,7 @@ public final class Shot {
         // des murs, et le degrade des sols est allume au demarrage.
         viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
+        viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
@@ -105,15 +106,20 @@ public final class Shot {
             viewer.lights().frame(zone);
         }
         viewer.draw(world, x, z, zone, angle, hauteur);
+        // L'habillage : le reticule, les messages, puis le bandeau du tableau de bord.
+        viewer.overlay(world, 0);
 
         System.out.printf("niveau %c, secteur %d (%d, %d), angle %d, oeil %d%n",
                 lettre, zone, x, z, angle, hauteur);
         System.out.printf("  %d choses animees, %d monstres vivants (%d qui pensent,"
-                + " %d graphiques accroches)%n",
-                viewer.animees, viewer.vivants, viewer.pensants, viewer.accroches);
+                + " %d graphiques accroches), arme %s%n",
+                viewer.animees, viewer.vivants, viewer.pensants, viewer.accroches,
+                viewer.armeVue ? "en main (objet " + world.weapon.object + ", modele "
+                        + (world.weapon.shown == null ? -1 : world.weapon.shown.gfx())
+                        + ")" : "absente");
         System.out.println("  " + viewer.tally());
 
-        ecrire(viewer.screen(), viewer.view(), echelle, sortie);
+        ecrire(viewer.screen(), Screen.HEIGHT, echelle, sortie);
         System.out.println("  -> " + sortie.toAbsolutePath());
     }
 
@@ -146,11 +152,15 @@ public final class Shot {
         return zone;
     }
 
-    /** Du tampon d'octets a un PNG, chaque octet passant par la palette du jeu. */
-    static void ecrire(Screen screen, View view, int echelle, Path sortie) throws IOException {
+    /**
+     * Du tampon d'octets a un PNG, chaque octet passant par la palette du jeu.
+     *
+     * <p>L'image fait les DEUX CENT CINQUANTE-SIX lignes de l'ecran, et non les deux cent
+     * quarante de la vue : les dernieres portent le tableau de bord.
+     */
+    static void ecrire(Screen screen, int haut, int echelle, Path sortie) throws IOException {
         Palette palette = Data.palette();
         int largeur = View.FULL_WIDTH;
-        int haut = view.height();
         BufferedImage image = new BufferedImage(largeur * echelle, haut * echelle,
                 BufferedImage.TYPE_INT_RGB);
         byte[] pixels = screen.pixels();

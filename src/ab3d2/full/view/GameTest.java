@@ -80,6 +80,7 @@ public final class GameTest {
         int monstres = 0;
         int accroches = 0;
         int degrades = 0;
+        int armes = 0;
         long poses = 0;
         int pire = Integer.MAX_VALUE;
         try {
@@ -113,6 +114,12 @@ public final class GameTest {
                 }
                 poses += mis;
                 pire = Math.min(pire, mis);
+
+                // L'habillage se pose APRES le compte : le bandeau remplit toujours ses
+                // vingt-quatre lignes et gonflerait le remplissage sans rien dire du rendu. On
+                // l'eprouve quand meme — une exception ici fait echouer le niveau.
+                viewer.overlay(world, i * 20L);
+                armes = Math.max(armes, viewer.armeVue ? 1 : 0);
                 if (mis == 0) {
                     noirs++;
                 }
@@ -120,7 +127,7 @@ public final class GameTest {
                     if (vides < 40) {
                         if (dump) {
                             try {
-                                Shot.ecrire(screen, viewer.view(), 3, java.nio.file.Path.of(
+                                Shot.ecrire(screen, Screen.HEIGHT, 3, java.nio.file.Path.of(
                                         "build/vide_" + lettre + "_" + i + ".png"));
                             } catch (java.io.IOException io) {
                                 System.out.println("    (pas de PNG : " + io + ")");
@@ -148,11 +155,12 @@ public final class GameTest {
         boolean ok = dessinees > IMAGES / 2;
         System.out.printf("=== GameTest %c : %d images dessinees, %.1f%% de pixels poses"
                 + " (au pire %.1f%%), %d monstres au plus, %d accroches, %d pans en degrade,"
-                + " %d maigre(s) dont %d noire(s) -> %s%n",
+                + " arme %s, %d maigre(s) dont %d noire(s) -> %s%n",
                 lettre, dessinees,
                 dessinees == 0 ? 0.0 : 100.0 * poses / ((double) dessinees * pixels),
                 pire == Integer.MAX_VALUE ? 0.0 : 100.0 * pire / pixels,
-                monstres, accroches, degrades, vides, noirs, ok ? "ok" : "ECHEC");
+                monstres, accroches, degrades, armes != 0 ? "vue" : "ABSENTE", vides, noirs,
+                ok ? "ok" : "ECHEC");
         return ok;
     }
 }

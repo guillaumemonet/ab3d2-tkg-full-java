@@ -52,6 +52,10 @@ public final class Data {
     private static Palette palette;
     private static SinCos sinCos;
     private static int[] iterations;
+    private static byte[] borderPacked;
+    private static byte[] borderChars;
+    private static byte[] scrollFont;
+    private static byte[] glyphSpacing;
 
     private Data() {
     }
@@ -387,5 +391,66 @@ public final class Data {
             sinCos = SinCos.read(local());
         }
         return sinCos;
+    }
+
+    /**
+     * L'image de la BORDURE, huit plans de bits de trois cent vingt sur deux cent cinquante-six.
+     *
+     * <p>Son nom dit « packed » et elle ne l'est pas : l'original la passe a un depaqueteur qui,
+     * sur ce fichier, ne fait rien d'autre que la recopier. Quatre-vingt-un mille neuf cent
+     * vingt octets, soit exactement huit fois un plan.
+     */
+    public static synchronized byte[] borderPacked() {
+        if (borderPacked == null) {
+            borderPacked = incbin("includes", "newborderpacked");
+        }
+        return borderPacked;
+    }
+
+    /**
+     * Les CHIFFRES du tableau de bord, en plans de bits entrelaces par dix.
+     *
+     * <p>Deux mille trois cent vingt octets : trois jeux de dix chiffres de huit sur cinq pour
+     * les cases d'armes, puis deux jeux de dix chiffres de huit sur sept pour les compteurs.
+     */
+    public static synchronized byte[] borderChars() {
+        if (borderChars == null) {
+            borderChars = incbin("includes", "bordercharsraw");
+        }
+        return borderChars;
+    }
+
+    /** La police des messages : deux cent cinquante-six glyphes de huit sur huit, un bit par pixel. */
+    public static synchronized byte[] scrollFont() {
+        if (scrollFont == null) {
+            scrollFont = incbin("includes", "scrollfont");
+        }
+        return scrollFont;
+    }
+
+    /**
+     * L'espacement de chaque glyphe : un octet par code de caractere.
+     *
+     * <p>Le quartet HAUT donne de combien avancer apres le glyphe, le quartet BAS de combien
+     * reculer avant de le poser. C'est tout ce qui fait la police proportionnelle.
+     */
+    public static synchronized byte[] glyphSpacing() {
+        if (glyphSpacing == null) {
+            glyphSpacing = incbin("includes", "glyph_spacing.bin");
+        }
+        return glyphSpacing;
+    }
+
+    /** Un fichier joint au depot, sous data/incbin. */
+    private static byte[] incbin(String... parts) {
+        Path f = local().resolve("incbin");
+        for (String part : parts) {
+            f = f.resolve(part);
+        }
+        try {
+            return java.nio.file.Files.readAllBytes(f);
+        } catch (IOException e) {
+            throw new UncheckedIOException("fichier joint introuvable : " + f, e);
+        }
     }
 }

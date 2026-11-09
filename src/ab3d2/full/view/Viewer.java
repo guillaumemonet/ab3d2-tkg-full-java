@@ -6,6 +6,7 @@ import ab3d2.full.level.Level;
 import ab3d2.full.render.Appearance;
 import ab3d2.full.render.Bitmap;
 import ab3d2.full.render.BrightRings;
+import ab3d2.full.render.Hud;
 import ab3d2.full.render.Lights;
 import ab3d2.full.render.LitPalette;
 import ab3d2.full.render.ObjectView;
@@ -13,6 +14,7 @@ import ab3d2.full.render.Scene;
 import ab3d2.full.render.ScenePainter;
 import ab3d2.full.render.Screen;
 import ab3d2.full.render.Sky;
+import ab3d2.full.render.Text;
 import ab3d2.full.render.View;
 import ab3d2.full.render.VisibleEdges;
 import ab3d2.full.render.Water;
@@ -61,6 +63,9 @@ public final class Viewer {
     private final ScenePainter peintre;
     private final Scene scene = new Scene();
     private final ObjectView objectView;
+    private final Hud hud;
+    private final Text police;
+    private final MessageBoard board;
     private final char lettre;
 
     private final List<ObjectView.Thing> choses = new ArrayList<>();
@@ -68,6 +73,21 @@ public final class Viewer {
     private final int[] orientations;
     private final Map<Level.Entity, ObjectRuntime.Thing> parEntite = new IdentityHashMap<>();
     private final Map<Integer, Aliens.Alien> monstres = new HashMap<>();
+
+    /** Le reglage joueur du reticule (Prefs_CrossHairColour_b), vert intense au depart. */
+    public int crosshairColour = Hud.CROSSHAIR_DEFAULT;
+
+    /**
+     * Le reglage joueur {@code Prefs_ShowWeapon_b}, nul au depart donc l'arme se VOIT.
+     *
+     * <p>Le jeu ne l'eteint pas en sautant le dessin : il LIBERE l'entite de l'arme avant
+     * d'ordonner les secteurs (hires.s:1696), ce qui revient au meme et explique le nom
+     * trompeur du reglage.
+     */
+    public boolean showWeapon = true;
+
+    /** Vrai si l'arme en main a ete posee a la derniere image. */
+    public boolean armeVue;
 
     /** Ce que la derniere image a compte. */
     public int animees;
@@ -106,6 +126,10 @@ public final class Viewer {
         // L'ordre des secteurs ne se refait QUE si le joueur a quitte son carre de seize
         // unites : on ne le remet a zero qu'une fois, au depart, comme le jeu au chargement.
         this.order.reset();
+
+        this.hud = new Hud(Data.borderPacked(), Data.borderChars());
+        this.police = new Text(Data.scrollFont(), Data.glyphSpacing());
+        this.board = new MessageBoard(police);
     }
 
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
@@ -187,6 +211,48 @@ public final class Viewer {
         water.tick();
     }
 
+    /**
+     * L'HABILLAGE, pose par-dessus la vue : le reticule, les messages, puis le bandeau.
+     *
+     * <p>L'ordre est celui du jeu, et il n'est pas libre. Le reticule s'ecrit dans le tampon de
+     * rendu juste apres la scene (hires.s:1864), les messages aussi (au debut de
+     * {@code Vid_Present}), et le bandeau vient EN DERNIER parce qu'il n'est pas dans le meme
+     * tampon : le jeu recopie les deux cent trente-deux premieres lignes du rendu dans l'ecran,
+     * ou la bordure attendait deja. Ici tout tient dans un seul tampon, donc le bandeau se pose
+     * par-dessus ; le resultat est le meme, et le portage n'herite d'aucune image a l'autre.
+     *
+     * @param world     le monde, pour la sante, les munitions et les armes tenues
+     * @param maintenant l'heure en millisecondes : le defilement des messages s'y mesure
+     */
+    public void overlay(World world, long maintenant) {
+        for (String m : world.messages.drain()) {
+            board.push(m, MessageBoard.DEFAULT);
+        }
+        board.tick(maintenant);
+
+        byte[] pixels = screen.pixels();
+        hud.crosshair(pixels, Screen.WIDTH, crosshairColour, view.centreX(), view.height(),
+                0, view.fullScreen());
+        board.draw(pixels, Screen.WIDTH, 0);
+
+        Database glf = Data.database();
+        boolean[] armes = new boolean[10];
+        for (int i = 0; i < armes.length; i++) {
+            armes[i] = world.objects.inventory.hasGun(i);
+        }
+        // draw_DisplayAmmoCount_w : les munitions du TYPE DE PROJECTILE de l'arme choisie, et
+        // non un compteur par arme — deux armes qui tirent le meme projectile le partagent.
+        Database.Gun arme = glf.gun(world.gun);
+        int munitions = arme == null ? 0
+                : world.objects.inventory.ammo(arme.shoot().bulletType());
+        hud.frame(pixels, Screen.WIDTH, munitions, world.health(), armes, world.gun);
+    }
+
+    /** Le panneau des messages, pour qui veut y pousser autre chose que la simulation. */
+    public MessageBoard board() {
+        return board;
+    }
+
     /** Remplit les deux listes que le peintre lit, une entree par entite du niveau. */
     private void things(World world) {
         parEntite.clear();
@@ -222,11 +288,31 @@ public final class Viewer {
         animees = 0;
         vivants = 0;
         accroches = 0;
+        armeVue = false;
         for (Level.Entity ent : lvl.entities()) {
             int rang = choses.size();
             // EntT_CurrentAngle_w est le MEME champ que l'angle du fichier : la simulation ne
             // fait tourner que le joueur et les monstres, pas le decor.
             orientations[rang] = ent.angle();
+
+            // L'ARME EN MAIN : elle occupe l'entite situee deux rangs apres celle du joueur,
+            // et la simulation vient de l'y poser. Son point est le sien, mais ses coordonnees
+            // sont celles du joueur : elle est exactement a l'oeil, donc de profondeur nulle —
+            // c'est le seul modele que le peintre dessine quand meme (ScenePainter.model).
+            if (rang == lvl.weaponEntity() && showWeapon) {
+                ab3d2.full.sim.Weapon arme = world.weapon;
+                if (arme.zone >= 0 && arme.shown != null) {
+                    Appearance vu = Appearance.of(arme.shown, arme.gfxType);
+                    orientations[rang] = arme.angle;
+                    choses.add(new ObjectView.Thing(arme.x >> 16, arme.z >> 16, arme.zone,
+                            arme.zone, arme.upper ? 0xFF : 0, false, ent.point()));
+                    apparences.add(new Bitmap.Thing(ent.point(), 0, arme.height,
+                            vu.halfWidth(), vu.halfDepth(), vu.sheet(), vu.flags(), vu.frame(),
+                            0, 0));
+                    armeVue = true;
+                    continue;
+                }
+            }
 
             Aliens.Alien monstre = monstres.get(rang);
             if (monstre != null) {

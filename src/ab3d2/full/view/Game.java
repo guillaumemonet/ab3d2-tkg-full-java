@@ -18,8 +18,6 @@ import java.awt.Graphics;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
-import java.util.ArrayDeque;
-import java.util.Deque;
 
 /**
  * LE JEU : la simulation et le rendu, ensemble, cinquante fois par seconde.
@@ -58,6 +56,7 @@ public final class Game {
         // des murs, et le degrade des sols est allume au demarrage.
         viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
+        viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
@@ -89,7 +88,6 @@ public final class Game {
 
         private final boolean[] touches = new boolean[256];
         private final World.Input entree = new World.Input();
-        private final Deque<String> journal = new ArrayDeque<>();
 
         private int images;
         private long dernierTop = System.nanoTime();
@@ -99,7 +97,9 @@ public final class Game {
             this.world = world;
             this.viewer = viewer;
             this.echelle = echelle;
-            this.haut = viewer.view().height();
+            // L'image montree fait les DEUX CENT CINQUANTE-SIX lignes de l'ecran : les deux
+            // cent trente-deux premieres sont la vue, le reste est le tableau de bord.
+            this.haut = Screen.HEIGHT;
             this.image = new BufferedImage(largeur, haut, BufferedImage.TYPE_INT_RGB);
             this.raster = new int[largeur * haut];
             setPreferredSize(new Dimension(largeur * echelle, haut * echelle));
@@ -116,8 +116,10 @@ public final class Game {
                     touche(e.getKeyCode(), false);
                 }
             });
-            dire("fleches ou ZQSD : marcher — A/E ou fleches : tourner — MAJ : pas de cote");
-            dire("ESPACE : tirer — F : actionner — 1-9 : arme — C : s'accroupir");
+            viewer.board().push("fleches ou ZQSD : marcher, A/E : tourner, MAJ : pas de cote",
+                    MessageBoard.OPTIONS);
+            viewer.board().push("ESPACE : tirer, F : actionner, 1-9 : arme, C : s'accroupir",
+                    MessageBoard.OPTIONS);
         }
 
         private void touche(int code, boolean enfoncee) {
@@ -127,7 +129,8 @@ public final class Game {
             if (enfoncee && code >= KeyEvent.VK_1 && code <= KeyEvent.VK_9) {
                 world.gun = code - KeyEvent.VK_1;
                 Database.Gun g = world.glf.gun(world.gun);
-                dire("arme " + (world.gun + 1) + " : " + (g == null ? "?" : g.name()));
+                viewer.board().push("arme " + (world.gun + 1) + " : "
+                        + (g == null ? "?" : g.name()), MessageBoard.OPTIONS);
             }
         }
 
@@ -163,18 +166,16 @@ public final class Game {
 
             int santeAvant = world.health();
             world.frame(entree);
-            for (String m : world.messages.drain()) {
-                dire(m);
-            }
             if (world.health() < santeAvant) {
-                dire("touche : -" + (santeAvant - world.health())
-                        + " (sante " + world.health() + ")");
+                viewer.board().push("touche : -" + (santeAvant - world.health()),
+                        MessageBoard.OTHER);
             }
 
             int zone = world.player.zone;
             if (zone >= 0) {
                 viewer.draw(world, world.player.xOff >> 16, world.player.zOff >> 16, zone,
                         world.player.angPos, world.player.yOff);
+                viewer.overlay(world, System.currentTimeMillis());
                 convertir();
             }
 
@@ -202,13 +203,6 @@ public final class Game {
             image.setRGB(0, 0, largeur, haut, raster, 0, largeur);
         }
 
-        private void dire(String texte) {
-            journal.addFirst(texte);
-            while (journal.size() > 6) {
-                journal.removeLast();
-            }
-        }
-
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
@@ -218,11 +212,6 @@ public final class Game {
             g.setColor(new Color(220, 230, 240));
             g.drawString(String.format("secteur %d   sante %d   %d monstres   %.0f img/s",
                     world.player.zone, world.health(), viewer.vivants, parSeconde), 8, 16);
-            int y = haut * echelle - 8;
-            for (String ligne : journal) {
-                g.drawString(ligne, 8, y);
-                y -= 14;
-            }
         }
     }
 }

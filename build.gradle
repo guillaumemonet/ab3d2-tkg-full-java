@@ -121,6 +121,26 @@ tasks.register('objAnimCheck', JavaExec) {
     systemProperty 'ab3d2.objanim', new File(refRoot, 'objanim.json').absolutePath
 }
 
+tasks.register('hudCheck', JavaExec) {
+    group = 'verification'
+    description = "Le tableau de bord : la bordure, ses chiffres, le reticule, le texte"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.HudCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.hudraster', new File(refRoot, 'hudraster.json').absolutePath
+}
+
+tasks.register('gunHoldCheck', JavaExec) {
+    group = 'verification'
+    description = "L'arme en main : ou le jeu la pose a chaque image"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.GunHoldCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.gunhold', new File(refRoot, 'gunhold.json').absolutePath
+}
+
 tasks.register('alienAnimCheck', JavaExec) {
     group = 'verification'
     description = "Le record de dessin d'un monstre : la queue de son animation"
@@ -150,6 +170,7 @@ tasks.register('game', JavaExec) {
     mainClass = 'ab3d2.full.view.Game'
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
+    systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
     if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
@@ -163,6 +184,7 @@ tasks.register('shot', JavaExec) {
     mainClass = 'ab3d2.full.view.Shot'
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
+    systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
     systemProperty 'ab3d2.media', mediaRoot.absolutePath
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
     if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
@@ -460,5 +482,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck'
 }

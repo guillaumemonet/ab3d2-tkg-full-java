@@ -67,6 +67,14 @@ public final class World {
 
     /** L'arme en main. */
     public int gun;
+
+    /**
+     * L'arme en main : un OBJET du monde, pose a chaque image a l'endroit de l'oeil.
+     *
+     * <p>Ce n'est pas un decor plaque sur l'image. Le jeu lui donne l'entite situee deux rangs
+     * apres celle du joueur, et le rendu la traite comme n'importe quel modele.
+     */
+    public final Weapon weapon = new Weapon();
     /** Le numero de l'image courante. */
     public int frame;
 
@@ -166,7 +174,9 @@ public final class World {
         anims.doorLocks = objects.run(player, tap) | aliens.doorLocks();
 
         shots.tempFrames = 1;
-        shots.fire(player, objects.inventory, gun, in.fire, in.aim / 100f);
+        if (shots.fire(player, objects.inventory, gun, in.fire, in.aim / 100f)) {
+            weapon.fire();                             // newplayershoot.s:165, quand la balle PART
+        }
         shots.update();                                // le vol des balles
 
         aliens.tempFrames = 1;
@@ -190,6 +200,12 @@ public final class World {
             light.tick();
             brightTimer = 5;                           // move.w #5,Anim_Timer_w
         }
+
+        // Plr1_Use puis objmoveanim (hires.s:1668 et 1724) : l'arme en main se repose
+        // entierement, puis son animation avance d'un pas. Les deux sont la derniere chose que
+        // le jeu fait avant de dessiner, et elles ne lisent que l'etat qu'on vient d'arreter.
+        weapon.place(player, glf, gun, health());
+        weapon.animate(glf);
     }
 
     /** La sante du joueur. */
