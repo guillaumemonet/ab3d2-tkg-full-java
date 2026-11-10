@@ -120,11 +120,31 @@ public final class Shots {
      */
     private final int[] points = new int[POOL];
 
+    /**
+     * Le rang du CORPS du joueur dans la table des objets.
+     *
+     * <p>Le jeu n'a qu'une boucle : {@code notasplut} parcourt la table d'un bout a l'autre, et
+     * le corps du joueur y a son rang comme une caisse ou un monstre. C'est la PREMIERE entite
+     * retenue qui arrete tout — donc, selon le niveau, tantot le monstre, tantot le joueur.
+     */
+    private final int playerRank;
+
+    /**
+     * {@code MOVING} (newanims.s:2686) : la balle a-t-elle VOULU bouger cette image ?
+     *
+     * <p>Le fanion est pose AVANT la collision, d'apres les positions voulues, et c'est lui que
+     * le test de hauteur consulte. Une balle arretee net par un mur a donc bouge pour ce
+     * test-la, bien que son segment soit reduit a un point ; une balle de vitesse nulle, elle,
+     * n'a pas bouge, et touche alors a n'importe quelle hauteur.
+     */
+    private boolean moving;
+
     public Shots(LevelSim lvl, Database glf, SinCos sinCos, Level data) {
         this.lvl = lvl;
         this.glf = glf;
         this.sinCos = sinCos;
         this.move = new Move(lvl);
+        this.playerRank = data.playerEntity();
         for (int i = 0; i < POOL; i++) {
             pool.add(new Shot());
             int slot = i < PLR_POOL ? data.playerShotEntity() + i
@@ -372,6 +392,7 @@ public final class Shots {
         //
         // Conversion : une unite monde vaut 64 unites de position horizontale et 8192 unites de
         // hauteur, d'ou le facteur 128. La hauteur croit vers le BAS, d'ou le signe.
+        moving = true;                                 // le rayon hitscan bouge toujours
         int stepDist = (int) Math.round(Math.sqrt(
                 (double) s16(newX - oldX) * s16(newX - oldX)
                         + (double) s16(newZ - oldZ) * s16(newZ - oldZ)));
@@ -848,7 +869,8 @@ public final class Shots {
         move.wallBounce = b.bounceHoriz() != 0;          // sne Obj_WallBounce_b
         move.exitFirst = b.bounceHoriz() == 0;           // seq exitfirst
         move.hitwall = false;
-        if (move.oldx != move.newx || move.oldz != move.newz) { // nomovebul si les deux mots sont egaux
+        moving = move.oldx != move.newx || move.oldz != move.newz; // st MOVING / clr.b MOVING
+        if (moving) {                                  // nomovebul si les deux mots sont egaux
             if (move.oldx == move.newx) {
                 move.wallLength = 1;                   // move.w #1,WallLength_w
             }
@@ -885,7 +907,13 @@ public final class Shots {
         s.zone = move.zone;
         s.x = newX;
         s.z = newZ;
-        if (s.enemyFlags != 0 && !s.popping) {
+        // PAS de « et seulement si elle n'a rien touche » : le jeu arrive ici MEME apres un
+        // mur. « .hitsomething » pose l'impact, joue le bruit, allume le souffle — puis tombe
+        // dans « .nothitwall », ou le fanion de duree de vie vient d'etre efface, et de la
+        // dans « lab », qui mene a « notasplut » comme si de rien n'etait. Une roquette qui
+        // creve contre le mur derriere un alien lui fait donc mal, et ce portage ne le
+        // faisait pas.
+        if (s.enemyFlags != 0) {                       // tst.l EntT_EnemyFlags_l(a0) ; bne notasplut
             hitEnemies(s, s16(oldX >> 16), s16(oldZ >> 16));
         }
     }
@@ -900,26 +928,17 @@ public final class Shots {
      * de toucher malgre une balle rapide qui « saute » par-dessus la cible.
      */
     private void hitEnemies(Shot s, int oldXw, int oldZw) {
-        // Bit 4 des EnemyFlags = le JOUEUR (un tir d'alien vaut %110010, un tir du joueur %100011).
-        // La tolerance n'est pas la meme pour tout le monde : quatre-vingts pour les types
-        // ZERO et UN (les monstres et les choses), QUARANTE au-dela (newanims.s:2616). Le
-        // joueur est le type QUATRE — il est donc deux fois moins large qu'un monstre.
-        if (player != null && (s.enemyFlags & (1 << 4)) != 0
-                && player.zone >= 0 && player.stoodInTop == s.upperZone
-                && hitsEntity(s, oldXw, oldZw, s16(player.snapXOff >> 16),
-                        s16(player.snapZOff >> 16),
-                        s16((player.yOff + (player.height >> 1)) >> 7), 40)) {
-            player.damageTaken += s.power;
-            // move.w, et non add.w : la poussee du coup REMPLACE la precedente, pour le joueur
-            // comme pour une chose.
-            player.impactX = s16(s.velX >> 16);
-            player.impactZ = s16(s.velZ >> 16);
-            s.anim = 0;
-            s.popping = true;
-            impactSound(s, glf == null ? null : glf.bullet(s.type));
-            return;
-        }
+        // Une SEULE boucle, et dans l'ordre de la table : le corps du joueur y passe a son
+        // rang, entre les monstres et les choses. Le sortir en tete le ferait toucher a la
+        // place d'un monstre qui le precede — et c'est ce que ce portage faisait.
+        boolean joueurVu = false;
         for (Object cible : inOrder) {
+            if (!joueurVu && rankOf(cible) > playerRank) {
+                joueurVu = true;
+                if (toucheJoueur(s, oldXw, oldZw)) {
+                    return;                            // .hitnasty
+                }
+            }
             if (cible instanceof Aliens.Alien a) {
                 // btst typeId,EnemyFlags : le monstre est le type ZERO.
                 if ((s.enemyFlags & 1) == 0 || !a.alive || a.zone < 0
@@ -928,6 +947,13 @@ public final class Shots {
                 }
                 if (hitsEntity(s, oldXw, oldZw, a.x, a.z, s16(a.height), 80)) {
                     targets.hit(a, s.power);
+                    // move.w ShotT_VelocityX_w(a0),EntT_ImpactX_w(a3) : la MEME ligne que pour
+                    // une chose. Le jeu n'a qu'une boucle ; ce portage en avait trois, et
+                    // celle des monstres avait perdu le recul en route. Il ne se relit qu'a la
+                    // MORT, dans la gerbe de morceaux — un alien abattu de face s'eparpillait
+                    // donc comme un alien abattu de dos.
+                    a.impactX = s16(s.velX >> 16);
+                    a.impactZ = s16(s.velZ >> 16);
                     s.anim = 0;
                     s.popping = true;
                     impactSound(s, glf == null ? null : glf.bullet(s.type));
@@ -958,6 +984,39 @@ public final class Shots {
                 return;                                // .hitnasty
             }
         }
+        if (!joueurVu) {
+            toucheJoueur(s, oldXw, oldZw);
+        }
+    }
+
+    /**
+     * Le corps du joueur, teste a son rang dans la table.
+     *
+     * <p>Bit 4 des EnemyFlags = le JOUEUR UN (un tir d'alien vaut %110010, un tir du joueur
+     * %100011 — qui ne le porte pas, et c'est ainsi qu'on ne se tire pas dessus). La tolerance
+     * n'est pas la meme pour tout le monde : quatre-vingts pour les types ZERO et UN (les
+     * monstres et les choses), QUARANTE au-dela (newanims.s:2616). Le joueur est le type
+     * QUATRE — il est donc deux fois moins large qu'un monstre.
+     */
+    private boolean toucheJoueur(Shot s, int oldXw, int oldZw) {
+        if (player == null || (s.enemyFlags & (1 << 4)) == 0
+                || player.zone < 0 || player.stoodInTop != s.upperZone
+                || !hitsEntity(s, oldXw, oldZw, s16(player.snapXOff >> 16),
+                        s16(player.snapZOff >> 16),
+                        s16((player.yOff + (player.height >> 1)) >> 7), 40)) {
+            return false;
+        }
+        // add.b : un OCTET, qui DEBORDE. Deux cent soixante points de degats en font
+        // quatre — le corps du joueur n'est pas plus epargne qu'une caisse.
+        player.damageTaken = (player.damageTaken + s.power) & 0xFF;
+        // move.w, et non add.w : la poussee du coup REMPLACE la precedente, pour le joueur
+        // comme pour une chose.
+        player.impactX = s16(s.velX >> 16);
+        player.impactZ = s16(s.velZ >> 16);
+        s.anim = 0;
+        s.popping = true;
+        impactSound(s, glf == null ? null : glf.bullet(s.type));
+        return true;
     }
 
     /**
@@ -986,7 +1045,6 @@ public final class Shots {
         int range = sqrt(muls(xdiff, xdiff) + muls(zdiff, zdiff));
         int d0 = s16(range + 80);
         int sqrnum = muls(d0, d0);
-        boolean moving = xdiff != 0 || zdiff != 0;
         int dh = s16(eh - rayHeight);
         if (dh < 0) {
             dh = -dh;
@@ -1002,7 +1060,7 @@ public final class Shots {
         if (d6 <= 0) {
             d6 = -d6;
         }
-        d6 = range == 0 ? d6 : divs(d6, range);        // distance perpendiculaire au segment
+        d6 = divs(d6, range);                          // divs Range,d6 : Range ne vaut jamais zero
         if (s16(d6) > tol) {
             return false;
         }
@@ -1494,8 +1552,13 @@ public final class Shots {
 
     /** ai_CalcSqrt (3 iterations de Newton), comme le jeu. */
     private static int sqrt(int d2) {
+        // UN, et non zero. La copie inline de notasplut pose « move.l #1,d0 » AVANT de tester
+        // la somme, et saute a « .oksqr » en la gardant : une distance nulle rend donc une
+        // portee de un, et le rayon de recherche vaut (1 + 80) au carre, soit six mille cinq
+        // cent soixante et un — pas six mille quatre cents. Une balle immobile touche ainsi ce
+        // qui est a quatre-vingt-une unites d'elle, et pas ce qui est a quatre-vingt-deux.
         if (d2 == 0) {
-            return 0;
+            return 1;
         }
         int d0 = 31;
         while (d0 >= 0 && (d2 & (1 << d0)) == 0) {

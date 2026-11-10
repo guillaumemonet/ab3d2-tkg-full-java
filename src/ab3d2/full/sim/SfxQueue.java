@@ -93,6 +93,16 @@ public final class SfxQueue {
      */
     public int num;
 
+    /*
+     * DETTE SOLDEE, et il n'y avait rien a porter : {@code Aud_ChannelPick_b}
+     * (hires.s:7478) est pose DIX-SEPT fois dans le jeu — un par le tir du joueur
+     * (newplayershoot.s:182 et 522, qui y mettent deux), les autres par l'IA, les tirs
+     * d'aliens et les animations, qui y mettent un — et il n'est RELU NULLE PART.
+     * {@code MakeSomeNoise} choisit sa voie tout seul, par le volume gauche et droit et par
+     * l'importance du bruit qui s'y trouve deja. La voie demandee n'a jamais ete lue : il n'y
+     * a donc rien a modeliser ici.
+     */
+
     /** {@code move.b #$fb,IDNUM} : n'ecrit que l'octet de poids fort. */
     public void idHigh(int high) {
         id = ((high & 0xFF) << 8) | (id & 0xFF);

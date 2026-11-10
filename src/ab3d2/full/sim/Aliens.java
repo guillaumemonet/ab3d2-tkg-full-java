@@ -863,7 +863,7 @@ public final class Aliens {
 
         if (!noMunch && gotThere && doAction != 0) {   // .no_munch : la morsure
             int d0 = setw(0, (doAction & 0xFF) << 1);
-            p.damageTaken += d0 & 0xFF;
+            p.damageTaken = (p.damageTaken + d0) & 0xFF;   // add.b : un octet qui deborde
             int dx = divs(s16(s16(newx) - s16(oldx)), tempFrames);
             p.impactX = s16(p.impactX + dx);
             int dz = divs(s16(s16(newz) - s16(oldz)), tempFrames);
@@ -982,7 +982,7 @@ public final class Aliens {
             d1 = d1 >> 6;
             int d0l = ((short) d0) << 2;
             if (d0l > d1) {                            // touché
-                p.damageTaken += shotPower;
+                p.damageTaken = (p.damageTaken + shotPower) & 0xFF; // add.b
                 int ddx = s16(a.x - s16(p.snapXOff >> 16));
                 int ddz = s16(a.z - s16(p.snapZOff >> 16));
                 int d2 = muls(ddx, ddx) + muls(ddz, ddz);

@@ -297,7 +297,7 @@ public final class BlastCheck {
             e += cmp(nom + " monstre " + i + " vitesseY", m.velocityY, 0);
         }
         JsonObject pj = a.getAsJsonObject("player");
-        e += cmp(nom + " joueur degats", w.player.damageTaken & 0xFF, pj.get("damage").getAsInt());
+        e += cmp(nom + " joueur degats", w.player.damageTaken, pj.get("damage").getAsInt());
         e += cmp(nom + " joueur reculX", w.player.impactX, pj.get("impactX").getAsInt());
         e += cmp(nom + " joueur reculZ", w.player.impactZ, pj.get("impactZ").getAsInt());
         e += cmp(nom + " joueur reculY", w.player.impactY, pj.get("impactY").getAsInt());

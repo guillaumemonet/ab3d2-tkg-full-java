@@ -598,7 +598,7 @@ public final class PlayerSim {
             return 0;
         }
         int dmg = d0 >= 0 && d0 < floorDamage.length ? floorDamage[d0] : 0;
-        damageTaken += dmg;                            // add.b d0,EntT_DamageTaken_b
+        damageTaken = (damageTaken + dmg) & 0xFF;      // add.b d0,EntT_DamageTaken_b
         return dmg;
     }
 
