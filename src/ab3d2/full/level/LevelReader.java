@@ -129,6 +129,10 @@ public final class LevelReader {
     private static final int LIFT_WALL_SIZE = 10;
     /** Fin de la liste globale. */
     private static final int LIFT_END = 999;
+    /** Le nombre d'animations d'eau que DoWaterAnims lit, quoi qu'il y ait dans le fichier. */
+    private static final int WATER_ANIMS = 21;
+    /** Un secteur d'animation d'eau : son rang (mot) et son enregistrement graphique (long). */
+    private static final int WATER_ZONE_SIZE = 6;
 
     /** Dix points de bord par secteur, quarante luminosites — quatre par point. */
     private static final int ZONE_BORDER = 10;
@@ -238,6 +242,10 @@ public final class LevelReader {
         List<Level.Switch> switches = readSwitches(graph, graph.s32(GRAPH_SWITCHES));
         List<Level.Liftable> doors = readLiftables(graph, graph.s32(GRAPH_DOORS));
         List<Level.Liftable> lifts = readLiftables(graph, graph.s32(GRAPH_LIFTS));
+        // Les eaux suivent le bloc des ascenseurs, terminateur compris : LiftRoutine arrive a
+        // DoWaterAnims avec son propre curseur, et c'est tout ce qui les situe.
+        List<Level.Water> waters = readWaters(graph, endOfLiftables(graph,
+                graph.s32(GRAPH_LIFTS)) + 2);
 
         // La table de voisinage occupe la fin du fichier des decoupes : elle commence ou le
         // curseur de distribution s'est arrete. Le jeu n'en connait ni le debut ni la taille
@@ -246,7 +254,7 @@ public final class LevelReader {
 
         return new Level(Character.toLowerCase(letter), List.copyOf(messages), s1, s2,
                 List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
-                f.u16(h + NUM_OBJECTS) + 1, List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts),
+                f.u16(h + NUM_OBJECTS) + 1, List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts), waters,
                 List.copyOf(switches), clips.groups(), links, exitZone,
                 (f.s32(h + OFFSET_PLAYER1) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE);
     }
@@ -566,6 +574,48 @@ public final class LevelReader {
                     List.copyOf(walls)));
             at = w + 2;                              // saute le terminateur de la liste de murs
         }
+    }
+
+    /** Ou le bloc des portes ou des ascenseurs finit : le mot 999 qui le ferme. */
+    private static int endOfLiftables(Blob graph, int at) {
+        if (at <= 0) {
+            return at;
+        }
+        while (graph.s16(at) != LIFT_END) {
+            int w = at + LIFT_HEADER;
+            while (graph.s16(w) >= 0) {
+                w += LIFT_WALL_SIZE;
+            }
+            at = w + 2;
+        }
+        return at;
+    }
+
+    /**
+     * Les VINGT ET UNE animations d'eau. {@code DoWaterAnims} en lit toujours vingt et une —
+     * {@code move.w #20,d0} puis {@code dbra} — sans sentinelle : c'est au fichier d'en porter
+     * autant. Chacune est suivie de sa liste de secteurs, close par un secteur negatif.
+     */
+    private static List<Level.Water> readWaters(Blob graph, int at) {
+        List<Level.Water> out = new ArrayList<>(WATER_ANIMS);
+        for (int i = 0; i < WATER_ANIMS; i++) {
+            int top = graph.s32(at);
+            int bottom = graph.s32(at + 4);
+            int position = graph.s32(at + 8);
+            int speed = graph.s16(at + 12);
+            List<Integer> zones = new ArrayList<>();
+            List<Integer> graphics = new ArrayList<>();
+            int z = at + 14;
+            while (graph.s16(z) >= 0) {
+                zones.add(graph.s16(z));
+                graphics.add(graph.s32(z + 2));
+                z += WATER_ZONE_SIZE;
+            }
+            out.add(new Level.Water(i, top, bottom, position, speed, List.copyOf(zones),
+                    List.copyOf(graphics)));
+            at = z + 2;
+        }
+        return List.copyOf(out);
     }
 
     /**

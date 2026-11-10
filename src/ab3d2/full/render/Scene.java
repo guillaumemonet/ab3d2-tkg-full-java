@@ -157,8 +157,8 @@ public final class Scene {
      * @param playerY la hauteur de l'oeil, en virgule fixe comme le jeu la tient
      * @param painter qui dessine
      */
-    public void draw(Level level, Level.Zone from, ZoneOrder order, VisibleEdges edges,
-            Lights lights, View view, int playerY, Painter painter) {
+    public void draw(Level level, Heights hauteurs, Level.Zone from, ZoneOrder order,
+            VisibleEdges edges, Lights lights, View view, int playerY, Painter painter) {
         if (from.visible().isEmpty()) {
             return;
         }
@@ -187,32 +187,32 @@ public final class Scene {
                     continue;                          // .skip_not_visible
                 }
                 boolean rootZone = v.zone() == root;   // seq Draw_InRootZone_b
-                if (playerY < zone.ceiling()) {        // cmp.l Zone_SplitHeight_l,d0 ; blt
-                    lowerFirst(zone, lights, playerY, rootZone, painter);
+                if (playerY < hauteurs.ceiling(zoneId)) { // cmp.l Zone_SplitHeight_l,d0 ; blt
+                    lowerFirst(zone, hauteurs, lights, playerY, rootZone, painter);
                 } else {
-                    upperFirst(zone, lights, playerY, rootZone, painter);
+                    upperFirst(zone, hauteurs, lights, playerY, rootZone, painter);
                 }
             }
         }
     }
 
     /** .lower_zone_first — l'etage bas d'abord : le joueur est sous le plafond du bas. */
-    private void lowerFirst(Level.Zone zone, Lights lights, int playerY, boolean rootZone,
-            Painter painter) {
-        lower(zone, lights, playerY, rootZone, painter);
+    private void lowerFirst(Level.Zone zone, Heights hauteurs, Lights lights, int playerY,
+            boolean rootZone, Painter painter) {
+        lower(zone, hauteurs, lights, playerY, rootZone, painter);
         if (!zone.hasUpperGraphics()) {
             return;                                    // .noupperroom2
         }
-        upper(zone, lights, rootZone, painter);
+        upper(zone, hauteurs, lights, rootZone, painter);
     }
 
     /** .ready_upper — l'etage haut d'abord, s'il existe, puis le bas de toute facon. */
-    private void upperFirst(Level.Zone zone, Lights lights, int playerY, boolean rootZone,
-            Painter painter) {
+    private void upperFirst(Level.Zone zone, Heights hauteurs, Lights lights, int playerY,
+            boolean rootZone, Painter painter) {
         if (zone.hasUpperGraphics()) {                 // .lower_zone_only si non
-            upper(zone, lights, rootZone, painter);
+            upper(zone, hauteurs, lights, rootZone, painter);
         }
-        lower(zone, lights, playerY, rootZone, painter);
+        lower(zone, hauteurs, lights, playerY, rootZone, painter);
     }
 
     /**
@@ -222,19 +222,21 @@ public final class Scene {
      * du dernier etage bas traite, et une commande d'objets qui s'y refere les prend telles
      * quelles — voir l'avertissement en tete de classe.
      */
-    private void upper(Level.Zone zone, Lights lights, boolean rootZone, Painter painter) {
+    private void upper(Level.Zone zone, Heights hauteurs, Lights lights, boolean rootZone,
+            Painter painter) {
         render(zone.upper(), new Pass(zone.id(), true, lights.zoneBright(zone.id(), true),
-                clip.left(), clip.right(), zone.upperCeiling(), zone.upperFloor(),
+                clip.left(), clip.right(), hauteurs.upperCeiling(zone.id()),
+                hauteurs.upperFloor(zone.id()),
                 beforeWaterTop, beforeWaterBottom, afterWaterTop, afterWaterBottom,
                 rootZone), painter);
     }
 
     /** L'etage BAS, et avec lui les quatre bornes du plan d'eau. */
-    private void lower(Level.Zone zone, Lights lights, int playerY, boolean rootZone,
-            Painter painter) {
-        int top = zone.ceiling();
-        int bottom = zone.floor();
-        int water = zone.water();
+    private void lower(Level.Zone zone, Heights hauteurs, Lights lights, int playerY,
+            boolean rootZone, Painter painter) {
+        int top = hauteurs.ceiling(zone.id());
+        int bottom = hauteurs.floor(zone.id());
+        int water = hauteurs.water(zone.id());
         if (water >= playerY) {                        // cmp.l Plr_YOff_l,d2 ; blt
             // Le joueur est AU-DESSUS de l'eau : ce qui vient avant, c'est le volume immerge.
             beforeWaterTop = water;

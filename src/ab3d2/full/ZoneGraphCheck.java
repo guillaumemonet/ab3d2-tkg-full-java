@@ -142,7 +142,8 @@ public final class ZoneGraphCheck {
             }
 
             journal.clear();
-            scene.draw(lvl, from, order, edges, lights, view, y, journal);
+            scene.draw(lvl, ab3d2.full.render.Heights.of(lvl), from, order, edges,
+                    lights, view, y, journal);
 
             JsonArray attendu = c.getAsJsonArray("plan");
             commandes += attendu.size();

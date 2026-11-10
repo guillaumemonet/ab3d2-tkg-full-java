@@ -38,6 +38,7 @@ public record Level(
         List<Zone> zones,
         List<Liftable> doors,
         List<Liftable> lifts,
+        List<Water> waters,
         List<Switch> switches,
         List<Clip> clips,
         List<Link> links,
@@ -582,6 +583,29 @@ public record Level(
      * @param closeBits condition de fermeture
      * @param walls     les murs deformes par le mouvement
      */
+    /**
+     * Une EAU qui monte et descend ({@code DoWaterAnims}, newanims.s:815).
+     *
+     * <p>Le niveau d'eau d'un secteur est un long qui va et vient entre deux bornes, et chaque
+     * animation en pousse autant de secteurs qu'elle en porte dans sa liste. Les
+     * enregistrements sont TOUJOURS VINGT ET UN : la routine ne cherche pas de sentinelle,
+     * elle compte.
+     *
+     * <p>Les seize niveaux du jeu les portent tous INERTES — bornes a zero, aucun secteur. La
+     * machine existe ; aucune carte ne s'en sert.
+     *
+     * @param index     son rang dans le bloc
+     * @param top       la borne basse en valeur (le HAUT de l'eau, l'axe descendant)
+     * @param bottom    la borne haute en valeur
+     * @param position  le niveau de depart
+     * @param speed     de combien il bouge par image, signe
+     * @param zones     les secteurs qui recoivent ce niveau
+     * @param graphics  pour chaque secteur, ou se trouve son enregistrement graphique
+     */
+    public record Water(int index, int top, int bottom, int position, int speed,
+                        List<Integer> zones, List<Integer> graphics) {
+    }
+
     public record Liftable(
             int index,
             int bottom,

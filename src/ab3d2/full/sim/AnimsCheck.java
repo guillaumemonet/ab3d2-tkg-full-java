@@ -18,9 +18,11 @@ import java.util.List;
  * Verifie les PORTES et les ASCENSEURS : {@code DoorRoutine} (newanims.s:1237) et
  * {@code LiftRoutine} (newanims.s:869).
  *
- * <p>Ce sont les deux seules machines du jeu qui deplacent le DECOR. Une porte est une zone
- * dont le toit descend, un ascenseur une zone dont le sol monte, et la collision lit ces memes
- * hauteurs : un pas de ces routines change le monde sous les pieds de tout ce qui s'y trouve.
+ * <p>Avec {@code DoWaterAnims} (newanims.s:815), que {@code LiftRoutine} appelle en
+ * finissant, ce sont les trois seules machines du jeu qui deplacent le DECOR. Une porte est
+ * une zone dont le toit descend, un ascenseur une zone dont le sol monte, une eau un plan qui
+ * va et vient ; et la collision lit ces memes hauteurs : un pas de ces routines change le
+ * monde sous les pieds de tout ce qui s'y trouve.
  *
  * <h2>On ne rejoue pas une image, on rejoue une SUITE</h2>
  *
@@ -32,6 +34,15 @@ import java.util.List;
  * au contact, la routine le lit, le DESARME ({@code $8000}) et applique la vitesse si le bit
  * tombe dans le masque. L'oracle arme donc les aretes lui-meme, tantot a chaque image (un
  * joueur qui reste contre la porte), tantot une seule fois (il passe et s'en va).
+ *
+ * <h2>L'eau : une machine qui tourne a vide</h2>
+ *
+ * <p>{@code DoWaterAnims} lit TOUJOURS vingt et une animations — {@code move.w #20,d0} puis
+ * {@code dbra}, pas l'ombre d'une sentinelle — et les SEIZE niveaux du jeu les portent toutes
+ * inertes : bornes a zero, aucun secteur. La machine existe et aucune carte ne s'en sert.
+ * L'oracle le releve enregistrement par enregistrement (si une carte en armait une un jour, la
+ * comparaison des definitions le dirait), puis en PLANTE une vivante entre le toit et le sol
+ * d'un secteur reel — sans quoi la routine ne serait eprouvee par rien.
  *
  * <h2>Les quatre fautes trouvees</h2>
  *
@@ -52,10 +63,10 @@ import java.util.List;
  *
  * <h2>Ce qui n'est pas compare</h2>
  *
- * <p>Les enregistrements GRAPHIQUES que les deux routines deforment (le decalage vertical de
- * la texture d'un panneau, {@code 12(a1)} et {@code 20/24(a1)}) : le portage les recalcule au
- * dessin. Les bruitages, dont le harnais est muet. Et {@code DoWaterAnims}, que
- * {@code LiftRoutine} appelle en finissant et que le portage n'a pas : l'eau ne monte pas.
+ * <p>Les enregistrements GRAPHIQUES que les trois routines deforment (le decalage vertical
+ * de la texture d'un panneau, {@code 12(a1)} et {@code 20/24(a1)} ; le pli du plan d'eau,
+ * {@code 2(a1)}) : le portage les recalcule au dessin. Et les bruitages, dont le harnais est
+ * muet.
  *
  * <pre>gradle -p full animsCheck</pre>
  */
@@ -104,6 +115,7 @@ public final class AnimsCheck {
         // comparerait deux niveaux differents.
         ecarts += defs(lettre + " portes", portes, n.getAsJsonArray("doors"));
         ecarts += defs(lettre + " ascenseurs", asc, n.getAsJsonArray("lifts"));
+        ecarts += eaux(lettre, data, n.getAsJsonArray("waters"));
         if (ecarts != 0) {
             return ecarts;
         }
@@ -124,6 +136,35 @@ public final class AnimsCheck {
         System.out.printf("%s  %2d portes  %2d ascenseurs  %s%n", lettre, portes.size(),
                 asc.size(), ecarts == 0 ? "OK" : ecarts + " ecart(s)");
         return ecarts;
+    }
+
+    /**
+     * Les vingt et une animations d'eau, telles que le FICHIER les pose.
+     *
+     * <p>Elles sont toutes inertes dans les seize niveaux du jeu, et c'est precisement ce que
+     * l'on fixe ici : le jour ou une carte en armerait une, cette comparaison le dirait.
+     */
+    private static int eaux(char lettre, Level data, JsonArray a) {
+        List<Level.Water> l = data.waters() == null ? List.of() : data.waters();
+        int e = cmp(lettre + " eaux nombre", l.size(), a.size());
+        if (e != 0) {
+            return e;
+        }
+        for (int i = 0; i < l.size(); i++) {
+            Level.Water w = l.get(i);
+            JsonObject o = a.get(i).getAsJsonObject();
+            String q = lettre + " eau " + i;
+            e += cmp(q + " haut", w.top(), o.get("top").getAsInt());
+            e += cmp(q + " bas", w.bottom(), o.get("bottom").getAsInt());
+            e += cmp(q + " niveau", w.position(), o.get("position").getAsInt());
+            e += cmp(q + " vitesse", w.speed(), o.get("speed").getAsInt());
+            JsonArray zs = o.getAsJsonArray("zones");
+            e += cmp(q + " secteurs", w.zones().size(), zs.size());
+            for (int k = 0; k < Math.min(w.zones().size(), zs.size()); k++) {
+                e += cmp(q + " secteur " + k, w.zones().get(k), zs.get(k).getAsInt());
+            }
+        }
+        return e;
     }
 
     private static int defs(String quoi, List<Level.Liftable> l, JsonArray a) {
@@ -173,6 +214,18 @@ public final class AnimsCheck {
         int cibleA = c.get("targetLift").getAsInt();
         int locks = c.get("locks").getAsInt();
 
+        // L'EAU plantee : la premiere des vingt et une, entre le toit et le sol d'un secteur
+        // reel. Sans elle la routine tournerait a vide, comme elle le fait dans le jeu.
+        JsonArray zsEau = c.getAsJsonArray("plantZones");
+        int[] secteursEau = new int[zsEau.size()];
+        for (int i = 0; i < secteursEau.length; i++) {
+            secteursEau[i] = zsEau.get(i).getAsInt();
+        }
+        if (c.get("plant").getAsBoolean()) {
+            an.planterEau(0, c.get("plantTop").getAsInt(), c.get("plantBottom").getAsInt(),
+                    c.get("plantPos").getAsInt(), c.get("plantSpeed").getAsInt(), secteursEau);
+        }
+
         JsonArray attendu = c.getAsJsonArray("images");
         int e = 0;
         for (int f = 0; f < images; f++) {
@@ -205,6 +258,18 @@ public final class AnimsCheck {
             e += cmp(q + " vitesseSol", (short) an.playerFloorSpd, r.get("floorSpd").getAsInt());
             e += cmp(q + " surAscenseur", an.playerStoodOnLift ? 255 : 0,
                     r.get("stood").getAsInt());
+            e += cmp(q + " eauNiveau", an.waterPositionOf(0), r.get("waterPos").getAsInt());
+            e += cmp(q + " eauVitesse", an.waterSpeedOf(0), r.get("waterSpd").getAsInt());
+            JsonArray vits = r.getAsJsonArray("waterSpeeds");
+            for (int i = 0; i < vits.size(); i++) {
+                e += cmp(q + " eau " + i + " vitesse", an.waterSpeedOf(i),
+                        vits.get(i).getAsInt());
+            }
+            JsonArray niv = r.getAsJsonArray("waterLevel");
+            for (int i = 0; i < secteursEau.length; i++) {
+                e += cmp(q + " eau secteur " + secteursEau[i],
+                        lvl.zones[secteursEau[i]].water, niv.get(i).getAsInt());
+            }
             JsonArray fl = r.getAsJsonArray("edgeFlags");
             for (int i = 0; i < aretes.size(); i++) {
                 e += cmp(q + " drapeau " + aretes.get(i), (short) lvl.edgeFlags[aretes.get(i)],

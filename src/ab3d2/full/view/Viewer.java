@@ -6,6 +6,7 @@ import ab3d2.full.level.Level;
 import ab3d2.full.render.Appearance;
 import ab3d2.full.render.Bitmap;
 import ab3d2.full.render.BrightRings;
+import ab3d2.full.render.Heights;
 import ab3d2.full.render.Hud;
 import ab3d2.full.render.Lights;
 import ab3d2.full.render.LitPalette;
@@ -20,6 +21,7 @@ import ab3d2.full.render.VisibleEdges;
 import ab3d2.full.render.Water;
 import ab3d2.full.render.ZoneOrder;
 import ab3d2.full.sim.Aliens;
+import ab3d2.full.sim.LevelSim;
 import ab3d2.full.sim.ObjectRuntime;
 import ab3d2.full.sim.SfxQueue;
 import ab3d2.full.sim.World;
@@ -216,6 +218,52 @@ public final class Viewer {
      * @param angle son orientation
      * @param eye   sa hauteur
      */
+    /**
+     * Les hauteurs de CETTE image, prises dans la simulation et non dans le fichier.
+     *
+     * <p>Les portes, les ascenseurs et les eaux bougent les sols, les toits et les plans
+     * d'eau ; le dessin doit lire ce que la simulation vient de poser, sans quoi une porte
+     * grande ouverte reste peinte fermee.
+     */
+    private static Heights hauteurs(World world) {
+        LevelSim sim = world.lvl;
+        return new Heights() {
+            @Override
+            public int floor(int zone) {
+                LevelSim.Zone z = at(zone);
+                return z == null ? 0 : z.floorH;
+            }
+
+            @Override
+            public int ceiling(int zone) {
+                LevelSim.Zone z = at(zone);
+                return z == null ? 0 : z.roofH;
+            }
+
+            @Override
+            public int upperFloor(int zone) {
+                LevelSim.Zone z = at(zone);
+                return z == null ? 0 : z.upperFloorH;
+            }
+
+            @Override
+            public int upperCeiling(int zone) {
+                LevelSim.Zone z = at(zone);
+                return z == null ? 0 : z.upperRoofH;
+            }
+
+            @Override
+            public int water(int zone) {
+                LevelSim.Zone z = at(zone);
+                return z == null ? 0 : z.water;
+            }
+
+            private LevelSim.Zone at(int zone) {
+                return zone >= 0 && zone < sim.zones.length ? sim.zones[zone] : null;
+            }
+        };
+    }
+
     public void draw(World world, int x, int z, int zone, int angle, int eye) {
         Level.Zone from = lvl.zones().get(zone);
         view.update(lvl, x, z, angle, 0);
@@ -233,7 +281,7 @@ public final class Viewer {
         if (from.drawBackdrop()) {
             peintre.backdrop(zone);
         }
-        scene.draw(lvl, from, order, edges, lights, view, eye, peintre);
+        scene.draw(lvl, hauteurs(world), from, order, edges, lights, view, eye, peintre);
 
         // L'eau prend son image AVANT d'avancer : le battement suivant est pour l'image
         // suivante (voir Water).

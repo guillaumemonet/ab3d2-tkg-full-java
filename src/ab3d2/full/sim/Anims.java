@@ -3,13 +3,15 @@ package ab3d2.full.sim;
 import ab3d2.full.M68k;
 import ab3d2.full.level.Level;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Les PORTES et les ASCENSEURS : {@code DoorRoutine} (newanims.s:1237) et
- * {@code LiftRoutine} (newanims.s:869), appeles une fois par image depuis {@code objmoveanim}.
+ * Les PORTES, les ASCENSEURS et les EAUX : {@code DoorRoutine} (newanims.s:1237),
+ * {@code LiftRoutine} (newanims.s:869) et {@code DoWaterAnims} (newanims.s:815), appeles une
+ * fois par image depuis {@code objmoveanim}.
  *
- * <p>Ce sont les deux seules machines du jeu qui deplacent le DECOR. Une porte est une zone
+ * <p>Ce sont les trois seules machines du jeu qui deplacent le DECOR. Une porte est une zone
  * dont le TOIT descend ({@code ZoneT_Roof = (position>>2)*256}) ; un ascenseur une zone dont le
  * SOL monte ({@code ZoneT_Floor = (position>>2)<<8}). La collision ({@link Move}) lit ces memes
  * hauteurs : une porte qui s'ouvre ne coute rien a la physique, elle lui retire un plafond.
@@ -29,11 +31,10 @@ import java.util.List;
  *       ({@link #doorLocks}) et les ascenseurs le mot FAIBLE ({@link #liftLocks}).</li>
  * </ul>
  *
- * <p>Non porte : les bruitages passent par {@link SfxQueue} et non par {@code MakeSomeNoise} ;
- * le joueur DEUX n'existe pas ; les enregistrements GRAPHIQUES que les deux routines deforment
- * (le decalage vertical de la texture d'un panneau) sont recalcules au dessin ; et
- * {@code DoWaterAnims}, que {@code LiftRoutine} appelle en finissant, n'a pas d'equivalent —
- * l'eau ne monte pas.
+ * <p>Non porte : les bruitages passent par {@link SfxQueue} et non par
+ * {@code MakeSomeNoise} ; le joueur DEUX n'existe pas ; et les enregistrements GRAPHIQUES que
+ * les trois routines deforment (le decalage vertical de la texture d'un panneau, le pli du
+ * plan d'eau) sont recalcules au dessin.
  *
  * <p>Eprouve au mot pres par {@link AnimsCheck}.
  */
@@ -46,6 +47,9 @@ public final class Anims {
     // etat runtime par porte / ascenseur (champs "position"/"speed" du record d'origine)
     private final int[] doorPos, doorSpd, doorTimer;
     private final int[] liftPos, liftSpd;
+    /** Les EAUX : bornes, niveau, vitesse et secteurs pousses, tous mutables (le harnais pose). */
+    private final int[] waterTop, waterBottom, waterPos, waterSpd;
+    private final List<int[]> waterZones = new ArrayList<>();
 
     /** Ratio d'ouverture [0..1] par porte (pour l'animation du panneau). */
     public final float[] doorOpenRatio;
@@ -82,6 +86,30 @@ public final class Anims {
     /** anim_DoorOpenTimers_vw[i] : depuis combien d'images la porte est grande ouverte. */
     public int doorTimerOf(int i) {
         return i >= 0 && i < doorTimer.length ? doorTimer[i] : 0;
+    }
+
+    /** Niveau courant d'une animation d'eau. */
+    public int waterPositionOf(int i) {
+        return i >= 0 && i < waterPos.length ? waterPos[i] : 0;
+    }
+
+    /** Vitesse courante d'une animation d'eau — elle change de SIGNE a chaque butee. */
+    public int waterSpeedOf(int i) {
+        return i >= 0 && i < waterSpd.length ? waterSpd[i] : 0;
+    }
+
+    /**
+     * Harnais : pose une animation d'eau VIVANTE a la place d'une des vingt et une inertes.
+     *
+     * <p>Les seize niveaux du jeu les portent toutes inertes, de sorte qu'un oracle qui se
+     * contenterait de les relever n'eprouverait rien du tout. Celui-ci en plante une.
+     */
+    void planterEau(int i, int top, int bottom, int position, int speed, int[] zones) {
+        waterTop[i] = top;
+        waterBottom[i] = bottom;
+        waterPos[i] = position;
+        waterSpd[i] = speed;
+        waterZones.set(i, zones);
     }
 
     // ---- entrees par frame ----
@@ -136,6 +164,23 @@ public final class Anims {
         for (int i = 0; i < doors.size(); i++) {
             doorPos[i] = doors.get(i).position();
             doorSpd[i] = doors.get(i).speed();
+        }
+        List<Level.Water> eaux = data.waters() == null ? List.of() : data.waters();
+        waterTop = new int[eaux.size()];
+        waterBottom = new int[eaux.size()];
+        waterPos = new int[eaux.size()];
+        waterSpd = new int[eaux.size()];
+        for (int i = 0; i < eaux.size(); i++) {
+            Level.Water w = eaux.get(i);
+            waterTop[i] = w.top();
+            waterBottom[i] = w.bottom();
+            waterPos[i] = w.position();
+            waterSpd[i] = w.speed();
+            int[] zs = new int[w.zones().size()];
+            for (int k = 0; k < zs.length; k++) {
+                zs[k] = w.zones().get(k);
+            }
+            waterZones.add(zs);
         }
         liftPos = new int[lifts.size()];
         liftSpd = new int[lifts.size()];
@@ -430,6 +475,55 @@ public final class Anims {
             }
 
             applyToWalls(lf.walls(), mask, simple, i, d7, false);
+        }
+        waterAnims();                                  // bsr DoWaterAnims, a la fin des lifts
+    }
+
+    /**
+     * DoWaterAnims (newanims.s:815) : les eaux montent et descendent.
+     *
+     * <p>Un niveau d'eau est un LONG qui va et vient entre deux bornes, et qui rebondit en
+     * changeant le SIGNE de sa vitesse. Chaque animation pousse sa valeur dans
+     * {@code ZoneT_Water_l} d'autant de secteurs qu'elle en porte — c'est ce long que le joueur
+     * compare a sa propre hauteur pour savoir s'il nage.
+     *
+     * <p>La routine en lit toujours VINGT ET UNE : {@code move.w #20,d0} puis {@code dbra}, et
+     * pas l'ombre d'une sentinelle. Les seize niveaux du jeu les portent toutes INERTES —
+     * bornes a zero, aucun secteur — de sorte que la machine tourne a vide d'un bout a l'autre
+     * de la campagne. Elle est portee quand meme, et {@link AnimsCheck} en plante une vivante
+     * pour l'eprouver.
+     *
+     * <p>Les butees ne sont pas symetriques : en bas la position est RAMENEE sur la borne, en
+     * haut elle l'est aussi — mais le test du haut est un {@code bgt} et celui du bas un
+     * {@code blt}, de sorte qu'une position pile sur la borne BASSE rebondit et qu'une position
+     * pile sur la borne HAUTE rebondit elle aussi. Les deux cotes collent.
+     */
+    private void waterAnims() {
+        for (int i = 0; i < waterPos.length; i++) {    // move.w #20,d0 ; dbra d0,wateranimlop
+            int d1 = waterTop[i];                      // move.l (a0)+,d1
+            int d2 = waterBottom[i];                   // move.l (a0)+,d2
+            int d3 = waterPos[i];                      // move.l (a0),d3
+            int d4 = waterSpd[i];                      // move.w 4(a0),d4
+            int d5 = M68k.muls(M68k.s16(d4), tempFrames); // move.w d4,d5 ; muls Anim_TempFrames_w,d5
+            d3 = d3 + d5;                              // add.l d5,d3
+            if (d3 > d1) {                             // cmp.l d1,d3 ; bgt.s waternotattop
+                if (d3 >= d2) {                        // cmp.l d2,d3 ; blt.s waterdone
+                    d3 = d2;                           // move.l d2,d3
+                    d4 = M68k.setw(d4, -M68k.s16(d4)); // neg.w d4
+                }
+            } else {
+                d3 = d1;                               // move.l d1,d3
+                d4 = M68k.setw(d4, -M68k.s16(d4));     // neg.w d4
+            }
+            // waterdone
+            waterPos[i] = d3;                          // move.l d3,(a0)+
+            waterSpd[i] = M68k.s16(d4);                // move.w d4,(a0)+
+            for (int z : waterZones.get(i)) {          // morezones
+                LevelSim.Zone zone = zoneOf(z);
+                if (zone != null) {
+                    zone.water = d3;                   // move.l d1,ZoneT_Water_l(a1)
+                }
+            }
         }
     }
 
