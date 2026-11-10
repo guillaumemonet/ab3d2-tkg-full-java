@@ -131,6 +131,10 @@ public final class Shots {
      * <p>Ce sont des GLOBALES dans l'original, et les flammes d'une explosion s'en servent
      * sans les redefinir : elles heritent de la derniere balle qui a vole. Le jeu n'a donc
      * jamais a les poser, mais un oracle qui rejoue une explosion seule, si.
+     *
+     * <p>Ces QUATRE-la seulement. Le rayon et le decalage d'arete sont poses par la flamme
+     * elle-meme, et le rebond par {@code ComputeBlast} avant la premiere : il n'y a que ces
+     * quatre reglages qu'une explosion prenne vraiment a la balle qui l'a precedee.
      */
     void bulletMoveDefaults() {
         move.wallFlags = 1024;
@@ -1219,7 +1223,13 @@ public final class Shots {
                 move.stoodInTop = upper;               // StoodInTop
                 move.extLen = 80;                      // move.w #80,Obj_ExtLen_w
                 move.awayFromWall = 1;                 // move.b #1,Obj_AwayFromWall_b
-                move.wallBounce = true;                // st.b Obj_WallBounce_b (pose avant)
+                // Le rebond et la sortie anticipee, eux, ne sont pas herites : ComputeBlast
+                // les pose lui-meme, UNE fois, juste avant la premiere flamme (newanims.s:3060,
+                // « clr.b exitfirst / st.b Obj_WallBounce_b » a CheckedEmAll). Une flamme
+                // s'arrete donc au point de contact du mur au lieu de glisser le long, quelle
+                // que soit la balle qui vient d'exploser — mais la sortie anticipee est
+                // EFFACEE, de sorte qu'elle continue d'eprouver les murs suivants.
+                move.wallBounce = true;                // st.b Obj_WallBounce_b
                 move.exitFirst = false;                // clr.b exitfirst
                 move.moveObject();                     // jsr MoveObject
                 f.active = true;

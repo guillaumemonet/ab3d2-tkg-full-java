@@ -24,7 +24,9 @@ import java.util.List;
  *
  * <p>La flamme est la plus exigeante des six : elle passe par la COLLISION, de sorte qu'une
  * explosion contre un mur sort ses flammes du mur, et que le secteur qu'elles portent n'est pas
- * celui du tir. La comparer, c'est comparer {@code MoveObject} aussi.
+ * celui du tir. La comparer, c'est comparer {@code MoveObject} aussi — et c'est d'ici que
+ * {@link MoveCheck} est parti : les flammes etaient le seul endroit du portage ou la collision
+ * se voyait, et elles ne tombaient pas juste.
  *
  * <h2>Deux souffles, et ce qu'on seme entre les deux</h2>
  *
@@ -74,29 +76,6 @@ public final class BlastCheck {
     /** Le premier emplacement du pool du joueur dans la table d'origine. */
     private static int plrShotSlot;
 
-    /**
-     * Les ecarts de POSITION des flammes, comptes a part.
-     *
-     * <p>Ils ne disent rien du souffle : ils disent que {@link Move} ne glisse pas le long
-     * d'un mur exactement comme {@code MoveObject}. C'est la premiere mesure qu'on en ait, et
-     * c'est le chapitre suivant.
-     */
-    private static int collisions;
-
-    /**
-     * Le nombre d'ecarts de collision MESURE, niveau par niveau — une reference, pas une
-     * tolerance.
-     *
-     * <p>La position d'une flamme est celle que {@link Move} lui donne, et {@code Move} n'a
-     * jamais eu d'oracle. Celui-ci est le premier a l'eprouver, et il trouve qu'elle ne glisse
-     * pas le long d'un mur tout a fait comme {@code MoveObject} : deux pour cent et demi des
-     * champs de position different. Plutot que de ne rien comparer du tout, on EPINGLE le
-     * chiffre. Le jour ou {@code Move} sera porte au mot pres, ces six nombres tomberont a
-     * zero, et le jour ou quelqu'un touchera a la pose des flammes sans le vouloir, ils
-     * bougeront.
-     */
-    private static final java.util.Map<Character, Integer> EPINGLE = java.util.Map.of(
-            'a', 298, 'c', 500, 'g', 350, 'm', 534, 'n', 277, 'o', 984);
 
     private BlastCheck() {
     }
@@ -125,8 +104,6 @@ public final class BlastCheck {
         }
         System.out.printf("%n%d explosions sur six niveaux, %d ecart(s) -> %s%n",
                 explosions, ecarts, ecarts == 0 ? "PASS" : "FAIL");
-        System.out.printf("dont %d ecart(s) de COLLISION sur la position des flammes"
-                + " (Move, chapitre a venir)%n", collisions);
         if (ecarts != 0) {
             System.exit(1);
         }
@@ -137,6 +114,7 @@ public final class BlastCheck {
         Level data = Data.level(lettre);
         Database glf = Data.database();
         World w = new World(data, glf);
+        posesDuFichier(w, data);
         plrShotSlot = data.playerEntity() - 60;        // 20 du pool joueur + 40 des aliens
 
         int ecarts = 0;
@@ -164,16 +142,36 @@ public final class BlastCheck {
         }
 
         int k = 0;
-        int avant = collisions;
         for (var el : n.getAsJsonArray("cases")) {
             ecarts += unCas(lettre + "/" + k++, w, vivants, el.getAsJsonObject(), graine);
             if (ecarts > 40) {
                 return ecarts;                         // inutile d'en dire plus
             }
         }
-        ecarts += cmp(lettre + " ecarts de collision (reference)", collisions - avant,
-                EPINGLE.getOrDefault(lettre, -1));
         return ecarts;
+    }
+
+    /**
+     * Rend aux secteurs les hauteurs que le FICHIER leur donne.
+     *
+     * <p>Monter un {@link World} fait tourner une image d'animation « pour poser les toits et
+     * les sols de depart » : les ascenseurs descendent d'un cran, les portes closes bougent.
+     * L'oracle, lui, rejoue le niveau tel que le fichier le pose, sans cette image-la. Tant que
+     * les flammes n'etaient pas comparees, la difference ne se voyait pas ; des qu'on les
+     * compare, elle se voit partout, car c'est le sol et le plafond d'un secteur qui decident
+     * si une arete est un mur ou un passage.
+     */
+    private static void posesDuFichier(World w, Level data) {
+        LevelSim f = LevelSim.of(data);
+        for (int i = 0; i < f.zones.length; i++) {
+            if (f.zones[i] == null || w.lvl.zones[i] == null) {
+                continue;
+            }
+            w.lvl.zones[i].floorH = f.zones[i].floorH;
+            w.lvl.zones[i].roofH = f.zones[i].roofH;
+            w.lvl.zones[i].upperFloorH = f.zones[i].upperFloorH;
+            w.lvl.zones[i].upperRoofH = f.zones[i].upperRoofH;
+        }
     }
 
     /** Les monstres vivants, dans l'ordre de la table — celui que l'oracle a releve. */
@@ -312,11 +310,8 @@ public final class BlastCheck {
 
         // Le pool : les projectiles pousses ET les flammes semees.
         //
-        // Les flammes passent par la COLLISION, et {@code Move} n'a jamais eu d'oracle a lui.
-        // Cet oracle-ci est le premier a l'eprouver, et il trouve qu'elle n'atterrit pas tout
-        // a fait au meme endroit que l'original : on compte ces ecarts-la a part, sans les
-        // compter pour des fautes du souffle, qui n'y est pour rien. Tout le reste d'une
-        // flamme — sa definition de balle, son etage, son etat d'impact — est tenu.
+        // Les flammes passent par la COLLISION, et c'est leur position qui est le plus
+        // difficile a tenir : elle sort de {@code MoveObject}, pas de l'explosion.
         JsonArray attendu = a.getAsJsonArray("pool");
         int occupes = 0;
         for (Shots.Shot s : w.shots.shots()) {
@@ -337,38 +332,16 @@ public final class BlastCheck {
             String q = nom + " balle " + i;
             int emplacement = pool(r.get("slot").getAsInt());
             e += cmp(q + " emplacement", emplacement, w.shots.shots().indexOf(s));
-            boolean flamme = !semes.contains(emplacement);
-            boolean deplacee = false;
-            if (flamme) {
-                int d = quiet(s16(s.x >> 16), r.get("x").getAsInt())
-                        + quiet(s16(s.z >> 16), r.get("z").getAsInt())
-                        + quiet(s.zone, r.get("zone").getAsInt())
-                        + quiet(s.accY, r.get("accY").getAsInt())
-                        + quiet(s.heightWord, r.get("height").getAsInt())
-                        + quiet(s.upperZone ? 255 : 0, r.get("upper").getAsInt());
-                collisions += d;
-                deplacee = d != 0;
-            } else {
-                e += cmp(q + " x", s16(s.x >> 16), r.get("x").getAsInt());
-                e += cmp(q + " z", s16(s.z >> 16), r.get("z").getAsInt());
-                e += cmp(q + " accY", s.accY, r.get("accY").getAsInt());
-                e += cmp(q + " hauteur", s.heightWord, r.get("height").getAsInt());
-                e += cmp(q + " zone", s.zone, r.get("zone").getAsInt());
-                e += cmp(q + " etage", s.upperZone ? 255 : 0, r.get("upper").getAsInt());
-            }
+            e += cmp(q + " x", s16(s.x >> 16), r.get("x").getAsInt());
+            e += cmp(q + " z", s16(s.z >> 16), r.get("z").getAsInt());
+            e += cmp(q + " accY", s.accY, r.get("accY").getAsInt());
+            e += cmp(q + " hauteur", s.heightWord, r.get("height").getAsInt());
+            e += cmp(q + " zone", s.zone, r.get("zone").getAsInt());
+            e += cmp(q + " etage", s.upperZone ? 255 : 0, r.get("upper").getAsInt());
             e += cmp(q + " type", s.type, r.get("type").getAsInt());
-            if (deplacee) {
-                // Une flamme qui n'a pas atterri au meme endroit n'est pas poussee pareil par
-                // le souffle SUIVANT : ce n'est pas le souffle qui a tort, c'est la ou elle
-                // est. On compte, on ne crie pas.
-                collisions += quiet(s16(s.velX >> 16), r.get("velX").getAsInt())
-                        + quiet(s16(s.velZ >> 16), r.get("velZ").getAsInt())
-                        + quiet(s16(s.velY), r.get("velY").getAsInt());
-            } else {
-                e += cmp(q + " vitesseX", s16(s.velX >> 16), r.get("velX").getAsInt());
-                e += cmp(q + " vitesseZ", s16(s.velZ >> 16), r.get("velZ").getAsInt());
-                e += cmp(q + " vitesseY", s16(s.velY), r.get("velY").getAsInt());
-            }
+            e += cmp(q + " vitesseX", s16(s.velX >> 16), r.get("velX").getAsInt());
+            e += cmp(q + " vitesseZ", s16(s.velZ >> 16), r.get("velZ").getAsInt());
+            e += cmp(q + " vitesseY", s16(s.velY), r.get("velY").getAsInt());
             e += cmp(q + " impact", s.popping ? 1 : 0, r.get("popping").getAsInt());
             e += cmp(q + " pas", s.anim, r.get("anim").getAsInt());
             i++;
@@ -432,11 +405,6 @@ public final class BlastCheck {
 
     private static int s16(int v) {
         return (short) v;
-    }
-
-    /** Un ecart qu'on COMPTE sans le crier : il appartient a un autre chapitre. */
-    private static int quiet(int got, int want) {
-        return got == want ? 0 : 1;
     }
 
     private static int cmp(String quoi, int got, int want) {

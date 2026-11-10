@@ -8,21 +8,41 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Port fidele de Objectmove.MoveObject (java/src/ab3d2/Objectmove.java:55-703), SPECIALISE JOUEUR.
+ * Port fidele de {@code MoveObject} (objectmove.s:11, java/src/ab3d2/Objectmove.java:55-703) :
+ * la collision du jeu.
  *
- * <p>Specialisation (valeurs posees par Plr1_Control, Hires.java:3591-3596) :
- * Obj_AwayFromWall_b=0 (donc a4/a6 = EdgeT_Byte_12/13 sans decalage), Obj_WallBounce_b=0,
- * exitfirst=0, Obj_ExtLen_w=40 -&gt; on suit toujours la branche {@code calcalong} (glisse le
- * long du mur), jamais le rebond ni la sortie anticipee.
+ * <p>C'est la routine la plus appelee de la simulation. Tout ce qui se deplace horizontalement
+ * y passe : les deux joueurs, chaque balle, chaque monstre qui glisse, chaque flamme
+ * d'explosion. Elle fait trois choses d'affilee :
  *
- * <p>Deroule d'un appel : {@code checkwalls} (contour de la zone) -&gt; {@code checkotherwalls}
- * (rayon etendu, tous les groupes) -&gt; {@code CheckMoreFloorLines} (marche de portails, qui met
- * a jour {@link #zone} et {@link #stoodInTop}). Le contact pose le bit {@link #wallFlags}
- * (0x100 = joueur 1) dans {@code edgeFlags} : c'est le handshake qui declenche les portes
- * (cf. {@link Doors}).
+ * <ul>
+ *   <li>{@code checkwalls} — le CONTOUR de la zone (premier groupe de la liste d'aretes). Un
+ *       mur qu'on traverse ne renvoie pas : selon les reglages, ou bien le point est PROJETE
+ *       sur la ligne du mur et l'on glisse le long ({@code calcalong}), ou bien on s'arrete au
+ *       point de contact exact ({@code calcwherehit}) ;</li>
+ *   <li>{@code checkotherwalls} — le meme travail avec un RAYON ({@link #extLen}) et sur TOUS
+ *       les groupes, pas seulement le contour : c'est ce qui empeche de raser un angle ;</li>
+ *   <li>{@code CheckMoreFloorLines} — la marche de portails, qui change {@link #zone} et
+ *       {@link #stoodInTop} et RECOMMENCE tout depuis la nouvelle zone, jusqu'a cinquante fois ;
+ *       au-dela elle renonce et remet l'objet ou il etait.</li>
+ * </ul>
+ *
+ * <p>Elle ne prend aucun parametre : tout passe par des globales que l'appelant pose — et
+ * parfois ne pose pas. {@link #awayFromWall} vaut $FF pour une balle (NEGATIF : pas de rayon du
+ * tout, l'arete est prise telle quelle), zero pour un joueur (le rayon est l'octet de normale
+ * de l'arete) et UN pour une flamme (le meme octet, decale d'un bit). {@link #exitFirst} fait
+ * rendre la main au premier mur touche ; {@link #wallBounce} releve en plus les donnees du mur,
+ * pour que l'appelant sache de quoi rebondir.
+ *
+ * <p>Le contact pose le bit {@link #wallFlags} (0x100 joueur 1, 0x800 joueur 2, 0x400 le reste)
+ * dans {@code edgeFlags} : c'est le seul handshake qui declenche les portes. Il est pose aussi
+ * quand on ne touche pas mais qu'on EFFLEURE — a moins de trente-deux unites de l'arete.
  *
  * <p>Unites : coordonnees monde en MOTS signes (partie entiere du 16.16 des joueurs) ;
  * hauteurs en longs virgule fixe.
+ *
+ * <p>Eprouvee par {@link MoveCheck} : cinquante mille deplacements, six niveaux, chaque secteur,
+ * neuf reglages d'appelant plus un synthetique.
  */
 public final class Move {
 
@@ -428,8 +448,19 @@ public final class Move {
             }
         }
 
-        int a4 = lvl.edgeB12[ei];
-        int a6 = lvl.edgeB13[ei];
+        // .thisisawall2 : le rayon n'est pris que si Obj_AwayFromWall_b >= 0, exactement comme
+        // dans checkwalls. Une balle, a $FF, passe au ras de l'arete ; une flamme, a 1, voit
+        // les octets de normale DECALES d'un bit.
+        int a4 = 0;
+        int a6 = 0;
+        if ((byte) awayFromWall >= 0) {
+            a4 = lvl.edgeB12[ei];
+            a6 = lvl.edgeB13[ei];
+            if (awayFromWall != 0) {
+                a4 = s16(a4 << (awayFromWall & 63));
+                a6 = s16(a6 << (awayFromWall & 63));
+            }
+        }
         int deltax = s16(lvl.edgeDx[ei] - a4);
         deltax = s16(deltax - a6);
         int d5 = s16(lvl.edgeDz[ei] + a4);
