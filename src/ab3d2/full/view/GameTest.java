@@ -20,15 +20,35 @@ import ab3d2.full.sim.World;
  *   <li>combien d'images sortent MAIGRES (moins de la moitie des pixels poses) et combien
  *       sortent tout a fait NOIRES. Ce sont ces deux nombres qui ont debusque le pan de mur
  *       jete au lieu d'etre peint : mille quarante-six images maigres sur seize mille, et
- *       l'ecran noir des qu'on se collait a un mur. Il en reste quatorze noires sur seize
- *       mille, et celles-la viennent d'un cas different — le point de vue pose exactement sur
- *       la ligne d'un mur, ou les quatre pans du secteur passent derriere la camera ;</li>
+ *       l'ecran noir des qu'on se collait a un mur. Il en reste deux cent vingt-huit maigres
+ *       et UNE noire, et celle-la est FIDELE — voir ci-dessous ;</li>
  *   <li>les monstres finissent par arriver a l'image — sans quoi la quatrieme boucle de sprite
  *       serait branchee pour rien.</li>
  * </ul>
  *
  * <p>Le joueur marche droit devant, tourne lentement et tire : de quoi reveiller du monde,
  * franchir des ouvertures et faire voler des balles, sans scenario a maintenir.
+ *
+ * <h2>L'IMAGE NOIRE, et pourquoi il n'y a rien a corriger</h2>
+ *
+ * <p>Il en reste une : <b>niveau n, image 904</b>, secteur 11, en {@code -1122,1284}, angle
+ * 232, oeil {@code -75978}. Le secteur 11 est une EMBRASURE de quarante-huit unites de cote, et
+ * le joueur s'y tient a quelques dizaines d'unites du PLAN de ses deux pans. La mise en scene
+ * n'y retient que ce seul secteur : cinq commandes, deux pans, le sol, le plafond, les objets.
+ *
+ * <p>Les deux pans tombent alors tout entiers HORS de l'ecran. Leurs points, une fois tournes,
+ * ont des profondeurs de 52, 14, -6 et 32 pour des ecarts lateraux de dix-neuf et vingt mille :
+ * le premier pan se projette sur les colonnes 526 a 1624, le second sur 0 a 0, et l'ecran va de
+ * zero a trois cent vingt. Sans colonne de pan, pas de silhouette, donc ni sol ni plafond. A
+ * l'image suivante le second pan va meme de la colonne zero a la colonne moins trente-trois —
+ * sa borne droite est a gauche de sa borne gauche.
+ *
+ * <p><b>Le jeu d'origine fait exactement la meme chose.</b> Les deux maillons qui auraient pu
+ * diverger ont ete eprouves a CETTE camera-la, par deux poses nommees ajoutees aux oracles :
+ * la mise en scene ({@code zoneGraphCheck}) donne les memes cinq commandes et les memes
+ * marques, et la projection ({@code xformCheck}) donne les memes abscisses d'ecran — 0, 0,
+ * 1624 et 526. L'image est noire chez Team17 aussi. Il n'y a rien a corriger ; il fallait le
+ * prouver, parce qu'une image noire est exactement ce qu'un rendu fautif produit.
  *
  * <pre>gradle -p full gameTest [-Plevel=a|all]</pre>
  */
