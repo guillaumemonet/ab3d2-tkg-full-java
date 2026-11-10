@@ -141,6 +141,16 @@ tasks.register('moveCheck', JavaExec) {
     systemProperty 'ab3d2.move', new File(refRoot, 'move.json').absolutePath
 }
 
+tasks.register('bitsCheck', JavaExec) {
+    group = 'verification'
+    description = "La gerbe de morceaux : ce qu'une entite laisse en mourant"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.BitsCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.bits', new File(refRoot, 'bits.json').absolutePath
+}
+
 tasks.register('objAnimCheck', JavaExec) {
     group = 'verification'
     description = "L'apparence des choses : ce qu'un pas d'animation donne a voir"
@@ -537,5 +547,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck'
 }

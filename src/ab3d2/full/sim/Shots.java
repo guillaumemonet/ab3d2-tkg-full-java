@@ -1363,49 +1363,112 @@ public final class Shots {
     }
 
     /**
-     * Anim_ExplodeIntoBits (Newanims.java:412) : la gerbe de morceaux d'une entite qui meurt.
-     * Chaque debris part dans une direction tiree au hasard, a une vitesse decalee de 1 a 4 bits,
-     * plus la moitie du recul de l'entite, et monte de 2 a 10 unites — la gravite de sa definition
-     * (les « Splutch ») le fait ensuite retomber.
+     * Anim_ExplodeIntoBits (newanims.s:605) : la gerbe de morceaux d'une entite qui meurt.
+     *
+     * <p>Chaque morceau part dans une direction tiree au hasard, a une vitesse decalee d'un a
+     * quatre bits, PLUS LA MOITIE DU RECUL DU MORT, et monte de deux a dix unites ; la gravite
+     * de sa definition (les « Splutch ») le fait ensuite retomber. C'est le seul endroit du jeu
+     * qui relise {@code EntT_ImpactX_w} d'un monstre : le coup qui l'a tue decide de quel cote
+     * il s'eparpille, et un alien abattu de face ne gicle pas comme un alien abattu de dos.
+     *
+     * <p>Les deux reculs se lisent en UN SEUL {@code move.l} : X dans le mot fort, Z dans le
+     * mot faible. Le {@code asr.w #1,d0} ne rogne donc que le Z, et c'est le {@code swap}
+     * suivant qui amene le X sous la meme lame.
+     *
+     * <h2>Ce que la routine ne pose PAS</h2>
+     *
+     * <ul>
+     *   <li>la GRAVITE — la ligne est commentee dans l'original (newanims.s:675). Le champ est
+     *       mort des deux cotes : le vol lit celle de la DEFINITION ;</li>
+     *   <li>le pas d'ANIMATION : le morceau reprend celui que l'emplacement rendu avait ;</li>
+     *   <li>la FRACTION d'une position ni d'une vitesse : {@code move.w} n'ecrit que le mot
+     *       fort, et les seize bits du dessous restent ceux du tir precedent ;</li>
+     *   <li>le TYPE D'OBJET — voir {@link #typoDuType(int)}.</li>
+     * </ul>
+     *
+     * <p>En revanche elle efface les DEUX octets de {@code ShotT_Flags_w} : un morceau ne
+     * rebondit pas au plafond, meme si sa definition de balle le dit.
      */
     public void explodeIntoBits(int splatType, int count, int x, int z, int heightWord, int zone,
                                 boolean upper, int impactX, int impactZ) {
-        if (nav == null || glf == null || glf.bullet(splatType) == null) {
-            return;
+        if (nav == null) {
+            return;                                    // harnais : pas de hasard, pas de gerbe
         }
-        Database.BulletDef b = glf.bullet(splatType);
-        int n = Math.min(count, 7) + 1;                // cmp.w #7,d2 ; ble .oksplut
-        for (int i = 0; i < n; i++) {
-            Shot s = freeAlien();                      // le jeu prend le pool ALIEN
-            if (s == null) {
-                return;
+        int d2 = s16(count) > 7 ? 7 : s16(count);      // cmp.w #7,d2 ; ble .oksplut ; move.w #7,d2
+        int k = PLR_POOL;                              // move.l AI_AlienShotDataPtr_l,a5
+        int d1 = ALIEN_POOL - 1;                       // move.w #NUM_ALIEN_SHOT_DATA-1,d1
+        while (true) {
+            // .findeight : le premier emplacement RENDU, en avancant — jamais en revenant.
+            while (pool.get(k).active) {               // move.w ObjT_ZoneID_w(a5),d0 ; blt .gotonehere
+                k++;                                   // adda.w #ObjT_SizeOf_l,a5
+                if (--d1 < 0) {
+                    return;                            // dbra d1,.findeight ; rts
+                }
             }
-            int ang = nav.rand() & SinCos.MASK;        // AMOD_A
-            int d3 = s16(sinCos.value(ang));
-            int d4 = s16(sinCos.value(ang + SinCos.COSINE_OFFSET));
-            int shift = (nav.rand() & 3) + 1;          // and.w #3 ; add.w #1
-            d3 = d3 << shift;
-            d4 = d4 << shift;
-            s.active = true;
-            s.popping = false;                         // clr.b ShotT_Status_b : il VOLE
-            s.anim = 0;
-            s.lifetime = 0;
-            s.type = splatType;
-            s.power = 0;                               // move.b #0,ShotT_Power_w
-            s.enemyFlags = 0;                          // ne touche personne
-            s.gravity = b.gravity();
-            s.bounceHoriz = b.bounceHoriz() != 0;
-            s.bounceVert = b.bounceVert() != 0;
-            s.x = s16(x) << 16;
-            s.z = s16(z) << 16;
-            s.velX = ((d3 >> 16) + (s16(impactX) >> 1)) << 16;
-            s.velZ = ((d4 >> 16) + (s16(impactZ) >> 1)) << 16;
-            s.velY = s16(-((nav.rand() & 1023) + 2 * 128));  // il part vers le HAUT
-            s.zone = zone;
-            s.upperZone = upper;
-            s.accY = (s16(heightWord) + 6) << 7;
-            s.heightWord = s16(s.accY >> 7);
+            // .gotonehere
+            Shot s = pool.get(k);
+            s.power = 0;                               // move.b #0,ShotT_Power_w(a5)
+            s.x = (s.x & 0xFFFF) | (s16(x) << 16);     // move.w newx,(a2)
+            s.z = (s.z & 0xFFFF) | (s16(z) << 16);     // move.w newz,4(a2)
+            typoDuType(k);                             // move.b #2,16(a2)
+            int ang = nav.rand() & SinCos.MASK;        // jsr GetRand ; AMOD_A d0
+            int d3 = s16(sinCos.value(ang));           // move.w (a2),d3
+            int d4 = s16(sinCos.value(ang + SinCos.COSINE_OFFSET)); // move.w COSINE_OFS(a2),d4
+            int d0 = (nav.rand() & 3) + 1;             // jsr GetRand ; and.w #3,d0 ; add.w #1,d0
+            d3 = d3 << d0;                             // ext.l d3 ; asl.l d0,d3
+            d4 = d4 << d0;                             // ext.l d4 ; asl.l d0,d4
+            // move.l EntT_ImpactX_w(a0),d0 — un seul long pour les deux reculs
+            d4 = s16((d4 >> 16) + (s16(impactZ) >> 1)); // swap d4 ; asr.w #1,d0 ; add.w d0,d4
+            s.velZ = (s.velZ & 0xFFFF) | (d4 << 16);   // move.w d4,ShotT_VelocityZ_w(a5)
+            d3 = s16((d3 >> 16) + (s16(impactX) >> 1)); // swap d3 ; swap d0 ; asr.w #1,d0 ; add.w
+            s.velX = (s.velX & 0xFFFF) | (d3 << 16);   // move.w d3,ShotT_VelocityX_w(a5)
+            s.velY = s16(-((nav.rand() & 1023) + 2 * 128)); // and.w #1023 ; add.w #2*128 ; neg.w
+            s.enemyFlags = 0;                          // move.l #0,EntT_EnemyFlags_l(a5)
+            s.zone = zone;                             // move.w ObjT_ZoneID_w(a0),ObjT_ZoneID_w(a5)
+            s.active = zone >= 0;                      // un secteur negatif = emplacement rendu
+            s.heightWord = s16(heightWord);            // move.w 4(a0),d0 ; move.w d0,4(a5)
+            s.accY = s16(s16(heightWord) + 6) << 7;    // add.w #6,d0 ; ext.l d0 ; asl.l #7,d0
+            s.type = splatType & 0xFF;                 // move.b Anim_SplatType_w,ShotT_Size_b(a5)
+            s.bounceHoriz = false;                     // move.w #0,ShotT_Flags_w(a5) : les DEUX
+            s.bounceVert = false;                      //   octets, et non ceux de la definition
+            s.lifetime = 0;                            // move.w #0,ShotT_Lifetime_w(a5)
+            s.popping = false;                         // clr.b ShotT_Status_b(a5) : il VOLE
+            s.upperZone = upper;                       // move.b ShotT_InUpperZone_b(a0),...
+            k++;                                       // adda.w #64,a5
+            d2 = s16(d2 - 1);                          // sub.w #1,d2
+            if (d2 < 0) {
+                return;                                // blt.s .gotemall
+            }
+            if (--d1 < 0) {
+                return;                                // dbra d1,.findeight ; rts
+            }
         }
+    }
+
+    /**
+     * {@code move.b #2,16(a2)} — le type d'objet ecrit DANS LE MAUVAIS REGISTRE.
+     *
+     * <p>La routine vient de poser le point du morceau dans {@code a2}. Elle voulait
+     * visiblement ecrire {@code OBJ_TYPE_PROJECTILE} dans {@code ObjT_TypeID_b(a5)}, a seize
+     * octets du debut de l'entite — c'est mot pour mot ce que fait ai.s:234 pour un alien
+     * nouveau-ne. Mais elle l'ecrit a seize octets du POINT, et un point fait huit octets :
+     * elle tape donc l'octet fort du X du point situe DEUX RANGS PLUS LOIN.
+     *
+     * <p>Le type manquant ne se voit jamais : le pool des projectiles aliens arrive du fichier
+     * de niveau avec {@code ObjT_TypeID_b} deja a deux, et rien ne l'en fait sortir. Le X, lui,
+     * se voit : le projectile deux emplacements plus loin se retrouve a une abscisse comprise
+     * entre cinq cent douze et sept cent soixante-sept, c'est-a-dire a peu pres n'importe ou.
+     *
+     * <p>Les deux derniers emplacements du pool debordent sur les objets AUXILIAIRES qui le
+     * suivent dans la table, et ceux-la ne sont pas portes : au-dela du pool, on ne fait rien.
+     */
+    private void typoDuType(int k) {
+        int cible = k + 2;
+        if (cible >= pool.size()) {
+            return;                                    // hors du pool : des objets non portes
+        }
+        Shot t = pool.get(cible);
+        t.x = (t.x & 0x00FFFFFF) | (2 << 24);
     }
 
     /** ai_CalcSqrt (3 iterations de Newton), comme le jeu. */

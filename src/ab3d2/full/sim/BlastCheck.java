@@ -68,7 +68,7 @@ import java.util.List;
  *       retenue hors des seize bits : il y faudrait une vitesse que le jeu n'atteint pas ;</li>
  *   <li>la gerbe de MORCEAUX herite de la moitie du recul du mort — c'est le seul endroit du
  *       jeu qui relise {@code EntT_ImpactX_w} d'un monstre — et rien ici ne la declenche. Elle
- *       n'a pas d'oracle a elle.</li>
+ *       a desormais son oracle a elle : {@link BitsCheck}.</li>
  * </ul>
  */
 public final class BlastCheck {
