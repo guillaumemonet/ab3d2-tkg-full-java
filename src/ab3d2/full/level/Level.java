@@ -43,7 +43,9 @@ public record Level(
         List<Clip> clips,
         List<Link> links,
         int exitZone,
-        int playerEntity) {
+        int playerEntity,
+        int playerShotEntity,
+        int alienShotEntity) {
 
     /**
      * Le rang de l'entite qui porte l'ARME EN MAIN du premier joueur.

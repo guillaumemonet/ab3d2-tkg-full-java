@@ -42,6 +42,10 @@ public final class LevelReader {
     private static final int OFFSET_OBJECT_POINTS = 42;
 
     /** Ou se tient l'objet du premier joueur : c'est lui qui designe l'arme en main. */
+    /** TLBT_ShotDataOffset_l : le premier emplacement du pool de tir du JOUEUR. */
+    private static final int OFFSET_SHOT_DATA = 34;
+    /** TLBT_AlienShotDataOffset_l : le premier emplacement du pool de tir des ALIENS. */
+    private static final int OFFSET_ALIEN_SHOT_DATA = 38;
     private static final int OFFSET_PLAYER1 = 46;
 
     /** La taille d'un enregistrement d'objet. */
@@ -256,7 +260,9 @@ public final class LevelReader {
                 List.copyOf(points), List.copyOf(control), walk, fly, List.copyOf(entities),
                 f.u16(h + NUM_OBJECTS) + 1, List.copyOf(edges), List.copyOf(zones), List.copyOf(doors), List.copyOf(lifts), waters,
                 List.copyOf(switches), clips.groups(), links, exitZone,
-                (f.s32(h + OFFSET_PLAYER1) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE);
+                (f.s32(h + OFFSET_PLAYER1) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE,
+                (f.s32(h + OFFSET_SHOT_DATA) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE,
+                (f.s32(h + OFFSET_ALIEN_SHOT_DATA) - f.s32(h + OFFSET_OBJECTS)) / OBJECT_SIZE);
     }
 
     /**

@@ -94,7 +94,7 @@ public final class World {
         this.player = new PlayerSim(lvl, level, Data.sinCos());
         this.anims = new Anims(lvl, level);
         this.objects = new ObjectRuntime(lvl, level, glf);
-        this.shots = new Shots(lvl, glf, Data.sinCos());
+        this.shots = new Shots(lvl, glf, Data.sinCos(), level);
         this.aliens = new Aliens(lvl, level, glf, Data.sinCos(), nav, los);
 
         objects.inventory.defaultGame(glf);            // 200 de sante, le fusil et vingt cartouches

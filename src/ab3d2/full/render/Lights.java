@@ -123,8 +123,24 @@ public final class Lights implements ab3d2.full.sim.ZoneLight {
 
     private int offTable;
 
+    /**
+     * Les hauteurs de CETTE image.
+     *
+     * <p>{@code anim_BrightenPoints} lit {@code ZoneT_Floor_l(a0)} et {@code ZoneT_Roof_l(a0)}
+     * du secteur COURANT (newanims.s:160 et 186) : un ascenseur monte, et la lumiere d'un tir
+     * ne porte plus sur le meme sol. Par defaut ce sont celles du fichier, ce qui est
+     * exactement ce qu'un harnais sans simulation doit voir ; le jeu, lui, pose les siennes.
+     */
+    private Heights hauteurs;
+
+    /** Harnais et jeu : d'ou les hauteurs de secteur se lisent. */
+    public void heights(Heights h) {
+        this.hauteurs = h;
+    }
+
     public Lights(Level level, SinCos sinCos) {
         this.level = level;
+        this.hauteurs = Heights.of(level);
         this.sinCos = sinCos;
         int zones = level.zones().size();
         zoneBright = new int[2 * zones];
@@ -377,13 +393,18 @@ public final class Lights implements ab3d2.full.sim.ZoneLight {
      * donc pas le sol de l'etage au-dessus.
      */
     private void apply(Level.Zone here, int slot, int bright, int near, int brightY) {
-        if (!(brightY > here.floor()) && !(brightY < here.ceiling())) {
-            one(slot + ROOF, here.ceiling(), true, bright, near, brightY);
-            one(slot + FLOOR, here.floor(), false, bright, near, brightY);
+        int id = here.id();
+        int sol = hauteurs.floor(id);                  // ZoneT_Floor_l(a0) : la hauteur COURANTE
+        int toit = hauteurs.ceiling(id);               // ZoneT_Roof_l(a0)
+        int solHaut = hauteurs.upperFloor(id);
+        int toitHaut = hauteurs.upperCeiling(id);
+        if (!(brightY > sol) && !(brightY < toit)) {
+            one(slot + ROOF, toit, true, bright, near, brightY);
+            one(slot + FLOOR, sol, false, bright, near, brightY);
         }
-        if (!(brightY > here.upperFloor()) && !(brightY < here.upperCeiling())) {
-            one(slot + UPPER_FLOOR, here.upperFloor(), false, bright, near, brightY);
-            one(slot + UPPER_ROOF, here.upperCeiling(), true, bright, near, brightY);
+        if (!(brightY > solHaut) && !(brightY < toitHaut)) {
+            one(slot + UPPER_FLOOR, solHaut, false, bright, near, brightY);
+            one(slot + UPPER_ROOF, toitHaut, true, bright, near, brightY);
         }
     }
 

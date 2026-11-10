@@ -8,6 +8,7 @@ import static ab3d2.full.M68k.setw;
 
 import ab3d2.full.M68k;
 import ab3d2.full.defs.Database;
+import ab3d2.full.level.Level;
 import ab3d2.full.SinCos;
 
 import java.util.ArrayList;
@@ -110,13 +111,26 @@ public final class Shots {
     /** Vrai la frame ou le tir a echoue faute de munitions (SFX 12 dans le jeu). */
     public boolean dryFire;
 
-    public Shots(LevelSim lvl, Database glf, SinCos sinCos) {
+    /**
+     * Le POINT de chaque emplacement du pool dans la table des points d'objets.
+     *
+     * <p>Un projectile n'a pas de rang a lui : il occupe un emplacement de la table, et c'est
+     * le POINT de cet emplacement que le jeu prend comme identifiant de source sonore. Les deux
+     * pools se suivent dans la table, mais leurs points ne valent pas leur rang.
+     */
+    private final int[] points = new int[POOL];
+
+    public Shots(LevelSim lvl, Database glf, SinCos sinCos, Level data) {
         this.lvl = lvl;
         this.glf = glf;
         this.sinCos = sinCos;
         this.move = new Move(lvl);
         for (int i = 0; i < POOL; i++) {
             pool.add(new Shot());
+            int slot = i < PLR_POOL ? data.playerShotEntity() + i
+                    : data.alienShotEntity() + (i - PLR_POOL);
+            points[i] = slot >= 0 && slot < data.entities().size()
+                    ? data.entities().get(slot).point() : i;
         }
     }
 
@@ -589,6 +603,14 @@ public final class Shots {
         if (b == null) {
             return;
         }
+        if (sfx != null) {
+            // newaliencontrol.s:1171 : volume 100, voie 1, identifiant = le POINT de l'alien
+            // — et AUCUN numero d'echantillon. Le tir joue ce que le bruit precedent a
+            // laisse ; voir SfxQueue.num.
+            sfx.id = a.point;                          // move.w (a0),IDNUM
+            sfx.notIfPlaying = false;                  // clr.b notifplaying
+            sfx.again(100, a.x, a.z);                  // move.w #100,Aud_NoiseVol_w
+        }
         int oldX = a.x;
         int oldZ = a.z;
         int newX = s16(p.xOff >> 16);
@@ -1039,11 +1061,10 @@ public final class Shots {
         if (sfx != null) {
             // newanims.s:2171 : l'impact. Il n'ecrit PAS « pas si ca joue » et herite donc
             // de ce que le bruit precedent y avait laisse.
-            // L'identifiant d'origine est le POINT de la balle dans la table du niveau ;
-            // ce portage ne modelise pas encore ces points-la, et prend le rang de
-            // l'emplacement dans le pool. Deux impacts se distinguent donc toujours l'un
-            // de l'autre, mais pas par le meme nombre que le jeu.
-            sfx.id = pool.indexOf(s);              // move.w d1,IDNUM
+            // L'identifiant est le POINT de la balle dans la table des points d'objets, et
+            // non son rang dans le pool : c'est lui qui decide si ce bruit remplace celui qui
+            // joue deja sous le meme identifiant.
+            sfx.id = points[pool.indexOf(s)];      // move.w d1,IDNUM
             sfx.at(b.impactSfx() - 1, 200, s16(s.x >> 16), s16(s.z >> 16));
         }
         if (b.explosiveForce() != 0) {                   // tst.l BulT_ExplosiveForce_l ; beq .noexplosion

@@ -68,6 +68,9 @@ public final class GameTest {
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
+        // Les lumieres dynamiques se posent PENDANT l'image de simulation, avant le dessin :
+        // leurs hauteurs de secteur doivent donc venir de la simulation, pas du fichier.
+        viewer.lights().heights(Viewer.hauteurs(world));
 
         boolean dump = Boolean.getBoolean("ab3d2.dump");
         if (Boolean.getBoolean("ab3d2.wav")) {

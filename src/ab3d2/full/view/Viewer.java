@@ -225,7 +225,7 @@ public final class Viewer {
      * d'eau ; le dessin doit lire ce que la simulation vient de poser, sans quoi une porte
      * grande ouverte reste peinte fermee.
      */
-    private static Heights hauteurs(World world) {
+    public static Heights hauteurs(World world) {
         LevelSim sim = world.lvl;
         return new Heights() {
             @Override

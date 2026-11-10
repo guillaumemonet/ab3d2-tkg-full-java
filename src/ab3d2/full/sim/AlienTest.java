@@ -237,7 +237,7 @@ public final class AlienTest {
         p.zone = a0.zone;
         p.stoodInTop = a0.upperZone;
         p.yOff = p.snapYOff = sim.zones[a0.zone].floorH - PlayerSim.PLR_STAND_HEIGHT;
-        Shots shots = new Shots(sim, glf, sc);
+        Shots shots = new Shots(sim, glf, sc, lvl);
         shots.setTargets(al);
         shots.setPlayer(p);
         al.setFire(shots::fireAtPlayer);

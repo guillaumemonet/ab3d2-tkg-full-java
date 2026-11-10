@@ -64,6 +64,9 @@ public final class Game {
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
+        // Les lumieres dynamiques se posent PENDANT l'image de simulation, avant le dessin :
+        // leurs hauteurs de secteur doivent donc venir de la simulation, pas du fichier.
+        viewer.lights().heights(Viewer.hauteurs(world));
 
         Vue vue = new Vue(world, viewer, echelle);
         JFrame fenetre = new JFrame("Alien Breed 3D II — The Killing Grounds — niveau "

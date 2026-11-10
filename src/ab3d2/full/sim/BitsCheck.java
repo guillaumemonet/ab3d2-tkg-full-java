@@ -110,7 +110,7 @@ public final class BitsCheck {
         LevelSim lvl = LevelSim.of(data);
         // Pas de {@link World} : la routine ne touche ni au decor ni aux animations, et monter
         // un monde ferait tourner une image qui deplacerait les ascenseurs.
-        Shots shots = new Shots(lvl, glf, Data.sinCos());
+        Shots shots = new Shots(lvl, glf, Data.sinCos(), data);
         Nav nav = new Nav(data);
         shots.nav = nav;
 

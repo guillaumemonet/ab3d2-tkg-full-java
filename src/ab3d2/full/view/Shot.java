@@ -64,6 +64,9 @@ public final class Shot {
         world.light = viewer.lights();
         world.aliens.dynLight = viewer.lights();
         world.shots.dynLight = viewer.lights();
+        // Les lumieres dynamiques se posent PENDANT l'image de simulation, avant le dessin :
+        // leurs hauteurs de secteur doivent donc venir de la simulation, pas du fichier.
+        viewer.lights().heights(Viewer.hauteurs(world));
         if (secteur >= 0) {
             // Le point de controle d'un secteur n'est PAS garanti dedans : c'est un jalon de
             // navigation, et plusieurs tombent de l'autre cote d'une ouverture (le 100 du

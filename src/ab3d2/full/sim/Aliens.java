@@ -40,7 +40,16 @@ public final class Aliens {
 
     /** Une entité alien (ObjT/EntT de 64 octets côté original). */
     public static final class Alien {
-        public int index;                // (a0) : index de son point objet — clé des workspaces
+        public int index;                // son rang dans la table d'objets — clé des workspaces
+        /**
+         * Son POINT dans la table des points d'objets, {@code (a0)}.
+         *
+         * <p>Ce n'est pas son rang : les deux different pour TOUS les monstres de tous les
+         * niveaux. Le jeu s'en sert comme identifiant de source sonore ({@code IDNUM}), et
+         * c'est lui qui decide si un nouveau bruit REMPLACE celui qui joue deja ou lui prend
+         * une voie. Confondre les deux fait couper un grognement par l'impact d'une balle.
+         */
+        public int point = -1;
         public int x, z;                 // Lvl_ObjectPoints : position monde (mots)
         public int height;               // 4(a0) : hauteur de dessin/collision
         public int zone;                 // ObjT_ZoneID_w (< 0 : mort, emplacement libre)
@@ -245,6 +254,7 @@ public final class Aliens {
             }
             Alien a = new Alien();
             a.index = idx++;
+            a.point = o.point();
             a.x = o.x();
             a.z = o.z();
             a.zone = o.zone();
@@ -263,9 +273,15 @@ public final class Aliens {
         }
         // AI_OtherAlienDataPtrs_vl : emplacements libres pour les aliens ENGENDRES a la mort
         // d'un gros (SplatType >= NUM_BULLET_DEFS).
+        // AI_OtherAlienDataPtrs_vl suit le pool de tir des aliens dans la table : leurs
+        // points sont donc ceux de ces emplacements-la.
         for (int i = 0; i < SPAWN_POOL; i++) {
             Alien a = new Alien();
             a.index = idx++;
+            int slot = data.alienShotEntity() + SPAWN_POOL + i;
+            if (slot >= 0 && slot < data.entities().size()) {
+                a.point = data.entities().get(slot).point();
+            }
             a.zone = -1;
             a.alive = false;
             list.add(a);
@@ -416,8 +432,9 @@ public final class Aliens {
             int d1 = a.timer2;
             Database.AlienFrame f = frames.get(Math.min(Math.max(d1, 0), frames.size() - 1));
             if (f.sfx() != 0 && sfx != null) {       // move.b 5(a6,d1.w),d0 ; subq #1 ; Aud_SampleNum_w
-                // hires.s:6109 : volume 80, identifiant = le POINT du monstre.
-                sfx.id = a.index;                  // move.w (a0),IDNUM
+                // hires.s:6109 : volume 80, identifiant = le POINT du monstre, et non son
+                // rang — les deux different pour tous les monstres du jeu.
+                sfx.id = a.point;                  // move.w (a0),IDNUM
                 sfx.notIfPlaying = false;          // clr.b notifplaying
                 sfx.at(f.sfx() - 1, 80, a.x, a.z);
             }

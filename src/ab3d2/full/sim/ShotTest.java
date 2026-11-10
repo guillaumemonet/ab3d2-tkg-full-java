@@ -82,7 +82,7 @@ public final class ShotTest {
             Inventory inv = new Inventory(Database.MAX_INVENTORY);
             inv.defaultGame(glf);
             inv.setAmmo(g.shoot().bulletType(), 100);            // de quoi tirer 4 fois au minimum
-            Shots shots = new Shots(sim, glf, sinCos);
+            Shots shots = new Shots(sim, glf, sinCos, lvl);
 
             int ammo0 = inv.ammo(g.shoot().bulletType());
             int shotsFired = 0;

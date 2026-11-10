@@ -81,6 +81,18 @@ public final class SfxQueue {
      */
     public boolean notIfPlaying;
 
+    /**
+     * {@code Aud_SampleNum_w}, un MOT — et il RESTE d'un bruit a l'autre, lui aussi.
+     *
+     * <p>Un site s'en sert sans le vouloir : le tir d'un alien ({@code FireAtPlayer1},
+     * newaliencontrol.s:1155) pose la position, le volume, la voie et l'identifiant, puis
+     * appelle {@code MakeSomeNoise} — mais ne pose PAS le numero d'echantillon, et son
+     * appelant (ai.s:1077) ne le pose pas davantage. Un alien qui tire joue donc ce que le
+     * bruit PRECEDENT a laisse : son propre cri, le fusil du joueur, une porte. Ce n'est pas
+     * un choix, c'est un oubli — et il s'entend.
+     */
+    public int num;
+
     /** {@code move.b #$fb,IDNUM} : n'ecrit que l'octet de poids fort. */
     public void idHigh(int high) {
         id = ((high & 0xFF) << 8) | (id & 0xFF);
@@ -101,7 +113,16 @@ public final class SfxQueue {
         add(num, vol, Place.VIEW, x, z);
     }
 
+    /**
+     * Un bruit qui ne choisit PAS son echantillon : il joue celui que le site precedent a
+     * laisse dans {@link #num}. Un seul endroit du jeu fait cela — le tir d'un alien.
+     */
+    public void again(int vol, int x, int z) {
+        add(num, vol, Place.WORLD, x, z);
+    }
+
     private void add(int num, int vol, Place place, int x, int z) {
+        this.num = num;                                // move.w d0,Aud_SampleNum_w : il reste
         if (num >= 0) {
             events.add(new Event(num, vol, id, notIfPlaying, place, x, z));
         }
