@@ -172,7 +172,14 @@ public final class World {
 
         // Un objet encore au sol VERROUILLE les portes dont il tient la cle : ramasser, c'est
         // ouvrir.
-        anims.doorLocks = objects.run(player, tap) | aliens.doorLocks();
+        // Anim_DoorAndLiftLocks_l est UN SEUL LONG, et les deux routines n'en lisent pas la
+        // meme moitie : DoorRoutine fait « move.w Anim_DoorAndLiftLocks_l,d5 », soit le mot
+        // FORT, et LiftRoutine « move.w anim_LiftOnlyLocks_w,d5 », soit le mot FAIBLE qui le
+        // suit. Donner le long entier aux portes revenait a les verrouiller avec les cles des
+        // ascenseurs, et a ne verrouiller aucun ascenseur.
+        int verrous = objects.run(player, tap) | aliens.doorLocks();
+        anims.doorLocks = (verrous >>> 16) & 0xFFFF;
+        anims.liftLocks = verrous & 0xFFFF;
 
         shots.tempFrames = 1;
         if (shots.fire(player, objects.inventory, gun, in.fire, in.aim / 100f)) {

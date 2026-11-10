@@ -6,23 +6,36 @@ import ab3d2.full.level.Level;
 import java.util.List;
 
 /**
- * Port fidele des machines a etats des PORTES et ASCENSEURS
- * (Newanims.DoorRoutine, java/src/ab3d2/Newanims.java:1039-1301 et
- * Newanims.LiftRoutine, :734-1035), appelees une fois par frame comme dans objmoveanim.
+ * Les PORTES et les ASCENSEURS : {@code DoorRoutine} (newanims.s:1237) et
+ * {@code LiftRoutine} (newanims.s:869), appeles une fois par image depuis {@code objmoveanim}.
  *
- * <p>Principe d'origine : une porte est une ZONE dont le TOIT descend/monte
- * ({@code ZoneT_Roof = (position>>2)*256}) ; un ascenseur est une zone dont le SOL monte/descend
- * ({@code ZoneT_Floor = (position>>2)*256}). La collision ({@link Move}) lit ces memes hauteurs :
- * l'ouverture est donc "gratuite" cote physique.
+ * <p>Ce sont les deux seules machines du jeu qui deplacent le DECOR. Une porte est une zone
+ * dont le TOIT descend ({@code ZoneT_Roof = (position>>2)*256}) ; un ascenseur une zone dont le
+ * SOL monte ({@code ZoneT_Floor = (position>>2)<<8}). La collision ({@link Move}) lit ces memes
+ * hauteurs : une porte qui s'ouvre ne coute rien a la physique, elle lui retire un plafond.
  *
- * <p>Declenchement = handshake d'aretes : {@link Move} pose le bit du joueur (0x100) dans
- * {@code edgeFlags} au contact ; ici on lit ce flag, on le remet a 0x8000 (desarme), et on
- * applique la vitesse si {@code flags &amp; masque} est non nul. Le masque vient de
- * {@link #doorOpenMask}/{@link #doorCloseMask}/{@link #liftRaiseMask}/{@link #liftLowerMask}.
+ * <p>Le declenchement est un HANDSHAKE d'aretes : {@link Move} pose le bit du joueur
+ * ({@code $100}) dans {@code edgeFlags} au contact ; ici on lit ce drapeau, on le DESARME
+ * ({@code $8000}) et on applique la vitesse si {@code drapeau & masque} est non nul. Le masque
+ * vient de {@link #doorOpenMask}, {@link #doorCloseMask}, {@link #liftRaiseMask} et
+ * {@link #liftLowerMask}.
  *
- * <p>Non porte ici (systemes absents) : effets sonores (Aud_xxx, MakeSomeNoise), bits de visibilite
- * Zone_CurrentDoorState_w, joueur 2. Les verrous par cle ({@code Anim_DoorAndLiftLocks_l},
- * {@code anim_LiftOnlyLocks_w}) sont exposes en champs, a alimenter par le futur ramassage d'objets.
+ * <h2>Deux choses qui se lisent de travers</h2>
+ *
+ * <ul>
+ *   <li>une porte dont le SECOND octet de condition est arme ne se referme JAMAIS d'elle-meme
+ *       — voir {@link #doorCloseMask} ;</li>
+ *   <li>{@code Anim_DoorAndLiftLocks_l} est un seul long dont les portes lisent le mot FORT
+ *       ({@link #doorLocks}) et les ascenseurs le mot FAIBLE ({@link #liftLocks}).</li>
+ * </ul>
+ *
+ * <p>Non porte : les bruitages passent par {@link SfxQueue} et non par {@code MakeSomeNoise} ;
+ * le joueur DEUX n'existe pas ; les enregistrements GRAPHIQUES que les deux routines deforment
+ * (le decalage vertical de la texture d'un panneau) sont recalcules au dessin ; et
+ * {@code DoWaterAnims}, que {@code LiftRoutine} appelle en finissant, n'a pas d'equivalent —
+ * l'eau ne monte pas.
+ *
+ * <p>Eprouve au mot pres par {@link AnimsCheck}.
  */
 public final class Anims {
 
@@ -54,6 +67,21 @@ public final class Anims {
     /** Position brute d'un ascenseur. */
     public int liftPosition(int i) {
         return i >= 0 && i < liftPos.length ? liftPos[i] : 0;
+    }
+
+    /** Vitesse courante d'une porte (le mot 24 de son enregistrement). */
+    public int doorSpeedOf(int i) {
+        return i >= 0 && i < doorSpd.length ? doorSpd[i] : 0;
+    }
+
+    /** Vitesse courante d'un ascenseur. */
+    public int liftSpeedOf(int i) {
+        return i >= 0 && i < liftSpd.length ? liftSpd[i] : 0;
+    }
+
+    /** anim_DoorOpenTimers_vw[i] : depuis combien d'images la porte est grande ouverte. */
+    public int doorTimerOf(int i) {
+        return i >= 0 && i < doorTimer.length ? doorTimer[i] : 0;
     }
 
     // ---- entrees par frame ----
@@ -119,13 +147,23 @@ public final class Anims {
         }
     }
 
-    /** objmoveanim : BACKSFX, puis LiftRoutine et DoorRoutine, une fois par frame. */
+    /**
+     * objmoveanim (newanims.s:764) : BACKSFX, puis les PORTES, puis les ASCENSEURS.
+     *
+     * <p>L'ordre n'est pas indifferent et il va dans ce sens-la : {@code Plr1_FloorSpd_w} est
+     * remis a zero ENTRE les deux (newanims.s:798), et les deux routines se partagent le
+     * tableau des drapeaux d'aretes, que chacune desarme en passant.
+     *
+     * <p>{@link #playerStoodOnLift} n'est pas remis a zero ici : l'original le POSE ou le LEVE
+     * a chaque ascenseur ({@code seq plr1_StoodOnLift_b}), de sorte qu'apres la boucle il ne
+     * dit pas « le joueur est sur un ascenseur » mais « le joueur est sur le DERNIER ». Un
+     * niveau sans ascenseur ne le touche donc jamais.
+     */
     public void run() {
-        playerFloorSpd = 0;
-        playerStoodOnLift = false;
         backSfx();
-        liftRoutine();
         doorRoutine();
+        playerFloorSpd = 0;                            // move.w #0,Plr1_FloorSpd_w
+        liftRoutine();
     }
 
     /**
@@ -200,11 +238,16 @@ public final class Anims {
                 d0 = M68k.setw(d0, d3);                // move.w d3,d0 (quirk d'origine : pas de clamp)
             }
             // NOTMOVING (Newanims.java:1129) : l'etat de visibilite de cette porte.
+            // move.w Zone_CurrentDoorState_w,d6 ... move.w d6,Zone_CurrentDoorState_w : le
+            // registre porte trente-deux bits, mais ce qui est RELU n'en fait que seize. Une
+            // porte de rang seize ou plus n'aurait donc jamais d'etat ; aucun niveau n'en a
+            // autant, mais le mot se garde.
             if (doorClosed) {
-                doorState &= ~(1 << (i & 31));         // bclr
+                doorState &= ~(1 << (i & 31));         // bclr d7,d6
             } else {
-                doorState |= 1 << (i & 31);            // bset
+                doorState |= 1 << (i & 31);            // bset d7,d6
             }
+            doorState &= 0xFFFF;
 
             boolean doorOpen = (short) d1 >= (short) d3;     // sge anim_DoorOpen_b
             if (!((short) d1 < (short) d3)) {
@@ -247,7 +290,7 @@ public final class Anims {
                 simple = true;
             } else if (doorOpen) {
                 liftSpeed = d7;
-                mask = doorCloseMask(i, openDuration, closingSpeed);
+                mask = doorCloseMask(i, openDuration, closingSpeed, dr.closeBits());
                 d7 = liftSpeed;
             } else if (doorClosed) {
                 liftSpeed = d7;
@@ -287,11 +330,24 @@ public final class Anims {
         return 0;                                      // door5 : ne s'ouvre pas
     }
 
-    /** tstdoortoclose (Newanims.java:1285) : timer d'ouverture. */
-    private int doorCloseMask(int i, int openDuration, int closingSpeed) {
+    /**
+     * tstdoortoclose (newanims.s:1560) : le compte a rebours de refermeture.
+     *
+     * <p>{@code d4} n'est PAS remis a zero en entrant : {@code satisfied} vient d'y mettre le
+     * SECOND octet de condition de la porte (offset 35), et la routine se contente d'y poser
+     * UN quand la duree n'est pas ecoulee. Une porte dont cet octet est arme tombe donc
+     * toujours dans {@code dclose1} : <b>elle ne se referme jamais d'elle-meme</b>, quelle que
+     * soit sa duree d'ouverture et quelle que soit sa vitesse de fermeture.
+     *
+     * <p>Ce n'est pas une curiosite de coin de carte : sur les seize niveaux, SOIXANTE-DIX-NEUF
+     * portes ont cet octet arme, et quatorze d'entre elles ont par ailleurs une vraie vitesse
+     * de fermeture — elles restaient grandes ouvertes dans le jeu d'origine et se refermaient
+     * dans le portage.
+     */
+    private int doorCloseMask(int i, int openDuration, int closingSpeed, int d4) {
         int d1 = M68k.setw(0, doorTimer[i] + tempFrames);
         doorTimer[i] = (short) d1;
-        boolean stayOpen = (short) d1 < (short) openDuration;
+        boolean stayOpen = (short) d1 < (short) openDuration || (d4 & 0xFFFF) != 0;
         // move.w anim_ClosingSoundFX_w,anim_ActionSoundFX_w : le port le fait AVANT de brancher,
         // donc une porte OUVERTE reclame le bruit de FERMETURE, pas celui d'ouverture. Sans ca,
         // une porte qui reste ouverte (grande porte rouge du niveau A : closingSpeed 0,
@@ -348,9 +404,12 @@ public final class Anims {
             liftFloorH[i] = floor;
 
             // le joueur est-il sur l'ascenseur ? (plr1_StoodOnLift_b / Plr1_FloorSpd_w)
-            if (lf.zone() == playerZone) {
-                playerStoodOnLift = true;
-                playerFloorSpd = floorMoveSpeed;
+            // cmp.w (a3),d5 ; seq plr1_StoodOnLift_b : POSE OU LEVE a chaque ascenseur. La
+            // vitesse du sol, elle, ne se pose que sur egalite — c'est donc le dernier
+            // ascenseur sous le joueur qui l'emporte.
+            playerStoodOnLift = lf.zone() == playerZone;
+            if (playerStoodOnLift) {
+                playerFloorSpd = floorMoveSpeed;       // move.w anim_FloorMoveSpeed_w,Plr1_FloorSpd_w
             }
 
             int mask;

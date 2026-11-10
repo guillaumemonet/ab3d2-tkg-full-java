@@ -141,6 +141,16 @@ tasks.register('moveCheck', JavaExec) {
     systemProperty 'ab3d2.move', new File(refRoot, 'move.json').absolutePath
 }
 
+tasks.register('animsCheck', JavaExec) {
+    group = 'verification'
+    description = "Les portes et les ascenseurs : la seule chose qui bouge le decor"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.AnimsCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.anims', new File(refRoot, 'anims.json').absolutePath
+}
+
 tasks.register('bitsCheck', JavaExec) {
     group = 'verification'
     description = "La gerbe de morceaux : ce qu'une entite laisse en mourant"
@@ -547,5 +557,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck'
 }
