@@ -88,6 +88,15 @@ public final class Nav {
         rand1 = graine & 0xFFFF;
     }
 
+    /**
+     * L'etat courant du generateur, pour les seules verifications : un oracle qui releve
+     * {@code Rand1} apres coup prouve ainsi que le portage a tire le MEME NOMBRE de des, dans
+     * le meme ordre. Rien dans le jeu ne lit cet etat.
+     */
+    int etat() {
+        return rand1 & 0xFFFF;
+    }
+
     /** GetRand (Objectmove.java:1214) : {@code rol.w #3 ; add.w #$2343}. */
     public int rand() {
         int d0 = rand1 & 0xFFFF;

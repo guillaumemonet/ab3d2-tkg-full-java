@@ -25,10 +25,22 @@ import java.util.List;
  * est finie, l'emplacement est rendu ({@code FREE_ENT}). On reproduit ce pool tel quel — c'est lui
  * qui limite le nombre de projectiles en vol, donc la cadence reelle des armes rapides.
  *
- * <p>Pas encore porte (le remake n'a pas d'ennemis) : la recherche de cible et la visee
- * automatique de {@code plrShot} — on prend toujours la branche {@code .nothing_to_shoot}, celle
- * du tir droit devant ; les degats, {@code ComputeBlast} et l'illumination des points au passage
- * ({@code anim_BrightenPoints}) ; les sons.
+ * <h2>L'AUTO-VISEE, et ce qui en a ete garde</h2>
+ *
+ * <p>Le jeu choisit sa cible AVANT de tirer : {@code CalcPLR1InLine} marque toute entite dans un
+ * cone de quatre-vingts unites autour de l'axe de vue, et {@code .find_closest_in_line} retient
+ * la plus proche qui soit vivante et vue en ligne directe. Cette recherche-la n'est PAS portee,
+ * et ne le sera pas : le portage a une visee souris reelle, il prend donc la premiere entite SUR
+ * LE RAYON. C'est le meme ecart assume que pour la hauteur du tir, et c'est le seul.
+ *
+ * <p>Mais ce que l'auto-visee commandait ENSUITE, lui, est porte a la ligne. Avec une cible
+ * retenue, une arme instantanee ne trace aucun rayon : elle tire un de par plomb contre le carre
+ * de la distance ({@link #lesPlombs}), et {@code plr1_HitscanSucceded} pose les degats et le
+ * recul ({@link #reculX}). Voir {@link ShootCheck} : 3367 coups, quatre niveaux, 0 ecart.
+ *
+ * <p>Pas porte : {@code ComputeBlast} appele d'ici et l'illumination des points au passage
+ * ({@code anim_BrightenPoints}) ; la dispersion verticale aleatoire du rayon sans cible
+ * ({@code GetRand & $fff - $800}).
  */
 public final class Shots {
 
@@ -110,6 +122,14 @@ public final class Shots {
     public boolean fired;
     /** Vrai la frame ou le tir a echoue faute de munitions (SFX 12 dans le jeu). */
     public boolean dryFire;
+    /**
+     * DIAGNOSTIC SEUL : ce que le dernier rayon instantane a rencontre, ou {@code null}.
+     *
+     * <p>Le jeu d'origine choisit sa cible par l'auto-visee et le portage par un rayon ; un
+     * oracle ne peut comparer les des que sur les coups ou les deux ont designe la MEME entite,
+     * et c'est ce champ qui le dit. Rien dans la simulation ne le relit.
+     */
+    public Object lastHitscanTarget;
 
     /**
      * Le POINT de chaque emplacement du pool dans la table des points d'objets.
@@ -263,10 +283,10 @@ public final class Shots {
             return false;
         }
 
-        // La recherche de cible du jeu (.fire_hitscanned_bullets, avec son auto-visee) n'est pas
-        // portee : on part donc toujours en .nothing_to_shoot. C'est sans consequence depuis que
-        // le tir hitscan suit le rayon de visee, puisque c'est ce que l'auto-visee cherchait a
-        // obtenir — mais il n'y a pas d'aide a la visee.
+        // La RECHERCHE de cible du jeu (CalcPLR1InLine + .find_closest_in_line) n'est pas
+        // portee : on part donc toujours en .nothing_to_shoot, et le rayon de visee designe la
+        // cible. Ce que l'auto-visee commandait ensuite — le de de precision et le recul — est
+        // porte, lui, dans hitscanNoTarget. Il n'y a pas d'aide a la visee.
         if (ammoInMyGun < g.shoot().bulletCount()) {             // cmp.w d1,d2 ; bge .okcanshoot
             dryFire = true;
             if (sfx != null) {
@@ -417,11 +437,11 @@ public final class Shots {
             // celle d'apres laisserait passer un monstre des que le rayon change de zone.
             int segZone = move.zone;
             move.moveObject();
-            // ECART ASSUME. Le jeu decide AVANT de tirer quelle entite est alignee
-            // (.fire_hitscanned_bullets et son auto-visee) ; ce chemin-la n'est pas porte, et le
-            // joueur ne veut pas d'aide a la visee. On teste donc les monstres le long du RAYON,
-            // segment par segment : c'est la geometrie seule qui decide. Sans ce test, les armes
-            // hitscan ne faisaient aucun degat.
+            // ECART ASSUME, et le seul de ce chemin. Le jeu decide AVANT de tirer quelle
+            // entite est alignee, par son auto-visee ; le portage a une visee souris et teste
+            // les entites le long du RAYON, segment par segment. C'est la geometrie seule qui
+            // designe la cible — mais une fois designee, c'est le DE du jeu qui decide si le
+            // coup porte (voir lesPlombs).
             struck = firstOnSegment(s16(move.oldx), s16(move.oldz), s16(move.newx),
                     s16(move.newz), s16(move.newy >> 7), segZone, move.zone,
                     player.stoodInTop);
@@ -430,23 +450,36 @@ public final class Shots {
             }
             advanceMove();                             // (new - old) * 2 sur x/z/y
         }
-        // .nofurther : marque l'impact
+        // .nofurther : le DE, puis la marque d'impact
+        lastHitscanTarget = struck;
         Database.BulletDef bul = glf == null ? null : glf.bullet(bulType);
+        int pellets = Math.max(1, bulletCount);
+        int degats = bul == null ? 0 : (bul.hitDamage() & 0xFF);
         if (struck != null) {
-            // Une arme hitscan tire ShootT_BulCount_w PROJECTILES par coup — deux plombs pour le
-            // fusil — et le jeu les trace un a un (.fire_hitscanned_bullets). Notre rayon est
-            // unique et sans dispersion : les N plombs toucheraient donc la meme cible, ce qui
-            // revient a lui appliquer N fois les degats. Sans ca le fusil ne faisait que la
-            // MOITIE du mal qu'il doit faire.
-            int pellets = Math.max(1, bulletCount);
-            int mal = (bul == null ? 0 : (bul.hitDamage() & 0xFF)) * pellets;
-            if (struck instanceof Aliens.Alien a) {
-                targets.hit(a, mal);
+            int touches = lesPlombs(player, struck, pellets);
+            if (touches > 0) {
+                // add.b d0,EntT_DamageTaken_b(a4) : un octet, une fois par plomb qui porte.
+                int mal = (degats * touches) & 0xFF;
+                if (struck instanceof Aliens.Alien a) {
+                    targets.hit(a, mal);
+                    a.impactX = reculX(player);
+                    a.impactZ = reculZ(player);
+                } else {
+                    ObjectRuntime.Thing t = (ObjectRuntime.Thing) struck;
+                    damage(t, mal);
+                    t.impactX = reculX(player);
+                    t.impactZ = reculZ(player);
+                }
             } else {
-                // plr1_HitscanSucceded prend les degats dans le MOT HAUT de BulT_HitDamage_l ;
-                // les projectiles, eux, prennent son octet bas. On garde celui du projectile,
-                // pour que les deux familles d'armes fassent le meme mal a la meme chose.
-                damage((ObjectRuntime.Thing) struck, mal);
+                // TOUS les plombs ont rate. Le jeu passe alors par plr1_HitscanFailed, qui
+                // lance un rayon vers le MILIEU du segment joueur-cible et le fait avancer
+                // jusqu'au premier mur : la marque se pose DERRIERE la cible, pas dessus. On
+                // reprend donc le balayage la ou il s'etait arrete, en ignorant les entites.
+                struck = null;
+                while (!move.hitwall && ++guard <= 64) { // .again
+                    advanceMove();
+                    move.moveObject();
+                }
             }
         }
         Shot s = free();
@@ -484,6 +517,83 @@ public final class Shots {
         s.upperZone = move.stoodInTop;
         s.accY = move.wallhitheight;                   // move.l wallhitheight,ShotT_AccYPos_w(a0)
         s.heightWord = s16(s.accY >> 7);
+    }
+
+    /**
+     * LE DE DU TIR INSTANTANE : {@code .fire_hitscanned_bullets} (newplayershoot.s:215).
+     *
+     * <p>Avec une cible alignee, le jeu ne trace AUCUN rayon. Il tire un de par plomb, et le
+     * seuil est le carre de la distance a plat :
+     *
+     * <pre>
+     *   jsr GetRand ; and.w #$7fff,d0 ; ext.l d0 ; asl.l #1,d0
+     *   d1 = (tx - Plr1_XOff)^2 + (tz - Plr1_ZOff)^2 ; asr.l #6,d1
+     *   cmp.l d1,d0 ; bgt .hit
+     * </pre>
+     *
+     * <p>Le plus grand tirage possible vaut {@code $fffe} : des que le carre de la distance
+     * divise par soixante-quatre le depasse — soit a 2048 unites — le coup ne peut PLUS porter,
+     * quoi qu'on vise. Entre les deux, la chance decroit comme {@code 1 - (d/2048)^2} : cent
+     * pour cent a bout portant, trois quarts a mille vingt-quatre, la moitie a mille quatre cent
+     * quarante-huit. Mesure sur l'oracle : 3229 coups, quatre niveaux, la falaise au bon
+     * endroit.
+     *
+     * <p>Le meme de est roule par les monstres ({@code ai_AttackWithHitScan}), mais avec
+     * {@code asl.l #2} : ils sont DEUX FOIS plus precis que le joueur a egale distance, et leur
+     * portee utile va a 2896 unites. L'asymetrie est dans le jeu d'origine.
+     *
+     * <p>ECART ASSUME, et c'est le seul. Le jeu choisit sa cible par l'AUTO-VISEE
+     * ({@code CalcPLR1InLine} + {@code .find_closest_in_line}) : l'entite vivante la plus proche
+     * dans un cone de quatre-vingts unites autour de l'axe de vue, vue en ligne directe. Le
+     * portage a une visee souris reelle et prend la premiere entite SUR LE RAYON — c'est l'ecart
+     * deja assume pour la hauteur du tir. Seul le choix de la cible differe ; le dosage, lui,
+     * est celui du jeu.
+     *
+     * <p>Le filtre vertical de l'auto-visee n'est donc pas repris, et il ne le merite pas :
+     * {@code muls #93,d2} est une multiplication sur un MOT appliquee a un LONG
+     * ({@code |dy| * 128}). Passe 512 unites d'ecart de hauteur, la valeur deborde et change de
+     * signe — un monstre a mille unites au-dessus du joueur est TOUJOURS visable, un monstre a
+     * deux cents ne l'est qu'a partir de 581 unites de profondeur. L'oracle le mesure.
+     *
+     * @return combien de plombs ont porte
+     */
+    private int lesPlombs(PlayerSim player, Object cible, int pellets) {
+        int tx = targetX(cible);
+        int tz = targetZ(cible);
+        int dx = s16(tx - s16(player.xOff >> 16));     // move.w (a1),d1 ; sub.w Plr1_XOff_l,d1
+        int dz = s16(tz - s16(player.zOff >> 16));     // move.w 4(a1),d2 ; sub.w Plr1_ZOff_l,d2
+        int d1 = muls(dx, dx) + muls(dz, dz);          // muls d1,d1 ; muls d2,d2 ; add.l d2,d1
+        d1 = d1 >> 6;                                  // asr.l #6,d1
+        int touches = 0;
+        for (int n = 0; n < pellets; n++) {            // .fire_hitscanned_bullets
+            int d0 = nav == null ? 0x7FFF : nav.rand(); // jsr GetRand
+            d0 = d0 & 0x7FFF;                          // and.w #$7fff,d0
+            d0 = ((short) d0) << 1;                    // ext.l d0 ; asl.l #1,d0
+            if (d0 > d1) {                             // cmp.l d1,d0 ; bgt .hit
+                touches++;
+            }
+        }
+        return touches;
+    }
+
+    /**
+     * Le recul que {@code plr1_HitscanSucceded} pose sur sa cible : la DIRECTION DE TIR,
+     * decalee de treize bits.
+     *
+     * <pre>move.w tempxdir,d1 ; ext.l d1 ; asl.l #3,d1 ; swap d1 ; move.w d1,EntT_ImpactX_w(a4)</pre>
+     *
+     * <p>C'est une pichenette, et c'est voulu : le sinus tient sur quinze bits, donc le recul
+     * d'un coup de fusil vaut entre moins quatre et trois unites, la ou celui d'un projectile
+     * vaut sa vitesse entiere. Le seul endroit du jeu qui le relise est
+     * {@code Anim_ExplodeIntoBits}, qui en donne la moitie a chaque morceau : un monstre abattu
+     * au fusil s'eparpille presque sur place, un monstre creve a la roquette part au loin.
+     */
+    private int reculX(PlayerSim player) {
+        return s16((s16(sinCos.sin(player.angPos)) << 3) >> 16); // tempxdir
+    }
+
+    private int reculZ(PlayerSim player) {
+        return s16((s16(sinCos.cos(player.angPos)) << 3) >> 16); // tempzdir
     }
 
     /** Bloc commun d'init avant MoveObject (exitfirst..Obj_ZonePtr_l). */

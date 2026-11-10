@@ -131,6 +131,16 @@ tasks.register('blastCheck', JavaExec) {
     systemProperty 'ab3d2.blast', new File(refRoot, 'blast.json').absolutePath
 }
 
+tasks.register('shootCheck', JavaExec) {
+    group = 'verification'
+    description = "Le tir instantane du joueur : son de de precision et son recul"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.ShootCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.shoot', new File(refRoot, 'shoot.json').absolutePath
+}
+
 tasks.register('hitCheck', JavaExec) {
     group = 'verification'
     description = "Le coup au but : qui une balle touche, et ce qu'elle lui laisse"
@@ -567,5 +577,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck'
 }
