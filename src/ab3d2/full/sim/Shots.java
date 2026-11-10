@@ -125,6 +125,21 @@ public final class Shots {
     }
 
     /**
+     * Harnais : repose les reglages de collision que le jeu laisse derriere un projectile en
+     * vol.
+     *
+     * <p>Ce sont des GLOBALES dans l'original, et les flammes d'une explosion s'en servent
+     * sans les redefinir : elles heritent de la derniere balle qui a vole. Le jeu n'a donc
+     * jamais a les poser, mais un oracle qui rejoue une explosion seule, si.
+     */
+    void bulletMoveDefaults() {
+        move.wallFlags = 1024;
+        move.stepUp = 0;
+        move.stepDown = 16777216;
+        move.thingHeight = 1280;
+    }
+
+    /**
      * Branche les CHOSES : sans elles une balle ne peut casser ni ordinateur ni ventilateur,
      * et trois niveaux n'ont pas de sortie.
      */
@@ -860,14 +875,19 @@ public final class Shots {
      */
     private void hitEnemies(Shot s, int oldXw, int oldZw) {
         // Bit 4 des EnemyFlags = le JOUEUR (un tir d'alien vaut %110010, un tir du joueur %100011).
+        // La tolerance n'est pas la meme pour tout le monde : quatre-vingts pour les types
+        // ZERO et UN (les monstres et les choses), QUARANTE au-dela (newanims.s:2616). Le
+        // joueur est le type QUATRE — il est donc deux fois moins large qu'un monstre.
         if (player != null && (s.enemyFlags & (1 << 4)) != 0
-                && player.zone == s.zone && player.stoodInTop == s.upperZone
+                && player.zone >= 0 && player.stoodInTop == s.upperZone
                 && hitsEntity(s, oldXw, oldZw, s16(player.snapXOff >> 16),
                         s16(player.snapZOff >> 16),
-                        s16((player.yOff + (player.height >> 1)) >> 7), 80)) {
+                        s16((player.yOff + (player.height >> 1)) >> 7), 40)) {
             player.damageTaken += s.power;
-            player.impactX = s16(player.impactX + s16(s.velX >> 16));
-            player.impactZ = s16(player.impactZ + s16(s.velZ >> 16));
+            // move.w, et non add.w : la poussee du coup REMPLACE la precedente, pour le joueur
+            // comme pour une chose.
+            player.impactX = s16(s.velX >> 16);
+            player.impactZ = s16(s.velZ >> 16);
             s.anim = 0;
             s.popping = true;
             impactSound(s, glf == null ? null : glf.bullet(s.type));
@@ -1036,11 +1056,33 @@ public final class Shots {
      * {@code d = (force * (64 - (dist>>3 - 4))) >> 5}, borne par la force — et un recul dirige.
      * Puis six « flammes » (l'animation d'impact de la meme balle) sont semees autour du point,
      * en trois couronnes de plus en plus larges.
+     *
+     * <p>C'est la SEULE routine du jeu qui parcoure la table des objets entiere en la triant
+     * par {@code ObjT_TypeID_b}, et c'est donc d'ici qu'on voit ce que cette table range :
+     *
+     * <ul>
+     *   <li>le type UN — les CHOSES — est ecarte d'emblee, et le type TROIS — les auxiliaires —
+     *       aussi : aucune explosion n'a jamais casse un ordinateur ni allume une lampe ;</li>
+     *   <li>le type ZERO (monstre) et les types QUATRE et CINQ (les deux joueurs) passent par
+     *       le MEME test de points de vie et recoivent leur recul dans
+     *       {@code EntT_ImpactX/Y/Z_w} ;</li>
+     *   <li>le type DEUX (projectile) n'est retenu que s'il PESE, et sa poussee entre
+     *       directement dans sa vitesse, avec un coup vertical mille fois plus fort.</li>
+     * </ul>
+     *
+     * <p>Et les degats s'ajoutent a {@code EntT_DamageTaken_b} AVANT ce tri, donc aussi sur un
+     * projectile — ou cet octet-la est le poids faible de sa vitesse en X. Le souffle pousse
+     * donc une grenade deux fois : une fois exprès, une fois par accident.
      */
     public void computeBlast(int force, int x, int z, int heightWord, int zone, boolean upper,
                              int bulletType) {
         int d6 = s16(force);
         // --- degats aux entites ---
+        // L'original ne connait qu'UNE table et la trie par ObjT_TypeID_b (newanims.s:2873) :
+        // le type UN (les CHOSES) et le type TROIS (les auxiliaires) sont ecartes d'emblee —
+        // aucune explosion n'a jamais casse un ordinateur ni allume une lampe. Restent le type
+        // ZERO (monstre), les types QUATRE et CINQ (les joueurs), qui passent par le meme test
+        // de points de vie, et le type DEUX (projectile) s'il a de la gravite.
         if (targets != null) {
             for (Aliens.Alien a : targets.aliens()) {
                 if (!a.alive || a.zone < 0 || a.hitPoints == 0) {
@@ -1052,7 +1094,12 @@ public final class Shots {
                     continue;
                 }
                 targets.hit(a, hit[0]);
-                a.velocityY = s16(a.velocityY + hit[3]);   // EntT_ImpactY_w
+                // Les reculs se POSENT sur l'entite. Un monstre n'en lit aucun de son vivant :
+                // ils ne ressortent qu'a sa mort, par la gerbe de morceaux. Et le vertical va
+                // dans EntT_ImpactY_w (octet 46), PAS dans EntT_VelocityY_w (octet 48) : un
+                // monstre ne decolle pas sous l'explosion.
+                a.impactX = s16(hit[1]);               // move.w d0,EntT_ImpactX_w(a2)
+                a.impactZ = s16(hit[2]);               // move.w d1,EntT_ImpactZ_w(a2)
             }
         }
         if (player != null && player.zone >= 0) {
@@ -1064,59 +1111,155 @@ public final class Shots {
                 player.damageTaken += hit[0];
                 player.impactX = s16(hit[1]);
                 player.impactZ = s16(hit[2]);
+                // Lui, en revanche, le lit : Plr1_Use le verse dans sa vitesse verticale,
+                // decale de huit. Le recul vertical est PLAFONNE a huit, donc une explosion ne
+                // souleve jamais de plus de deux mille quarante-huit — le double d un saut, et
+                // pas un cran de plus, qu elle soit a bout portant ou qu elle vienne du ciel.
+                player.impactY = s16(hit[3]);          // move.w d1,EntT_ImpactY_w(a2)
             }
         }
-        // --- flammes : 3 couronnes x 2, l'animation d'impact de la meme balle ---
+        // Un PROJECTILE qui PESE (type deux, gravite non nulle) est pousse lui aussi — mais
+        // dans sa vitesse, directement, et par un coup vertical mille fois plus fort : la meme
+        // force decalee de DOUZE au lieu de quatre, bornee a moins deux mille quarante-huit.
+        // C'est ce qui fait sauter les grenades posees au sol quand une roquette tombe a cote.
+        // Les flammes, elles, n'ont aucune gravite et restent ou elles sont.
+        for (Shot b : pool) {
+            // La gravite lue est celle de la DEFINITION, pas celle que l'emplacement porte :
+            // une flamme garde la gravite du projectile mort avant elle, mais c'est sa
+            // definition a elle qui decide si le souffle la pousse.
+            Database.BulletDef bd = glf == null ? null : glf.bullet(b.type);
+            if (!b.active || b.zone < 0 || bd == null || bd.gravity() == 0) {
+                continue;                              // tst.l BulT_Gravity_l(a3) ; beq HitObjLoop
+            }
+            int[] hit = blastAt(force, x, z, heightWord, zone, upper,
+                    s16(b.x >> 16), s16(b.z >> 16), s16(b.heightWord), b.zone, b.upperZone);
+            if (hit == null) {
+                continue;
+            }
+            // Et ici le jeu se cogne a sa propre table. Le "add.b d5,EntT_DamageTaken_b" qui
+            // precede la branche s'applique a TOUT ce que le souffle touche, projectiles
+            // compris — or dans l'enregistrement d'un projectile cet octet-la n'est pas des
+            // degats : EntT_DamageTaken_b (octet 19) est le POIDS FAIBLE du mot entier de
+            // ShotT_VelocityX_w (octet 18). Les degats d'une explosion entrent donc dans la
+            // vitesse horizontale d'une grenade, par l'octet bas et en debordant a deux cent
+            // cinquante-six. Personne ne l'a voulu ; c'est ce que le jeu fait.
+            int hi = s16(b.velX >> 16);
+            hi = s16((hi & ~0xFF) | ((hi + hit[0]) & 0xFF)); // add.b d5,EntT_DamageTaken_b(a2)
+            b.velX = (hi << 16) | (b.velX & 0xFFFF);
+            // add.w : le mot fort d'une vitesse 16.16 pour les deux horizontales...
+            b.velX = (s16((b.velX >> 16) + hit[1]) << 16) | (b.velX & 0xFFFF);
+            b.velZ = (s16((b.velZ >> 16) + hit[2]) << 16) | (b.velZ & 0xFFFF);
+            b.velY = s16(b.velY + hit[4]);             // ...et le mot entier pour la verticale
+        }
+        // --- les FLAMMES (DOFLAMES) : trois couronnes de deux, de plus en plus larges ---
+        //
+        // Chacune part du centre de l'explosion, se decale au hasard, et PASSE PAR LA
+        // COLLISION : le jeu lui fait traverser le decor avec MoveObject, quatre-vingts
+        // unites d'encombrement, « ecarte du mur ». Une flamme nee dans un mur en ressort
+        // donc, et c'est le secteur d'ARRIVEE qu'elle porte, pas celui du tir.
+        //
+        // Elle n'efface rien de ce que l'emplacement contenait : ni vitesse, ni gravite, ni
+        // duree de vie, ni degats. L'original ne le fait pas non plus — une flamme est
+        // IMMOBILE (son etat d'impact est arme), donc rien de tout cela n'est relu de sa vie.
+        // Mais la gravite reste, et une flamme garde ainsi celle du projectile qui l'a
+        // precedee dans cet emplacement : la prochaine explosion la poussera ou l'ignorera
+        // selon ce qui est mort la avant elle.
         if (nav == null) {
             return;
         }
-        int d5 = 2;
-        for (int ring = 0; ring < 3; ring++) {
-            for (int i = 0; i < 2; i++) {
-                Shot f = free();
+        int middleX = s16(x);                          // move.w (a2,d0.w*8),anim_MiddleX_w
+        int middleZ = s16(z);
+        int oldY = s16(heightWord) << 7;               // move.w 4(a0),d0 ; ext.l ; asl.l #7
+        int d5 = 2;                                    // moveq #2,d5
+        int restants = PLR_POOL - 1;                   // move.w #NUM_PLR_SHOT_DATA-1,NUMTOCHECK
+        int ou = 0;                                    // a3 = Plr_ShotDataPtr_l
+        for (int couronne = 2; couronne >= 0; couronne--) {   // radiusloop ; dbra d6
+            for (int deux = 1; deux >= 0; deux--) {    // DOFLAMES ; dbra d7
+                // .findonefree : la recherche NE REPART PAS du debut. Elle reprend la ou la
+                // precedente s'est arretee, et ne regarde que les emplacements restants : un
+                // trou laisse derriere elle ne sera pas repris par cette explosion-ci.
+                Shot f = null;
+                int d1 = restants;
+                while (true) {
+                    if (!pool.get(ou).active) {        // move.w ObjT_ZoneID_w(a3),d2 ; blt
+                        f = pool.get(ou);
+                        break;
+                    }
+                    ou++;                              // adda.w #ObjT_SizeOf_l,a3
+                    d1--;
+                    if (d1 < 0) {                      // dbra d1,.findonefree ; rts
+                        break;
+                    }
+                }
                 if (f == null) {
-                    return;                            // .nomore
+                    return;
                 }
-                int dx = s16(muls((byte) nav.rand(), d5)) >> 1;
-                if (dx == 0) {
-                    dx = 2;
+                restants = d1;                         // move.w d1,NUMTOCHECK
+                int d1x = middleX;
+                int d2z = middleZ;
+                int dx = M68k.asrw(muls((byte) nav.rand(), d5), 1); // ext.w ; muls ; asr.w #1
+                if (s16(dx) == 0) {
+                    dx = 2;                            // bne .xnz ; moveq #2,d0
                 }
-                int dz = s16(muls((byte) nav.rand(), d5)) >> 1;
-                if (dz == 0) {
-                    dz = 2;
+                d1x = s16(d1x + s16(dx));
+                int dz = M68k.asrw(muls((byte) nav.rand(), d5), 1);
+                if (s16(dz) == 0) {
+                    dz = 2;                            // bne .znz ; moveq #2,d0
                 }
+                d2z = s16(d2z + s16(dz));
+                // Le hasard VERTICAL prend le mot entier du generateur, pas son octet bas.
+                int d3 = oldY + (muls(s16(nav.rand()), d5) >> 3); // muls d5,d0 ; asr.l #3
+                move.oldx = middleX;
+                move.oldz = middleZ;
+                move.newx = d1x;
+                move.newz = d2z;
+                move.oldy = oldY;
+                move.newy = d3;
+                move.zone = zone;                      // Obj_ZonePtr_l = anim_MiddleRoom_l
+                move.stoodInTop = upper;               // StoodInTop
+                move.extLen = 80;                      // move.w #80,Obj_ExtLen_w
+                move.awayFromWall = 1;                 // move.b #1,Obj_AwayFromWall_b
+                move.wallBounce = true;                // st.b Obj_WallBounce_b (pose avant)
+                move.exitFirst = false;                // clr.b exitfirst
+                move.moveObject();                     // jsr MoveObject
                 f.active = true;
-                f.popping = true;                      // st ShotT_Status_b : l'anim d'explosion
-                f.anim = 0;
-                f.lifetime = 0;
-                f.type = bulletType;
-                f.power = 0;
-                f.enemyFlags = 0;
-                f.velX = 0;
-                f.velZ = 0;
-                f.velY = 0;
-                f.gravity = 0;
-                f.zone = zone;
-                f.upperZone = upper;
-                f.x = s16(x + dx) << 16;
-                f.z = s16(z + dz) << 16;
-                int y = (s16(heightWord) << 7) + (muls(nav.rand() & 0xFF, d5) >> 3);
-                if (zone >= 0 && zone < lvl.zones.length) {   // borne au sol et au plafond
-                    LevelSim.Zone zz = lvl.zones[zone];
-                    int floor = upper ? zz.upperFloorH : zz.floorH;
-                    int roof = upper ? zz.upperRoofH : zz.roofH;
-                    y = Math.min(Math.max(y, roof), floor);
+                f.zone = move.zone;                    // move.w (a2),12(a3)
+                int y = move.newy;                     // move.l newy,d0
+                LevelSim.Zone zz = lvl.zones[Math.max(0, Math.min(move.zone,
+                        lvl.zones.length - 1))];
+                // L'etage lu est celui du TIR SOURCE, pas celui ou la flamme a atterri.
+                int sol = upper ? zz.upperFloorH : zz.floorH;
+                int toit = upper ? zz.upperRoofH : zz.roofH;
+                if (sol <= y) {
+                    y = sol;                           // cmp.l d0,d1 ; bgt .abovefloor
                 }
-                f.accY = y;
-                f.heightWord = s16(y >> 7);
+                if (toit >= y) {
+                    y = toit;                          // cmp.l d0,d2 ; blt .belowroof
+                }
+                f.accY = y;                            // move.l d0,ShotT_AccYPos_w(a3)
+                f.heightWord = s16(y >> 7);            // asr.l #7,d0 ; move.w d0,4(a3)
+                f.anim = 0;                            // move.b #0,ShotT_Anim_b(a3)
+                f.popping = true;                      // st ShotT_Status_b(a3)
+                // StoodInTop est une globale que MoveObject REECRIT : une flamme qui a glisse
+                // d'un etage a l'autre porte celui ou elle a fini, pas celui du tir. Le
+                // plafonnement de hauteur, lui, lit l'etage du TIR : les deux peuvent differer.
+                f.upperZone = move.stoodInTop;         // move.b StoodInTop,ShotT_InUpperZone_b
+                f.type = bulletType;                   // move.b BLOODYGREATBOMB,ShotT_Size_b
+                f.x = s16(move.newx) << 16;            // move.w newx,(a2,d0.w*8)
+                f.z = s16(move.newz) << 16;
+                ou++;                                  // adda.w #64,a3
+                restants--;                            // sub.w #1,NUMTOCHECK ; blt .nomore
+                if (restants < 0) {
+                    return;
+                }
             }
-            d5 += 2;
+            d5 += 2;                                   // add.w #2,d5
         }
     }
 
     /**
-     * Un objet dans le souffle : renvoie {degats, reculX, reculZ, reculY} ou null s'il est hors
-     * de portee ou hors de vue.
+     * Un objet dans le souffle : renvoie {degats, reculX, reculZ, reculY d'une entite, reculY
+     * d'un projectile} ou null s'il est hors de portee ou hors de vue.
      */
     private int[] blastAt(int force, int x, int z, int h, int zone, boolean upper,
                           int tx, int tz, int th, int tzone, boolean tupper) {
@@ -1138,7 +1281,7 @@ public final class Shots {
         }
         int d0 = s16(tx - x);
         int d1 = s16(tz - z);
-        int dist = sqrt(muls(d0, d0) + muls(d1, d1));
+        int dist = blastSqrt(muls(d0, d0) + muls(d1, d1), d1);
         int d7 = Math.max(s16(dist), 256);             // cmp.w #256,d7 ; bge .okd
         int d3 = s16(M68k.asrw(setw(0, dist), 3) - 4); // asr.w #3 ; sub.w #4
         if (d3 < 0) {
@@ -1154,12 +1297,59 @@ public final class Shots {
         }
         int kx = divs(d0 * force, d7);
         int kz = divs(d1 * force, d7);
-        int ky = divs(force << 4, d7);
-        ky = s16(-ky);
+        int ky = s16(-divs(force << 4, d7));           // asl.l #4 ; divs d7,d1 ; neg.w d1
         if (ky < -8) {
             ky = -8;                                   // cmp.w #-8,d1 ; bge .okbl2
         }
-        return new int[] { d5 & 0xFF, kx, kz, ky };
+        int kyb = s16(-divs(force << 12, d7));         // asl.l #8 ; asl.l #4 ; divs ; neg.w
+        if (kyb < -8 * 256) {
+            kyb = -8 * 256;                            // cmp.w #-8*256,d1 ; bge .okbl
+        }
+        return new int[] { d5 & 0xFF, kx, kz, ky, kyb };
+    }
+
+    /**
+     * La racine carree du SOUFFLE — et ce n'est pas celle du reste du jeu.
+     *
+     * <p>{@code ai_CalcSqrt} (ai.s:2058) fait trois pas de Newton, chacun de la forme
+     * {@code x <- x - (x*x - a) / 2x}. {@code ComputeBlast} en a sa propre copie, recopiee a
+     * la main dans le corps de la boucle — et la DEUXIEME des trois y multiplie par
+     * {@code d1}, l'ecart en Z, au lieu de carrer {@code x} (newanims.s:2952). La meme routine
+     * inline une seconde fois dans {@code notasplut} (newanims.s:2518) est correcte : la faute
+     * est dans cette copie-la, et dans elle seule.
+     *
+     * <p>Le troisieme pas, lui, est juste, et un pas de Newton rattrape beaucoup : ce qui sort
+     * reste voisin d'une racine. Voisin, pas egal — le souffle ne porte donc pas tout a fait a
+     * la distance qu'on croit, et d'autant moins qu'on est decale en Z.
+     *
+     * <p>Autre ecart avec {@code ai_CalcSqrt} : une somme NULLE sort d'ici a UN et non a zero
+     * (le {@code move.w #1,d4} est pose avant le {@code beq}). Sans consequence : les deux
+     * valeurs tombent dans le meme pas de huit.
+     */
+    private static int blastSqrt(int d2, int dz) {
+        if (d2 == 0) {                                 // move.w #1,d4 ; add.l d3,d2 ; beq .oksqr
+            return 1;
+        }
+        int d4 = 31;                                   // move.w #31,d4
+        while ((d2 & (1 << (d4 & 31))) == 0) {         // btst d4,d2 ; dbne d4,.findhigh
+            d4 = s16(d4 - 1);
+            if (d4 == -1) {
+                break;
+            }
+        }
+        d4 = 1 << (s16(d4) >> 1);                      // asr.w #1,d4 ; clr.l d3 ; bset d4,d3
+        for (int pas = 0; pas < 3; pas++) {
+            int d3 = setw(0, d4);                      // move.w d4,d3
+            d3 = pas == 1 ? muls(d3, dz) : muls(d3, d3); // muls d1,d3 (!) au DEUXIEME pas
+            d3 = d3 - d2;                              // sub.l d2,d3
+            d3 = d3 >> 1;                              // asr.l #1,d3
+            d3 = divs(d3, d4);                         // divs d4,d3
+            d4 = setw(d4, d4 - d3);                    // sub.w d3,d4
+            if (s16(d4) <= 0) {
+                d4 = setw(d4, 1);                      // bgt .stillnot0 ; move.w #1,d4
+            }
+        }
+        return s16(d4);
     }
 
     /**

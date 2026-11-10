@@ -57,6 +57,14 @@ public final class Aliens {
         public int worry;
         public int team;                 // EntT_TeamNumber_b (< 0 = sans équipe)
         public int velocityY;            // EntT_VelocityY_w (vol)
+        /**
+         * EntT_ImpactX_w / ImpactZ_w : la poussee du dernier coup recu.
+         *
+         * <p>Un monstre ne s'en sert JAMAIS pour bouger — rien dans son controle ne les lit.
+         * Elles ne sortent qu'a sa mort : {@code Anim_ExplodeIntoBits} en donne la MOITIE a
+         * chaque morceau, et c'est tout ce qui fait qu'une gerbe part du cote du tir.
+         */
+        public int impactX, impactZ;
         public boolean seePlayer;        // ObjT_SeePlayer_b
         public int doorsHeld;            // EntT_DoorsAndLiftsHeld_l
         /** EntT_DisplayText_w : message affiche a sa mort (< 0 = aucun). */
@@ -1254,7 +1262,8 @@ public final class Aliens {
         int splat = def == null ? -1 : (def.splatType() & 0xFF);
         if (splat >= 0 && splat < 20) {                // cmp.b #NUM_BULLET_DEFS ; blt .go_splutch
             if (shots != null) {
-                shots.explodeIntoBits(splat, 8, a.x, a.z, a.height, a.zone, a.upperZone, 0, 0);
+                shots.explodeIntoBits(splat, 8, a.x, a.z, a.height, a.zone, a.upperZone,
+                        a.impactX, a.impactZ);      // move.l EntT_ImpactX_w(a0),d0
             }
         } else if (splat >= 20) {
             spawnSmaller(a, splat - 20);               // sub.b #NUM_BULLET_DEFS

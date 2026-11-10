@@ -78,6 +78,16 @@ public final class Nav {
         return (byte) d0;                              // ext.w d0
     }
 
+    /**
+     * Harnais : repose la graine du generateur.
+     *
+     * <p>Le jeu ne le fait qu'une fois, au demarrage — mais un oracle qui rejoue une scene
+     * isolee doit pouvoir retrouver le meme hasard que celui qui l'a relevee.
+     */
+    void seed(int graine) {
+        rand1 = graine & 0xFFFF;
+    }
+
     /** GetRand (Objectmove.java:1214) : {@code rol.w #3 ; add.w #$2343}. */
     public int rand() {
         int d0 = rand1 & 0xFFFF;

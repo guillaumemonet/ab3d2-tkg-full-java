@@ -95,6 +95,11 @@ public final class PlayerSim {
     /** EntT_ImpactX_w / ImpactZ_w : recul applique par les coups recus. */
     public int impactX, impactZ;
     /**
+     * EntT_ImpactY_w : la part VERTICALE du recul. Seul le SOUFFLE d'une explosion en pose une
+     * (newanims.s:3049) ; une balle ne touche que les deux autres.
+     */
+    public int impactY;
+    /**
      * XDiff_w / ZDiff_w (Hires.java:2686) : deplacement du joueur pendant la frame, MULTIPLIE PAR
      * 16. Les aliens s'en servent pour ANTICIPER sa position quand ils tirent.
      */
@@ -500,6 +505,16 @@ public final class PlayerSim {
      * Plr1_Use (Hires.java:3813) : encaisse les degats accumules pendant la frame — recul dans les
      * vitesses, secousse de la vue, et sante en moins. {@code rand} sert au twist aleatoire.
      *
+     * <p>Le joueur est une ENTITE de la table des objets comme une autre : les balles et le
+     * souffle lui ecrivent {@code EntT_DamageTaken_b} et {@code EntT_ImpactX/Y/Z_w}, et c'est
+     * ici, une fois par image, que ces champs se vident dans son corps. Les deux reculs
+     * horizontaux n'entrent que par le MOT FORT des vitesses — {@code add.w} sur un long
+     * 16.16 — tandis que le vertical s'ajoute au long entier, decale de huit : une unite de
+     * recul vertical pese donc deux cent cinquante-six fois une unite horizontale.
+     *
+     * <p>Le « twist » — la secousse d'angle tiree au sort — n'est arme que par un recul
+     * HORIZONTAL. Un souffle pile au-dessus ou pile en dessous souleve sans faire tourner.
+     *
      * @return les degats appliques (0 si rien)
      */
     public int applyDamage(Inventory inv, Nav rand) {
@@ -519,8 +534,12 @@ public final class PlayerSim {
             d4 = d2;
         }
         zSpdVal = (s16((zSpdVal >> 16) + d3) << 16) | (zSpdVal & 0xFFFF);
-        // (EntT_ImpactY_w non porte : aucun coup vertical pour l'instant)
+        // Le recul VERTICAL, lui, s'ajoute au LONG tout entier, et sans armer le twist : le
+        // souffle qui te blesse te souleve, et seul le souffle en pose un.
+        d3 = s16(impactY);                             // move.w EntT_ImpactY_w(a0),d3
+        snapYVel += ((short) d3) << 8;                 // ext.l d3 ; asl.l #8,d3 ; add.l d3,Plr1_SnapYVel_l
         impactX = 0;
+        impactY = 0;
         impactZ = 0;
         int d0 = rand.rand();                          // jsr GetRand
         d0 = muls(d0, d4);
