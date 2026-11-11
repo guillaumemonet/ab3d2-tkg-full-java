@@ -75,6 +75,7 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
     protected void onCreate(Bundle etat) {
         super.onCreate(etat);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        plongee();
 
         // Les trois dossiers, dans l'espace prive de l'application.
         Path racine = getFilesDir().toPath();
@@ -102,6 +103,45 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
         source.set(0, 0, 320, 256);
 
         new Thread(this::amorcer, "amorcage").start();
+    }
+
+    /**
+     * PLEIN ECRAN, pour de bon.
+     *
+     * <p>Un theme « sans titre, plein ecran » ne suffit plus : il retire la barre d'etat et
+     * laisse celle de NAVIGATION, qui mange un bon centimetre sur le cote — precisement la ou
+     * le pouce droit cherche le bouton de tir, et qu'il touche donc par megarde.
+     *
+     * <p>Deux facons de la cacher selon l'age du systeme, et la meme intention : les barres
+     * reviennent d'un glissement depuis le bord, puis repartent d'elles-memes.
+     */
+    private void plongee() {
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(android.view.WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController
+                        .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | View.SYSTEM_UI_FLAG_FULLSCREEN);
+        }
+    }
+
+    /** Les barres reviennent des qu'on quitte et revient : on replonge. */
+    @Override
+    public void onWindowFocusChanged(boolean focus) {
+        super.onWindowFocusChanged(focus);
+        if (focus) {
+            plongee();
+        }
     }
 
     /**
@@ -249,13 +289,15 @@ public final class GameActivity extends Activity implements SurfaceHolder.Callba
 
     /** L'image garde ses proportions : on la centre, on ne la deforme pas. */
     private void cadrer(int largeur, int hauteur) {
-        pad.taille(largeur, hauteur);
         float echelle = Math.min(largeur / 320f, hauteur / 256f);
         int w = Math.round(320 * echelle);
         int h = Math.round(256 * echelle);
         int x = (largeur - w) / 2;
         int y = (hauteur - h) / 2;
         cible.set(x, y, x + w, y + h);
+        // Les commandes ont besoin de savoir ou l'image s'arrete : elles vivent a cote, pas
+        // dessus.
+        pad.taille(largeur, hauteur, x, x + w);
     }
 
     @Override

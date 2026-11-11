@@ -49,6 +49,21 @@ public final class Pad {
     private int largeur;
     private int hauteur;
 
+    /**
+     * LA BANDE NOIRE, et pourquoi les commandes y vivent.
+     *
+     * <p>L'ecran du jeu fait 320 sur 256, soit cinq quarts ; un telephone moderne en fait plus
+     * de deux. En gardant les proportions — et il le faut, sans quoi un pixel de 1996 cesse
+     * d'etre un carre — il reste de part et d'autre deux bandes noires larges comme la moitie
+     * de l'image.
+     *
+     * <p>Ces bandes ne sont pas une perte : ce sont les commandes qui s'y installent. Un bouton
+     * pose SUR l'image cache le jeu et, pire, cache le texte qui s'affiche en haut. Pose a
+     * cote, il ne cache rien, et le pouce le trouve mieux parce qu'il est au bord.
+     */
+    private int jeuGauche;
+    private int jeuDroite;
+
     /** Le doigt du stick, et ou il s'est pose. */
     private int doigtStick = -1;
     private float stickX;
@@ -71,9 +86,15 @@ public final class Pad {
 
     private final Paint peinture = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    public void taille(int largeur, int hauteur) {
+    /**
+     * @param gauche l'abscisse ou l'image du jeu commence
+     * @param droite celle ou elle finit
+     */
+    public void taille(int largeur, int hauteur, int gauche, int droite) {
         this.largeur = largeur;
         this.hauteur = hauteur;
+        this.jeuGauche = gauche;
+        this.jeuDroite = droite;
     }
 
     private float rayon() {
@@ -84,24 +105,52 @@ public final class Pad {
         return hauteur * 0.11f;
     }
 
-    /** Vrai si ce point tombe sur le bouton de tir. */
+    /** Le centre du bouton de tir : dans la bande de DROITE, a hauteur de pouce. */
+    private float feuX() {
+        return (jeuDroite + largeur) / 2f;
+    }
+
+    private float feuY() {
+        return hauteur * 0.70f;
+    }
+
+    /** Le centre du bouton d'action, au-dessus du precedent. */
+    private float actionX() {
+        return feuX();
+    }
+
+    private float actionY() {
+        return hauteur * 0.38f;
+    }
+
     private boolean surFeu(float x, float y) {
-        return dist(x, y, largeur - bouton() * 1.4f, hauteur - bouton() * 1.4f) < bouton();
+        return dist(x, y, feuX(), feuY()) < bouton() * 1.3f;
     }
 
-    /** Vrai si ce point tombe sur le bouton d'action. */
     private boolean surAction(float x, float y) {
-        return dist(x, y, largeur - bouton() * 3.4f, hauteur - bouton() * 1.1f) < bouton() * 0.8f;
+        return dist(x, y, actionX(), actionY()) < bouton() * 1.1f;
     }
 
-    /** Le numero d'arme sous ce point, ou -1. */
+    /**
+     * Le numero d'arme sous ce point, ou -1.
+     *
+     * <p>Les neuf armes sont une COLONNE dans la bande de gauche, et non une rangee en haut de
+     * l'image : en haut, elles couvraient le texte que le jeu y ecrit.
+     */
     private int surArme(float x, float y) {
-        float h = hauteur * 0.09f;
-        if (y > h) {
-            return -1;
+        if (x > jeuGauche * 0.9f || jeuGauche < hauteur * 0.08f) {
+            return -1;                                 // pas de bande : pas de colonne
         }
-        int n = (int) (x / (largeur / 9f));
+        int n = (int) ((y - armeY(0) + armePas() / 2f) / armePas());
         return n >= 0 && n < 9 ? n : -1;
+    }
+
+    private float armePas() {
+        return hauteur * 0.095f;
+    }
+
+    private float armeY(int n) {
+        return hauteur * 0.12f + n * armePas();
     }
 
     private static float dist(float ax, float ay, float bx, float by) {
@@ -255,17 +304,25 @@ public final class Pad {
         }
 
         float b = bouton();
-        peinture.setColor(Color.argb(feu ? 150 : 70, 255, 120, 90));
-        c.drawCircle(largeur - b * 1.4f, hauteur - b * 1.4f, b, peinture);
-        peinture.setColor(Color.argb(action ? 150 : 70, 140, 220, 160));
-        c.drawCircle(largeur - b * 3.4f, hauteur - b * 1.1f, b * 0.8f, peinture);
+        peinture.setColor(Color.argb(feu ? 170 : 80, 255, 120, 90));
+        c.drawCircle(feuX(), feuY(), b * 1.3f, peinture);
+        peinture.setColor(Color.argb(action ? 170 : 80, 140, 220, 160));
+        c.drawCircle(actionX(), actionY(), b * 1.1f, peinture);
 
         peinture.setStyle(Paint.Style.FILL);
-        peinture.setColor(Color.argb(90, 220, 230, 240));
-        peinture.setTextSize(hauteur * 0.05f);
-        float pas = largeur / 9f;
-        for (int i = 0; i < 9; i++) {
-            c.drawText(String.valueOf(i + 1), i * pas + pas * 0.4f, hauteur * 0.07f, peinture);
+        peinture.setTextSize(hauteur * 0.055f);
+        peinture.setTextAlign(Paint.Align.CENTER);
+        peinture.setColor(Color.argb(120, 255, 150, 120));
+        c.drawText("TIR", feuX(), feuY() + peinture.getTextSize() * 0.35f, peinture);
+        peinture.setColor(Color.argb(120, 150, 230, 170));
+        c.drawText("USE", actionX(), actionY() + peinture.getTextSize() * 0.35f, peinture);
+
+        if (jeuGauche >= hauteur * 0.08f) {
+            peinture.setColor(Color.argb(100, 220, 230, 240));
+            for (int i = 0; i < 9; i++) {
+                c.drawText(String.valueOf(i + 1), jeuGauche / 2f, armeY(i), peinture);
+            }
         }
+        peinture.setTextAlign(Paint.Align.LEFT);
     }
 }
