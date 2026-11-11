@@ -189,6 +189,11 @@ public final class World {
         shots.setPlayer(player);
         aliens.shots = shots;                          // la gerbe de morceaux a la mort
         aliens.sfx = sfx;
+        // Les portes, les ascenseurs et l'ambiance font du bruit eux aussi, et leur file
+        // n'etait branchee nulle part : Anims garde un sfx null, et tous ses appels sont
+        // gardes par un test de nullite — les sons partaient donc en silence, sans erreur.
+        anims.sfx = sfx;
+        anims.nav = nav;
         aliens.setFire(shots::fireAtPlayer);
         player.sfx = sfx;
         player.inventory = objects.inventory;          // le jetpack puise son carburant ici
