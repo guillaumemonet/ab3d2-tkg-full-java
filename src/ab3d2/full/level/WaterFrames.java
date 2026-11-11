@@ -29,8 +29,8 @@ public record WaterFrames(byte[] bytes) {
     public static final int[] STARTS = {0, 2, 256, 258, 512, 514, 768, 770};
 
     /** Lit le fichier {@code waterfile}. */
-    public static WaterFrames read(Path file) throws IOException {
-        return new WaterFrames(Files.readAllBytes(file));
+    public static WaterFrames of(byte[] bytes) {
+        return new WaterFrames(bytes);
     }
 
     /** Le mot a cet emplacement, ou {@code -1} s'il tombe hors du fichier. */

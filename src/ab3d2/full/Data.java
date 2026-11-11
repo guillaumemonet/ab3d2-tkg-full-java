@@ -129,14 +129,7 @@ public final class Data {
      */
     public static synchronized int[] iterations() {
         if (iterations == null) {
-            java.nio.file.Path f = local().resolve("incbin").resolve("includes")
-                    .resolve("iterfile");
-            byte[] raw;
-            try {
-                raw = java.nio.file.Files.readAllBytes(f);
-            } catch (IOException e) {
-                throw new UncheckedIOException("table d'iterations introuvable : " + f, e);
-            }
+            byte[] raw = incbin("includes", "iterfile");
             iterations = new int[raw.length / 4];
             for (int i = 0; i < iterations.length; i++) {
                 iterations[i] = ((raw[i * 4] & 0xFF) << 24) | ((raw[i * 4 + 1] & 0xFF) << 16)
@@ -289,12 +282,7 @@ public final class Data {
      */
     public static synchronized byte[] guff() {
         if (guff == null) {
-            Path file = local().resolve("incbin").resolve("includes").resolve("guff");
-            try {
-                guff = java.nio.file.Files.readAllBytes(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException("grille d'eclairage introuvable : " + file, e);
-            }
+            guff = incbin("includes", "guff");
         }
         return guff;
     }
@@ -307,13 +295,7 @@ public final class Data {
      */
     public static synchronized byte[] shimmer() {
         if (shimmer == null) {
-            Path file = local().resolve("incbin").resolve("includes").resolve("shimmerfile");
-            try {
-                shimmer = java.nio.file.Files.readAllBytes(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException("table de dematerialisation introuvable : "
-                        + file, e);
-            }
+            shimmer = incbin("includes", "shimmerfile");
         }
         return shimmer;
     }
@@ -341,12 +323,7 @@ public final class Data {
     }
 
     private static byte[] module(String nom) {
-        Path file = local().resolve("incbin").resolve("includes").resolve(nom);
-        try {
-            return java.nio.file.Files.readAllBytes(file);
-        } catch (IOException e) {
-            throw new UncheckedIOException("module introuvable : " + file, e);
-        }
+        return incbin("includes", nom);
     }
 
     /**
@@ -356,25 +333,13 @@ public final class Data {
      * incorporait a l'executable — et ils vivent donc avec le depot, pas avec les disquettes.
      */
     public static synchronized byte[] menu(String nom) {
-        return MENU.computeIfAbsent(nom, k -> {
-            Path file = local().resolve("incbin").resolve("menu").resolve(k);
-            try {
-                return java.nio.file.Files.readAllBytes(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException("fichier de menu introuvable : " + file, e);
-            }
-        });
+        return MENU.computeIfAbsent(nom, k -> incbin("menu", k));
     }
 
     /** Les huit images de l'ondulation de l'eau. */
     public static synchronized WaterFrames water() {
         if (water == null) {
-            Path file = local().resolve("incbin").resolve("waterfile");
-            try {
-                water = WaterFrames.read(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException("images d'eau introuvables : " + file, e);
-            }
+            water = WaterFrames.of(incbin("waterfile"));
         }
         return water;
     }
@@ -470,7 +435,7 @@ public final class Data {
     /** La table de sinus. */
     public static synchronized SinCos sinCos() {
         if (sinCos == null) {
-            sinCos = SinCos.read(local());
+            sinCos = SinCos.of(incbin("bigsine"));
         }
         return sinCos;
     }
@@ -523,8 +488,34 @@ public final class Data {
         return glyphSpacing;
     }
 
-    /** Un fichier joint au depot, sous data/incbin. */
-    private static byte[] incbin(String... parts) {
+    /**
+     * UN FICHIER JOINT AU DEPOT, sous {@code data/incbin} : les tables que l'assembleur
+     * incorporait a l'executable.
+     *
+     * <p>Deux provenances, et l'ordre n'est pas indifferent.
+     *
+     * <ol>
+     *   <li><b>le classpath d'abord.</b> Une application installee n'a pas de dossier courant
+     *       qui veuille dire quelque chose, et un telephone n'a pas de dossier du tout : ces
+     *       tables voyagent donc DANS l'archive. C'est le seul endroit ou l'on soit certain de
+     *       les trouver ;</li>
+     *   <li><b>le disque ensuite.</b> Depuis les sources, {@code data/incbin} est la et c'est
+     *       plus commode — on peut y toucher sans recompiler. Les harnais passent par la.</li>
+     * </ol>
+     *
+     * <p>Cette ordre-la, et pas l'inverse : si le disque l'emportait, une application
+     * empaquetee lancee depuis un dossier qui contient par hasard un {@code data/} lirait les
+     * mauvaises tables.
+     */
+    static byte[] incbin(String... parts) {
+        String chemin = "incbin/" + String.join("/", parts);
+        try (java.io.InputStream in = Data.class.getClassLoader().getResourceAsStream(chemin)) {
+            if (in != null) {
+                return in.readAllBytes();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("table illisible dans l'archive : " + chemin, e);
+        }
         Path f = local().resolve("incbin");
         for (String part : parts) {
             f = f.resolve(part);
@@ -532,7 +523,8 @@ public final class Data {
         try {
             return java.nio.file.Files.readAllBytes(f);
         } catch (IOException e) {
-            throw new UncheckedIOException("fichier joint introuvable : " + f, e);
+            throw new UncheckedIOException("fichier joint introuvable : " + chemin
+                    + " (ni dans l'archive, ni en " + f.toAbsolutePath() + ")", e);
         }
     }
 }

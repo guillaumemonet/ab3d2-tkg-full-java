@@ -1,18 +1,24 @@
 package ab3d2.full.view;
 
+import ab3d2.full.boot.AppDirs;
+import ab3d2.full.boot.Boot;
+import ab3d2.full.boot.DiskFetch;
 import ab3d2.full.defs.Database;
 import ab3d2.full.sim.World;
 
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.awt.Graphics;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.nio.file.Path;
 
 /**
  * LE JEU : une fenetre, un clavier, et {@link Shell} entre les deux.
@@ -37,6 +43,12 @@ public final class Game {
     }
 
     public static void main(String[] args) {
+        // AVANT tout : savoir ou sont les dossiers. Lancee depuis un raccourci, une application
+        // installee n'a pas de dossier courant qui veuille dire quelque chose.
+        AppDirs.setup();
+        if (!amorcer()) {
+            return;
+        }
         int echelle = Integer.getInteger("ab3d2.scale", 3);
         String niveau = System.getProperty("ab3d2.level", args.length > 0 ? args[0] : null);
 
@@ -62,6 +74,74 @@ public final class Game {
 
         new Timer(20, e -> vue.pas()).start();
     }
+
+    /**
+     * Les donnees du jeu, avant tout le reste.
+     *
+     * <p>Une application qu'on installe ne peut pas supposer qu'un dossier depaque l'attend
+     * quelque part. Si les donnees manquent, {@link Boot} propose d'aller chercher les
+     * disquettes — et ne fait rien sans un oui.
+     *
+     * @return vrai si l'on peut jouer
+     */
+    private static boolean amorcer() {
+        Path media = Path.of(System.getProperty("ab3d2.media", "medias/original"));
+        Path adf = Path.of(System.getProperty("ab3d2.adf", "adf"));
+        Path pret = Boot.ensure(adf, media, SWING);
+        if (pret == null) {
+            SWING.error("Sans les donnees du jeu, il n'y a rien a jouer."
+                    + System.lineSeparator() + System.lineSeparator()
+                    + "Placez les cinq fichiers .adf dans :" + System.lineSeparator()
+                    + adf.toAbsolutePath());
+            return false;
+        }
+        System.setProperty("ab3d2.media", pret.toString());
+        return true;
+    }
+
+    /** Un message de plusieurs lignes, sur une seule, pour le journal. */
+    private static String aplatir(String message) {
+        return message.replace("\r", " ").replace("\n", " ");
+    }
+
+    /** Comment cette plateforme-ci pose la question : une boite de dialogue, ou le terminal. */
+    private static final DiskFetch.Ask SWING = new DiskFetch.Ask() {
+        @Override
+        public boolean confirm(String message) {
+            if (GraphicsEnvironment.isHeadless()) {
+                System.out.println(message);
+                System.out.print("Telecharger ? [o/N] ");
+                try {
+                    int c = System.in.read();
+                    return c == 'o' || c == 'O' || c == 'y' || c == 'Y';
+                } catch (java.io.IOException e) {
+                    return false;
+                }
+            }
+            return JOptionPane.showConfirmDialog(null, message,
+                    "Alien Breed 3D II — donnees du jeu",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE)
+                    == JOptionPane.YES_OPTION;
+        }
+
+        @Override
+        public void info(String message) {
+            System.out.println("[disquettes] " + aplatir(message));
+            if (!GraphicsEnvironment.isHeadless()) {
+                JOptionPane.showMessageDialog(null, message, "Alien Breed 3D II",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
+
+        @Override
+        public void error(String message) {
+            System.err.println("[disquettes] " + aplatir(message));
+            if (!GraphicsEnvironment.isHeadless()) {
+                JOptionPane.showMessageDialog(null, message, "Alien Breed 3D II",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    };
 
     /** La fenetre : une image par top, et le clavier qui la conduit. */
     private static final class Vue extends JPanel {

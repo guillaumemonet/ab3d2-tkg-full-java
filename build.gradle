@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'application'
 }
 
 group = 'ab3d2'
@@ -13,6 +14,13 @@ repositories {
     mavenCentral()
 }
 
+base { archivesName = 'ab3d2-tkg-full' }
+
+application {
+    applicationName = 'AlienBreed3D2-TKG'
+    mainClass = 'ab3d2.full.view.Game'
+}
+
 dependencies {
     // Gson ne sert QU'A l'outil de validation (il relit le corpus de reference, qui est du
     // JSON). Le moteur lui-meme n'a aucune dependance.
@@ -22,7 +30,11 @@ dependencies {
 sourceSets {
     main {
         java { srcDirs = ['src'] }
-        resources { srcDirs = [] }
+        // Les tables que l'assembleur incorporait a l'executable voyagent DANS l'archive :
+        // une application installee n'a pas de dossier courant qui veuille dire quelque
+        // chose, et un telephone n'a pas de dossier du tout. Data les cherche la en premier,
+        // et ne retombe sur le disque que depuis les sources.
+        resources { srcDirs = ['data'] }
     }
 }
 
@@ -628,4 +640,108 @@ tasks.register('checkAll') {
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
             'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest', 'menuCheck'
+}
+
+// ---------------------------------------------------------------------------
+//  L'AMORCAGE : les disquettes, et ce qu'on en tire
+//    gradle -p full unpack              depaque les .adf vers medias/original
+//    gradle -p full unpack -Pforce      recommence meme si le dossier existe
+// ---------------------------------------------------------------------------
+tasks.register('unpack', JavaExec) {
+    group = 'assets'
+    description = "Depaque les disquettes vers le dossier de donnees"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.boot.Boot'
+    systemProperty 'ab3d2.media', (project.hasProperty('out')
+            ? project.property('out').toString() : mediaRoot.absolutePath)
+    systemProperty 'ab3d2.adf', (project.hasProperty('adf')
+            ? project.property('adf').toString()
+            : new File(mediaRoot.parentFile.parentFile, 'adf').absolutePath)
+    if (project.hasProperty('force')) { systemProperty 'ab3d2.force', '1' }
+}
+
+// ---------------------------------------------------------------------------
+//  LA RELEASE WINDOWS : une app-image jpackage, portable, sans installateur.
+//    gradle -p full packageApp   ->  build/jpackage/AlienBreed3D2-TKG/
+//
+//  AUCUNE donnee du jeu n'y est embarquee. Au premier lancement, l'executable
+//  propose d'aller chercher les cinq disquettes chez Dream17, puis les depaque
+//  lui-meme (boot/DiskFetch, boot/AdfAssets).
+// ---------------------------------------------------------------------------
+def appImageName = application.applicationName
+def appImageDest = layout.buildDirectory.dir('jpackage').get().asFile
+def appImageDir  = new File(appImageDest, appImageName)
+
+tasks.register('jpackageImage', Exec) {
+    group = 'distribution'
+    description = "Cree l'app-image jpackage (executable + JRE embarque)"
+    dependsOn 'installDist'
+    def libDir = layout.buildDirectory.dir("install/${appImageName}/lib").get().asFile
+    def jpackage = "${System.getProperty('java.home')}/bin/jpackage"
+    doFirst {
+        // jpackage refuse d'ecrire par-dessus : on repart propre. Et il pose son executable
+        // en LECTURE SEULE, ce qui fait echouer un effacement ordinaire sous Windows : il
+        // faut rendre chaque fichier inscriptible avant de l'enlever.
+        if (appImageDir.exists()) {
+            appImageDir.eachFileRecurse { it.setWritable(true) }
+            appImageDir.deleteDir()
+        }
+        appImageDest.mkdirs()
+    }
+    commandLine jpackage,
+        '--type', 'app-image',
+        '--name', appImageName,
+        '--input', libDir.absolutePath,
+        '--main-jar', tasks.jar.archiveFileName.get(),
+        '--main-class', application.mainClass.get(),
+        '--dest', appImageDest.absolutePath,
+        '--java-options', '-Xms256m',
+        '--java-options', '-Xmx1g',
+        '--java-options', '-XX:+HeapDumpOnOutOfMemoryError'
+}
+
+tasks.register('packageApp') {
+    group = 'distribution'
+    description = "Release Windows portable, sans donnees du jeu"
+    dependsOn 'jpackageImage'
+    doLast {
+        new File(appImageDir, 'adf').mkdirs()   // les disquettes atterriront la
+        new File(appImageDir, 'run').mkdirs()   // ce que le jeu ECRIT
+        def lisezmoi = [
+            'Alien Breed 3D II : The Killing Grounds',
+            'Conversion orientee objet, en Java',
+            '=======================================',
+            '',
+            "Ce dossier ne contient AUCUNE donnee du jeu : seulement le moteur converti.",
+            '',
+            'Au premier lancement, le jeu propose de telecharger les cinq disquettes (.adf)',
+            'depuis Dream17, le site de preservation du catalogue Amiga de Team17. Repondez',
+            "OUI et il s'occupe de tout : telechargement, decompression dans le dossier adf,",
+            'puis depackage des donnees.',
+            '',
+            'Si vous possedez deja les images, repondez NON et copiez vos cinq fichiers .adf',
+            'dans le sous-dossier adf avant de relancer.',
+            '',
+            'Dossiers :',
+            '  adf     les disquettes du jeu',
+            '  medias  les donnees depaquees (refaites toutes seules si on les efface)',
+            '  run     vos reglages, vos sauvegardes, et le journal',
+            '',
+            'Touches :',
+            '  fleches ou ZQSD   marcher          A / E      tourner',
+            '  MAJ + direction   pas de cote      CTRL       courir',
+            '  ESPACE            tirer            ALT+ESPACE sauter',
+            '  C                 s accroupir      F          actionner (ouvre les portes)',
+            '  1 a 9             changer d arme   ECHAP      revenir en arriere',
+            '',
+            'Dans le menu : haut et bas pour choisir, ENTREE pour valider.',
+            '',
+            "Le jeu est (c) Team17. Cette conversion est non commerciale, a but d'etude et",
+            'de preservation.',
+        ]
+        new File(appImageDir, 'LISEZMOI.txt').setText(
+                lisezmoi.join(System.lineSeparator()), 'UTF-8')
+        println "Release portable : ${appImageDir.absolutePath}"
+        println "  (sans donnees du jeu : elles se telechargent au premier lancement)"
+    }
 }

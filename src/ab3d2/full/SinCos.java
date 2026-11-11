@@ -34,14 +34,7 @@ public final class SinCos {
     }
 
     /** Lit la table depuis les donnees d'origine. */
-    public static SinCos read(Path dataRoot) {
-        Path f = dataRoot.resolve("incbin").resolve("bigsine");
-        byte[] raw;
-        try {
-            raw = Files.readAllBytes(f);
-        } catch (IOException e) {
-            throw new UncheckedIOException("table de sinus introuvable : " + f, e);
-        }
+    public static SinCos of(byte[] raw) {
         short[] t = new short[raw.length / 2];
         for (int i = 0; i < t.length; i++) {
             t[i] = (short) (((raw[i * 2] & 0xFF) << 8) | (raw[i * 2 + 1] & 0xFF));
