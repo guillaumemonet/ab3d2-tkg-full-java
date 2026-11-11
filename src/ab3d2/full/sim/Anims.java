@@ -63,6 +63,29 @@ public final class Anims {
      */
     public final int[] doorRoofH;
 
+    /**
+     * LE BAS que ce mecanisme impose aux murs qu'il emporte.
+     *
+     * <p>{@code asr.w #2 ; muls #256} : la position courante, ramenee de deux bits puis portee
+     * a l'echelle des hauteurs de zone. Le jeu l'ecrit en long a l'offset 24 de chaque pan
+     * deforme ({@code move.l d3,24(a1)}).
+     */
+    public static int deformBottom(int position) {
+        return M68k.muls(M68k.asrw(position, 2), 256);
+    }
+
+    /**
+     * CE QUE ce mecanisme retranche au decalage de texture des murs qu'il emporte.
+     *
+     * <p>{@code neg.w ; and.w #255} de la position ramenee de deux bits. Le jeu l'AJOUTE a la
+     * base propre au pan et ecrit le tout en mot a l'offset 12 ({@code move.w a2,12(a1)}).
+     * C'est ce terme qui fait monter le dessin de la porte AVEC elle, au lieu de le laisser
+     * glisser sur un battant qui bouge.
+     */
+    public static int deformTexture(int position) {
+        return (-M68k.asrw(position, 2)) & 255;
+    }
+
     /** Position brute d'une porte (le mot que le jeu ecrit dans les murs qu'elle deforme). */
     public int doorPosition(int i) {
         return i >= 0 && i < doorPos.length ? doorPos[i] : 0;

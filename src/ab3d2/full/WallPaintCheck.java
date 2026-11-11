@@ -122,7 +122,10 @@ public final class WallPaintCheck {
                     horsTable++;
                     continue;                          // voir Wall.beyond : pan non comparable
                 }
-                paint.wall(w, peau, 0);
+                // draw_WallYOffset_w : le calage vertical sur la hauteur d oeil. Ce releve
+                // le forcait a ZERO, et la conversion aussi — d ou un trou qui ne se voyait
+                // qu en jouant. Il varie desormais des deux cotes.
+                paint.wall(w, peau, ((playerY >> 8) + 224) & 255);
                 paint.clearOffTable();
 
                 List<WallPaint.Column> mine = new ArrayList<>();

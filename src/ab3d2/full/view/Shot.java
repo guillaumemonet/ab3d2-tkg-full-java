@@ -111,10 +111,11 @@ public final class Shot {
             hauteur = Integer.getInteger("ab3d2.eye", world.player.yOff);
         }
 
-        // Aucune image jouee : l'eclairage n'a jamais ete calcule, il faut le faire une fois.
-        if (tours == 0) {
-            viewer.lights().frame(zone);
-        }
+        // L'eclairage se refait pour le secteur QU'ON REGARDE, et non pour celui ou le joueur
+        // se trouve. Sans cela, imposer un secteur par -Pzone montre sa geometrie eclairee par
+        // la piece d'a cote — ce qui donne des images trop claires ou trop sombres, et fait
+        // soupconner le rendu a tort.
+        viewer.lights().frame(zone);
         viewer.draw(world, x, z, zone, angle, hauteur);
         viewer.sound(world, x, z, angle);
         // L'habillage : le reticule, les messages, puis le bandeau du tableau de bord.

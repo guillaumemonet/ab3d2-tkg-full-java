@@ -213,6 +213,60 @@ public final class Viewer {
         return fin.reachedEnd();                   // tst.b reachedend
     }
 
+
+    /**
+     * CE QUE LES PORTES ET LES ASCENSEURS FONT AUX MURS, pour l'image en cours.
+     *
+     * <p>Le niveau est immuable ici — c'est une regle de cette conversion — alors que le jeu,
+     * lui, REECRIT les enregistrements des pans qu'une porte emporte. Il faut donc refaire ces
+     * enregistrements a la volee, et pour cela savoir quel pan appartient a quel mecanisme.
+     *
+     * <p>Cette table-la ne depend que du FICHIER : on la monte une fois. Ce qui change d'une
+     * image a l'autre, c'est la position de chaque mecanisme, qu'on lit dans la simulation au
+     * moment de dessiner.
+     */
+    private static final class Portes implements ab3d2.full.render.Deform {
+
+        /** Pour chaque pan deforme : ou il est dans le flux, sa base de texture, son mecanisme. */
+        private final java.util.Map<Integer, int[]> parOffset = new java.util.HashMap<>();
+        private final ab3d2.full.sim.Anims anims;
+
+        Portes(Level lvl, ab3d2.full.sim.Anims anims) {
+            this.anims = anims;
+            ranger(lvl.doors(), true);
+            ranger(lvl.lifts(), false);
+        }
+
+        private void ranger(java.util.List<Level.Liftable> liste, boolean porte) {
+            for (int i = 0; i < liste.size(); i++) {
+                for (Level.Liftable.Wall w : liste.get(i).walls()) {
+                    // {offset du pan, base de sa texture, rang du mecanisme, porte ou non}
+                    parOffset.put(w.graphics(),
+                            new int[] {w.graphics(), w.textureTop(), i, porte ? 1 : 0});
+                }
+            }
+        }
+
+        @Override
+        public Level.Wall apply(Level.Wall wall) {
+            int[] d = parOffset.get(wall.offset());
+            if (d == null) {
+                return wall;                           // la plupart des pans ne bougent pas
+            }
+            int position = d[3] != 0 ? anims.doorPosition(d[2]) : anims.liftPosition(d[2]);
+            int bas = ab3d2.full.sim.Anims.deformBottom(position);
+            int texture = (d[1] + ab3d2.full.sim.Anims.deformTexture(position)) & 0xFFFF;
+            return new Level.Wall(wall.tag(), wall.offset(), wall.leftPoint(),
+                    wall.rightPoint(), wall.leftSlot(), wall.rightSlot(), wall.length(),
+                    wall.fromTile(), texture, wall.texture(), wall.heightMask(),
+                    wall.heightShift(), wall.widthMask(), wall.brightRow(), wall.top(),
+                    bas, wall.brightOffset(), wall.otherZone());
+        }
+    }
+
+    /** Les portes de ce niveau, montees a la premiere image qui en a besoin. */
+    private Portes portes;
+
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
     public Lights lights() {
         return lights;
@@ -323,6 +377,10 @@ public final class Viewer {
 
         screen.clear();
         peintre.beginFrame();
+        if (portes == null) {
+            portes = new Portes(lvl, world.anims);
+        }
+        peintre.deform(portes);
         peintre.eye(x, z, eye, angle, Data.sinCos());
         things(world);
         objectView.update(choses, lvl.objectPoints(), x, z, angle, 0, true);

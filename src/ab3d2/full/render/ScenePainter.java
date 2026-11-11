@@ -100,6 +100,22 @@ public final class ScenePainter implements Scene.Painter {
 
     private int playerY;
     private int centreY;
+
+    /** draw_WallYOffset_w : le calage vertical de la texture des murs. */
+    private int wallYOffset;
+
+    /**
+     * Ce que les portes et les ascenseurs font aux murs qu'ils emportent.
+     *
+     * <p>{@link Deform#NONE} par defaut : une prise d'image statique et les harnais dessinent
+     * le niveau tel que le fichier le decrit.
+     */
+    private Deform deform = Deform.NONE;
+
+    /** La boucle pose ici l'etat des portes de l'image en cours. */
+    public void deform(Deform d) {
+        this.deform = d == null ? Deform.NONE : d;
+    }
     private int angle;
 
     private int wallsDrawn;
@@ -223,6 +239,16 @@ public final class ScenePainter implements Scene.Painter {
      */
     public void eye(int playerX, int playerZ, int playerY, int angle, SinCos sinCos) {
         this.playerY = playerY;
+        // draw_WallYOffset_w (DrawDisplay, hires.s) : le calage VERTICAL de la texture des
+        // murs sur la hauteur d oeil.
+        //
+        //   move.l Plr_YOff_l,d0 ; asr.l #8,d0 ; add.w #224,d0 ; and.w #255,d0
+        //
+        // Sans lui, la geometrie du mur reste en place mais son habillage GLISSE dessus des
+        // que le joueur monte ou descend : les murs ont l air de suivre le personnage. Le
+        // deux cent vingt-quatre est un  moins trente-deux  module deux cent cinquante-six,
+        // qui recale l origine de la texture sur le haut du pan.
+        this.wallYOffset = ((playerY >> 8) + 224) & 255;
         this.angle = angle;
         this.centreY = view.height() / 2;
         wallPaint.eye(0, view.height(), 0, view.fullScreen());
@@ -291,7 +317,10 @@ public final class ScenePainter implements Scene.Painter {
     }
 
     @Override
-    public void wall(Scene.Pass pass, Level.Wall w) {
+    public void wall(Scene.Pass pass, Level.Wall commande) {
+        // Une porte ou un ascenseur REECRIT le pan pendant qu'il bouge : on dessine la version
+        // que la simulation vient d'arreter, pas celle du fichier.
+        Level.Wall w = deform.apply(commande);
         WallTexture peau = w.texture() < walls.size() ? walls.get(w.texture()) : null;
         if (peau == null) {
             return;
@@ -322,7 +351,7 @@ public final class ScenePainter implements Scene.Painter {
             if (gourWall.outOfTable() > 0) {
                 offTable++;                            // voir le pan simple : on peint quand meme
             }
-            gourWallPaint.wall(w, peau, 0);
+            gourWallPaint.wall(w, peau, wallYOffset);
             for (GouraudWall.Strip st : gourWall.strips()) {
                 gourWallPaint.paint(st);
                 wallStrips++;
@@ -342,7 +371,7 @@ public final class ScenePainter implements Scene.Painter {
             // se contente de compter les cas.
             offTable++;
         }
-        wallPaint.wall(w, peau, 0);
+        wallPaint.wall(w, peau, wallYOffset);
         for (Wall.Strip s : wall.strips()) {
             wallPaint.paint(s);
             wallStrips++;
