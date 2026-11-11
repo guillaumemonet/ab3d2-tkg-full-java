@@ -140,6 +140,14 @@ public final class Shot {
                 sb.append(at < pb.length ? pb[at] : 0).append(' ');
             }
             System.out.println(sb);
+            StringBuilder cl = new StringBuilder("  [clignotement] ");
+            for (int i = 0; i < 7; i++) {
+                cl.append(viewer.lights().flicker(i)).append(' ');
+            }
+            System.out.println(cl);
+            System.out.printf("  [secteur] luminosite bas=%d haut=%d%n",
+                    viewer.lights().zoneBright(quel, false),
+                    viewer.lights().zoneBright(quel, true));
         }
         System.out.printf("  %d secteurs tries%n", viewer.zones());
         System.out.println("  " + viewer.tally());
