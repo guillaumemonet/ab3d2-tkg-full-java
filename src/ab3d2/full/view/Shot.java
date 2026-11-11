@@ -124,6 +124,16 @@ public final class Shot {
                         + ")" : "absente");
         System.out.println("  " + viewer.tally());
 
+        // -Pshimmer=N : regarder l'image a travers la table de dematerialisation, comme la
+        // presentation le fait quand le joueur se teleporte ou atteint la sortie.
+        int pas = Integer.getInteger("ab3d2.shimmer", -1);
+        if (pas >= 0) {
+            byte[] delite = new ab3d2.full.render.Shimmer(ab3d2.full.Data.shimmer())
+                    .apply(viewer.screen().pixels(), pas);
+            System.arraycopy(delite, 0, viewer.screen().pixels(), 0, delite.length);
+            System.out.println("  dematerialisation au pas " + pas);
+        }
+
         ecrire(viewer.screen(), Screen.HEIGHT, echelle, sortie);
         System.out.println("  -> " + sortie.toAbsolutePath());
     }

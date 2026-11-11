@@ -163,6 +163,49 @@ public final class Viewer {
         this.music = quel;
     }
 
+    /**
+     * La musique de FIN DE NIVEAU : elle prend la place de celle du niveau, et joue jusqu'au
+     * bout.
+     *
+     * <p>{@code endlevel} : « {@code move.l #welldone,mt_data ; st UseAllChannels ;
+     * clr.b reachedend ; jsr mt_init} ». Deux choses changent par rapport a la musique du
+     * niveau. D'abord {@code clr.b dosounds} vient d'etre fait : plus aucun bruitage ne
+     * partira, et les quatre voies sont libres. Ensuite {@code UseAllChannels} les prend toutes
+     * les quatre, la ou la musique de jeu n'en mene qu'UNE — le jeu garde les autres pour les
+     * bruits.
+     */
+    private Music fin;
+
+    /** Arme la musique de fin ; {@code null} la coupe. */
+    public void endMusic(byte[] module) {
+        if (module == null) {
+            fin = null;
+            return;
+        }
+        fin = new Music(module);
+        fin.useAllChannels = true;                 // st UseAllChannels
+        fin.init(paula);                           // jsr mt_init (clr.b reachedend inclus)
+        for (int slot = 0; slot < 4; slot++) {
+            paula.claim(slot, true);               // les quatre voies sont a elle
+        }
+    }
+
+    /**
+     * Une image de {@code playwelldone} / {@code playgameover} : « {@code CALLGRAF WaitTOF ;
+     * jsr mt_music ; tst.b reachedend ; beq} ». Rien n'est redessine — l'ecran reste tel qu'il
+     * etait.
+     *
+     * @return vrai quand le morceau a fini de se jouer
+     */
+    public boolean endMusicFrame() {
+        if (fin == null) {
+            return true;
+        }
+        fin.tick(paula);                           // jsr mt_music
+        speaker.pump();
+        return fin.reachedEnd();                   // tst.b reachedend
+    }
+
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
     public Lights lights() {
         return lights;

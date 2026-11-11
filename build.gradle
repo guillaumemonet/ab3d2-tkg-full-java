@@ -287,6 +287,7 @@ tasks.register('shot', JavaExec) {
     if (project.hasProperty('angle')) { systemProperty 'ab3d2.angle', project.property('angle') }
     if (project.hasProperty('eye')) { systemProperty 'ab3d2.eye', project.property('eye') }
     if (project.hasProperty('frames')) { systemProperty 'ab3d2.frames', project.property('frames') }
+    if (project.hasProperty('shimmer')) { systemProperty 'ab3d2.shimmer', project.property('shimmer') }
     if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
     systemProperty 'ab3d2.out', project.hasProperty('out')
             ? project.property('out') : new File(projectDir, 'build/shot.png').absolutePath
@@ -438,6 +439,27 @@ tasks.register('waterPaintCheck', JavaExec) {
     systemProperty 'ab3d2.waterpaint', new File(refRoot, 'waterpaint.json').absolutePath
 }
 
+tasks.register('campaignTest', JavaExec) {
+    group = 'verification'
+    description = "La partie : la sortie, la mort, et ce qu'on emporte d'un niveau a l'autre"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.sim.CampaignTest'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+}
+
+tasks.register('shimmerCheck', JavaExec) {
+    group = 'verification'
+    description = "La dematerialisation, confrontee au portage pixel par pixel"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.ShimmerCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.shimmer', new File(refRoot, 'shimmer.json').absolutePath
+}
+
 tasks.register('skyCheck', JavaExec) {
     group = 'verification'
     description = "Le ciel, confronte au portage ligne par ligne et pixel par pixel"
@@ -577,5 +599,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest'
 }

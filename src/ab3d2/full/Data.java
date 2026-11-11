@@ -44,6 +44,9 @@ public final class Data {
     private static ShadeTable shades;
     private static TextureMaps textureMaps;
     private static byte[] guff;
+    private static byte[] shimmer;
+    private static byte[] wellDone;
+    private static byte[] gameOver;
     private static WaterFrames water;
     private static Backdrop sky;
     private static final Map<Integer, SpriteSheet> SHEETS = new HashMap<>();
@@ -282,6 +285,56 @@ public final class Data {
             }
         }
         return guff;
+    }
+
+    /**
+     * La table de la dematerialisation : huit blocs de mille vingt-quatre octets de decalages.
+     *
+     * <p>Elle ne sert qu'a {@link ab3d2.full.render.Shimmer}, qui lit l'image de travers a
+     * travers elle. Huit mille cent quatre-vingt-douze octets, et pas un de plus.
+     */
+    public static synchronized byte[] shimmer() {
+        if (shimmer == null) {
+            Path file = local().resolve("incbin").resolve("includes").resolve("shimmerfile");
+            try {
+                shimmer = java.nio.file.Files.readAllBytes(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("table de dematerialisation introuvable : "
+                        + file, e);
+            }
+        }
+        return shimmer;
+    }
+
+    /**
+     * Le morceau qui salue un niveau termine.
+     *
+     * <p>Le fichier s'appelle {@code quietwelldone} et l'etiquette de l'assembleur
+     * {@code welldone} : il y en avait deux, un fort et un discret, et c'est le discret qui est
+     * reste.
+     */
+    public static synchronized byte[] wellDone() {
+        if (wellDone == null) {
+            wellDone = module("quietwelldone");
+        }
+        return wellDone;
+    }
+
+    /** Le morceau qui accompagne la mort du joueur. */
+    public static synchronized byte[] gameOver() {
+        if (gameOver == null) {
+            gameOver = module("gameover");
+        }
+        return gameOver;
+    }
+
+    private static byte[] module(String nom) {
+        Path file = local().resolve("incbin").resolve("includes").resolve(nom);
+        try {
+            return java.nio.file.Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("module introuvable : " + file, e);
+        }
     }
 
     /** Les huit images de l'ondulation de l'eau. */

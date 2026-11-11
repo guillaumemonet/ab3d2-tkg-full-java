@@ -2,10 +2,8 @@ package ab3d2.full.view;
 
 import ab3d2.full.Data;
 import ab3d2.full.defs.Database;
-import ab3d2.full.level.Level;
 import ab3d2.full.level.Palette;
-import ab3d2.full.render.Screen;
-import ab3d2.full.render.View;
+import ab3d2.full.sim.Campaign;
 import ab3d2.full.sim.World;
 
 import javax.swing.JFrame;
@@ -20,20 +18,16 @@ import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 
 /**
- * LE JEU : la simulation et le rendu, ensemble, cinquante fois par seconde.
+ * LE JEU : une fenetre, un clavier, et {@link Session} entre les deux.
  *
- * <p>Chaque piece avait ete eprouvee seule contre un releve du portage fidele, puis
- * {@link Shot} les avait fait tourner ensemble le temps d'UNE image. Ici elles tournent sans
- * s'arreter : on marche, on tourne, on ouvre les portes, on tire, et les monstres viennent.
+ * <p>Tout ce qui est le jeu vit ailleurs. Ici il ne reste que ce qui tient a la plateforme :
+ * ouvrir une fenetre, lire les touches, et montrer cinquante fois par seconde le tampon
+ * d'octets que la session vient d'ecrire. Ce decoupage n'est pas une elegance : c'est ce qui
+ * permettra de poser la meme partie sur une surface Android sans toucher au jeu.
  *
  * <p>La boucle bat a <b>cinquante fois par seconde</b> parce que tous les compteurs du jeu sont
  * en images de balayage : une porte met tant d'images a s'ouvrir, un monstre tant d'images a
- * reagir. Accelerer la boucle accelererait le jeu, et {@link World} compte en images, pas en
- * secondes.
- *
- * <p>L'ordre d'une image n'est pas libre. {@link World#frame} refait les luminosites APRES le
- * joueur et AVANT l'IA — sans quoi les torches et les tirs seraient effaces juste apres avoir
- * ecrit — puis {@link Viewer#draw} dessine ce que la simulation vient d'arreter.
+ * reagir. Accelerer la boucle accelererait le jeu.
  *
  * <pre>gradle -p full game [-Plevel=c] [-Pscale=3]</pre>
  */
@@ -46,31 +40,18 @@ public final class Game {
         char lettre = System.getProperty("ab3d2.level", args.length > 0 ? args[0] : "a")
                 .toLowerCase().charAt(0);
         int echelle = Integer.getInteger("ab3d2.scale", 3);
-        Level lvl = Data.level(lettre);
 
-        World world = World.of(lettre);
-        Viewer viewer = new Viewer(lettre, lvl);
-        // L'eclairage est le MEME objet des deux cotes : la simulation y ecrit (torches, tirs),
-        // le peintre y lit. C'est le seul point ou les deux moities du jeu se touchent.
-        // Les deux reglages d'eclairage du joueur : 'eclairage simple' eteint le degrade
-        // des murs, et le degrade des sols est allume au demarrage.
-        viewer.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
-        viewer.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
-        viewer.showWeapon = !Boolean.getBoolean("ab3d2.nogun");
-        viewer.playMusic = !Boolean.getBoolean("ab3d2.nomusic");
-        if (!Boolean.getBoolean("ab3d2.mute") && !viewer.openSound()) {
+        Session session = new Session(lettre - 'a');
+        session.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
+        session.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
+        session.showWeapon(!Boolean.getBoolean("ab3d2.nogun"));
+        session.playMusic(!Boolean.getBoolean("ab3d2.nomusic"));
+        if (!Boolean.getBoolean("ab3d2.mute") && !session.openSound()) {
             System.out.println("son indisponible : le jeu sera muet");
         }
-        world.light = viewer.lights();
-        world.aliens.dynLight = viewer.lights();
-        world.shots.dynLight = viewer.lights();
-        // Les lumieres dynamiques se posent PENDANT l'image de simulation, avant le dessin :
-        // leurs hauteurs de secteur doivent donc venir de la simulation, pas du fichier.
-        viewer.lights().heights(Viewer.hauteurs(world));
 
-        Vue vue = new Vue(world, viewer, echelle);
-        JFrame fenetre = new JFrame("Alien Breed 3D II — The Killing Grounds — niveau "
-                + Character.toUpperCase(lettre));
+        Vue vue = new Vue(session, echelle);
+        JFrame fenetre = new JFrame("Alien Breed 3D II — The Killing Grounds");
         fenetre.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         fenetre.add(vue);
         fenetre.pack();
@@ -84,10 +65,9 @@ public final class Game {
     /** La fenetre : une image de jeu par top, et le clavier qui la conduit. */
     private static final class Vue extends JPanel {
 
-        private final World world;
-        private final Viewer viewer;
+        private final Session session;
         private final int echelle;
-        private final int largeur = View.FULL_WIDTH;
+        private final int largeur;
         private final int haut;
         private final BufferedImage image;
         private final int[] raster;
@@ -99,14 +79,15 @@ public final class Game {
         private int images;
         private long dernierTop = System.nanoTime();
         private double parSeconde;
+        private String titre = "";
 
-        Vue(World world, Viewer viewer, int echelle) {
-            this.world = world;
-            this.viewer = viewer;
+        Vue(Session session, int echelle) {
+            this.session = session;
             this.echelle = echelle;
+            this.largeur = session.width();
             // L'image montree fait les DEUX CENT CINQUANTE-SIX lignes de l'ecran : les deux
             // cent trente-deux premieres sont la vue, le reste est le tableau de bord.
-            this.haut = Screen.HEIGHT;
+            this.haut = session.height();
             this.image = new BufferedImage(largeur, haut, BufferedImage.TYPE_INT_RGB);
             this.raster = new int[largeur * haut];
             setPreferredSize(new Dimension(largeur * echelle, haut * echelle));
@@ -123,9 +104,11 @@ public final class Game {
                     touche(e.getKeyCode(), false);
                 }
             });
-            viewer.board().push("fleches ou ZQSD : marcher, A/E : tourner, MAJ : pas de cote",
+            session.viewer().board().push(
+                    "fleches ou ZQSD : marcher, A/E : tourner, MAJ : pas de cote",
                     MessageBoard.OPTIONS);
-            viewer.board().push("ESPACE : tirer, F : actionner, 1-9 : arme, C : s'accroupir",
+            session.viewer().board().push(
+                    "ESPACE : tirer, F : actionner, 1-9 : arme, C : s'accroupir",
                     MessageBoard.OPTIONS);
         }
 
@@ -134,9 +117,10 @@ public final class Game {
                 touches[code] = enfoncee;
             }
             if (enfoncee && code >= KeyEvent.VK_1 && code <= KeyEvent.VK_9) {
-                world.gun = code - KeyEvent.VK_1;
-                Database.Gun g = world.glf.gun(world.gun);
-                viewer.board().push("arme " + (world.gun + 1) + " : "
+                World monde = session.world();
+                monde.gun = code - KeyEvent.VK_1;
+                Database.Gun g = monde.glf.gun(monde.gun);
+                session.viewer().board().push("arme " + (monde.gun + 1) + " : "
                         + (g == null ? "?" : g.name()), MessageBoard.OPTIONS);
             }
         }
@@ -150,7 +134,7 @@ public final class Game {
             return false;
         }
 
-        /** Une image : la simulation avance, puis le rendu la montre. */
+        /** Une image : la session avance, puis la fenetre montre ce qu'elle a ecrit. */
         void pas() {
             entree.forward = on(KeyEvent.VK_UP, KeyEvent.VK_Z, KeyEvent.VK_W);
             entree.backward = on(KeyEvent.VK_DOWN, KeyEvent.VK_S);
@@ -171,22 +155,15 @@ public final class Game {
                 }
             }
 
-            int santeAvant = world.health();
-            world.frame(entree);
-            if (world.health() < santeAvant) {
-                viewer.board().push("touche : -" + (santeAvant - world.health()),
+            int santeAvant = session.world().health();
+            session.frame(entree);
+            if (session.phase() == Session.Phase.PLAYING
+                    && session.world().health() < santeAvant) {
+                session.viewer().board().push(
+                        "touche : -" + (santeAvant - session.world().health()),
                         MessageBoard.OTHER);
             }
-
-            int zone = world.player.zone;
-            if (zone >= 0) {
-                viewer.draw(world, world.player.xOff >> 16, world.player.zOff >> 16, zone,
-                        world.player.angPos, world.player.yOff);
-                viewer.sound(world, world.player.xOff >> 16,
-                        world.player.zOff >> 16, world.player.angPos);
-                viewer.overlay(world, System.currentTimeMillis());
-                convertir();
-            }
+            convertir();
 
             images++;
             long maintenant = System.nanoTime();
@@ -195,19 +172,31 @@ public final class Game {
                 images = 0;
                 dernierTop = maintenant;
             }
+            titre();
             repaint();
+        }
+
+        private void titre() {
+            Campaign c = session.campaign();
+            String etat = session.phase() == Session.Phase.ENDING
+                    ? (session.outcome() == Campaign.Outcome.WON ? " — TERMINE" : " — MORT")
+                    : "";
+            String neuf = "niveau " + Character.toUpperCase(c.letter()) + " — "
+                    + c.name().trim() + etat;
+            if (!neuf.equals(titre)) {
+                titre = neuf;
+                java.awt.Window w = javax.swing.SwingUtilities.getWindowAncestor(this);
+                if (w instanceof JFrame f) {
+                    f.setTitle("Alien Breed 3D II — The Killing Grounds — " + neuf);
+                }
+            }
         }
 
         /** Du tampon d'octets a des couleurs : un octet du jeu est un RANG, pas une teinte. */
         private void convertir() {
-            Screen screen = viewer.screen();
-            byte[] pixels = screen.pixels();
-            for (int y = 0; y < haut; y++) {
-                int de = screen.line(y);
-                int vers = y * largeur;
-                for (int k = 0; k < largeur; k++) {
-                    raster[vers + k] = palette.at(pixels[de + k] & 0xFF);
-                }
+            byte[] pixels = session.pixels();
+            for (int i = 0; i < largeur * haut; i++) {
+                raster[i] = palette.at(pixels[i] & 0xFF);
             }
             image.setRGB(0, 0, largeur, haut, raster, 0, largeur);
         }
@@ -220,7 +209,8 @@ public final class Game {
             g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
             g.setColor(new Color(220, 230, 240));
             g.drawString(String.format("secteur %d   sante %d   %d monstres   %.0f img/s",
-                    world.player.zone, world.health(), viewer.vivants, parSeconde), 8, 16);
+                    session.world().player.zone, session.world().health(),
+                    session.viewer().vivants, parSeconde), 8, 16);
         }
     }
 }

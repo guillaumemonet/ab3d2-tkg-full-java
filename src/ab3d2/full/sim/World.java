@@ -78,6 +78,72 @@ public final class World {
     /** Le numero de l'image courante. */
     public int frame;
 
+    /**
+     * {@code TELVAL} ({@code Game_TeleportFrame_w}) : ou en est la dematerialisation.
+     *
+     * <p>Deux choses l'alimentent, et une seule le consomme. La zone de SORTIE y ajoute DEUX par
+     * image tant que le joueur s'y tient ; un teleporteur le pose a HUIT d'un coup. La
+     * presentation en retire UN a chaque image, quoi qu'il arrive — c'est elle qui donne a
+     * l'effet sa marche arriere, et c'est pourquoi ressortir de la zone avant la fin
+     * <b>re-materialise</b> le joueur au lieu de l'achever : le compte redescend tout seul.
+     *
+     * <p>Le solde est donc de +1 par image dans la zone et de -1 dehors. Neuf images a rester
+     * suffisent a partir.
+     */
+    public int teleportFrame;
+
+    /**
+     * La boucle doit s'arreter : {@code endlevel} l'attend. {@link Campaign#endLevel()} dira si
+     * c'est une victoire ou une mort — la sante seule en decide.
+     */
+    public boolean finished;
+
+    /**
+     * {@code Lvl_ExitZoneID_w} : le secteur par lequel on quitte le niveau.
+     *
+     * <p>ATTENTION, les sources publiees ne font PAS cela. Elles portent le bloc
+     * {@code add.w #2,Game_TeleportFrame_w} en COMMENTAIRE, suivi d'un {@code jmp endlevel} sec
+     * (hires.s:2099-2107), avec ce mot d'excuse : « This is a hacky way to do the teleport fx,
+     * but it doesn't work now that it's handled by a trigger event. We'll come back to this ».
+     * Le niveau s'y acheve donc a l'instant ou l'on entre dans la zone, sans effet.
+     *
+     * <p>Ce portage suit le JEU, pas le depot : la dematerialisation est bien ce qu'on voit en
+     * jouant, et c'est la version que le portage litteral porte deja.
+     */
+    private void exitZone() {
+        if (player.zone == level.exitZone()) {         // cmp.w Lvl_ExitZoneID_w,d0 ; bne noexit
+            teleportFrame += 2;                        // add.w #2,Game_TeleportFrame_w
+            if (teleportFrame >= 9) {                  // cmp.w #9,... ; blt noexit
+                finished = true;                       // jmp endlevel
+            }
+        }
+        // noexit : tst.w Plr1_Health_w ; bgt nnoend1 ; jmp endlevel
+        if (health() <= 0) {
+            finished = true;
+        }
+    }
+
+    /**
+     * Ce que la presentation fait de {@link #teleportFrame} : elle en retire un, et distord
+     * l'image avec ce qui reste ({@code Vid_Present}, c2p).
+     *
+     * <p>A appeler une fois par image dessinee, et une seule. Un harnais qui ne dessine pas ne
+     * l'appelle pas : le compte monte alors sans jamais redescendre, ce qui est exactement ce
+     * que fait le jeu quand l'affichage est coupe.
+     *
+     * @return le pas de l'effet, ou -1 si l'image doit etre montree telle quelle
+     */
+    public int shimmerStep() {
+        if (player.teleported) {                       // tst.b d5 ; bne
+            teleportFrame = 8;                         // move.w #8,Game_TeleportFrame_w
+        }
+        if (teleportFrame == 0) {                      // tst.w ... ; beq
+            return -1;
+        }
+        teleportFrame--;                               // sub.w #1,Game_TeleportFrame_w
+        return teleportFrame;
+    }
+
     private boolean previousAction;
 
     /** Monte un niveau, pret a etre joue. */
@@ -222,6 +288,9 @@ public final class World {
         // avoir dessine. Ce qu'elle arme ici, c'est l'image SUIVANTE qui le consomme.
         objects.markVisible(player.zone);
         aliens.seen = objects.seen();
+
+        // hires.s:2084-2116, le pied de game_main_loop : la sortie, puis la sante.
+        exitZone();
     }
 
     /** La sante du joueur. */
