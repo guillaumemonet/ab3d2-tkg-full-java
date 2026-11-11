@@ -54,9 +54,14 @@ public final class Session {
 
     /** {@code Game_Begin} : le niveau courant de la partie, monte de zero. */
     public Session(Campaign campaign) {
+        this(campaign, ab3d2.full.sound.Sink.SILENT);
+    }
+
+    /** @param sortie ou le son part */
+    public Session(Campaign campaign, ab3d2.full.sound.Sink sortie) {
         this.campaign = campaign;
         this.world = campaign.begin();
-        this.viewer = new Viewer(campaign.letter(), world.level);
+        this.viewer = new Viewer(campaign.letter(), world.level, sortie);
         // L'eclairage est le MEME objet des deux cotes : la simulation y ecrit (torches, tirs),
         // le peintre y lit. C'est le seul point ou les deux moities du jeu se touchent.
         world.light = viewer.lights();

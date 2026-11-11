@@ -745,3 +745,204 @@ tasks.register('packageApp') {
         println "  (sans donnees du jeu : elles se telechargent au premier lancement)"
     }
 }
+
+// ---------------------------------------------------------------------------
+//  LA RELEASE ANDROID
+//    gradle -p full apk           ->  build/android/ab3d2-tkg.apk
+//    gradle -p full installApk    pose l'APK sur l'appareil branche
+//
+//  SANS le plugin Android, et c'est delibere : ce depot n'a aucune dependance,
+//  et les outils du SDK suffisent. La chaine tient en cinq pas, chacun lisible :
+//    1. javac      le jeu + la couche Android, contre android.jar
+//    2. d8         les classes en un dex (il desucre aussi les records et les
+//                  lambdas, que le format dex ne connait pas)
+//    3. aapt2      le manifeste et les ressources en un APK sans code
+//    4. zip        on y ajoute le dex et les tables incbin
+//    5. apksigner  la signature, sans quoi aucun telephone ne l'installe
+//
+//  Le SDK se trouve par ANDROID_HOME, ou a son emplacement habituel.
+// ---------------------------------------------------------------------------
+def sdkRoot = {
+    for (String s : [System.getenv('ANDROID_HOME'), System.getenv('ANDROID_SDK_ROOT'),
+                     "${System.getProperty('user.home')}/AppData/Local/Android/Sdk",
+                     "${System.getProperty('user.home')}/Android/Sdk"]) {
+        if (s != null && new File(s, 'platforms').isDirectory()) { return new File(s) }
+    }
+    return null
+}()
+
+/** La version de build-tools la plus recente installee. */
+def buildTools = {
+    if (sdkRoot == null) { return null }
+    def dirs = new File(sdkRoot, 'build-tools').listFiles()?.findAll { it.isDirectory() }
+    return dirs ? dirs.sort { it.name }.last() : null
+}()
+
+/** La plateforme la plus recente installee : c'est elle qui donne android.jar. */
+def androidJar = {
+    if (sdkRoot == null) { return null }
+    def dirs = new File(sdkRoot, 'platforms').listFiles()?.findAll {
+        new File(it, 'android.jar').isFile()
+    }
+    return dirs ? new File(dirs.sort { it.name }.last(), 'android.jar') : null
+}()
+
+def androidDir = new File(projectDir, 'android')
+def apkWork    = layout.buildDirectory.dir('android').get().asFile
+def apkClasses = new File(apkWork, 'classes')
+def apkOut     = new File(apkWork, 'ab3d2-tkg.apk')
+
+/**
+ * Le niveau d'API minimal : VINGT-SIX.
+ *
+ * Ce n'est pas un choix de confort. La conversion lit ses fichiers avec java.nio.file, que
+ * le systeme n'expose qu'a partir de la, et descendre plus bas voudrait dire reecrire toute
+ * la lecture des donnees. Vingt-six, c'est Android 8, soit a peu pres tout ce qui tourne
+ * encore.
+ */
+def minApi = 26
+
+/** Les classes de BUREAU : elles s'appuient sur AWT, Swing ou javax.sound, absents ici. */
+def desktopOnly = ['Game.java', 'Play.java', 'Shot.java', 'MenuShot.java', 'Speaker.java']
+
+tasks.register('androidClasses') {
+    group = 'distribution'
+    description = "Compile le jeu et sa couche Android contre android.jar"
+    doLast {
+        if (androidJar == null) {
+            throw new GradleException("SDK Android introuvable : posez ANDROID_HOME")
+        }
+        apkClasses.deleteDir()
+        apkClasses.mkdirs()
+        def sources = []
+        fileTree(new File(projectDir, 'src')) { include '**/*.java' }.each { f ->
+            // Les harnais de verification tirent Gson, et le jeu sur telephone n'en a que
+            // faire : on ne compile que ce qui sert a jouer.
+            if (!(f.name in desktopOnly) && !f.name.endsWith('Check.java')
+                    && !f.name.endsWith('Test.java')) {
+                sources << f
+            }
+        }
+        fileTree(androidDir) { include '**/*.java' }.each { sources << it }
+        def liste = new File(apkWork, 'sources.txt')
+        liste.parentFile.mkdirs()
+        liste.setText(sources.collect { it.absolutePath.replace('\\', '/') }
+                .join(System.lineSeparator()), 'UTF-8')
+        providers.exec {
+            commandLine "${System.getProperty('java.home')}/bin/javac",
+                '-encoding', 'UTF-8',
+                // --release plutot que -source/-target : le JDK refuse desormais qu'on
+                // remplace sa bibliotheque de demarrage, et android.jar passe donc par le
+                // chemin de classes ordinaire. Les classes java.* viennent du JDK, ce qui
+                // est sans consequence : Android fournit les siennes a l'execution, et d8
+                // signale toute API absente grace au --lib de l'etape suivante.
+                '--release', '17',
+                '-nowarn',
+                '-classpath', androidJar.absolutePath,
+                '-d', apkClasses.absolutePath,
+                "@${liste.absolutePath}"
+        }.result.get().assertNormalExitValue()
+    }
+}
+
+tasks.register('androidDex') {
+    group = 'distribution'
+    description = "Assemble les classes en un dex"
+    dependsOn 'androidClasses'
+    doLast {
+        def classes = []
+        fileTree(apkClasses) { include '**/*.class' }.each {
+            classes << it.absolutePath.replace('\\', '/')
+        }
+        def liste = new File(apkWork, 'classes.txt')
+        liste.setText(classes.join(System.lineSeparator()), 'UTF-8')
+        providers.exec {
+            commandLine new File(buildTools, 'd8.bat').absolutePath,
+                '--release',
+                '--min-api', "${minApi}",
+                '--lib', androidJar.absolutePath,
+                '--output', apkWork.absolutePath,
+                "@${liste.absolutePath}"
+        }.result.get().assertNormalExitValue()
+    }
+}
+
+tasks.register('apk') {
+    group = 'distribution'
+    description = "Construit l'APK : build/android/ab3d2-tkg.apk"
+    dependsOn 'androidDex'
+    doLast {
+        def base = new File(apkWork, 'base.apk')
+        def resZip = new File(apkWork, 'res.zip')
+        providers.exec {
+            commandLine new File(buildTools, 'aapt2.exe').absolutePath,
+                'compile', '--dir', new File(androidDir, 'res').absolutePath,
+                '-o', resZip.absolutePath
+        }.result.get().assertNormalExitValue()
+        providers.exec {
+            commandLine new File(buildTools, 'aapt2.exe').absolutePath,
+                'link', '-o', base.absolutePath,
+                '-I', androidJar.absolutePath,
+                '--manifest', new File(androidDir, 'AndroidManifest.xml').absolutePath,
+                '--min-sdk-version', "${minApi}",
+                '--target-sdk-version', '34',
+                resZip.absolutePath
+        }.result.get().assertNormalExitValue()
+
+        // Le dex et les tables que l'assembleur incorporait a l'executable.
+        def staging = new File(apkWork, 'staging')
+        staging.deleteDir()
+        staging.mkdirs()
+        copy {
+            from new File(apkWork, 'classes.dex')
+            into staging
+        }
+        copy {
+            from new File(projectDir, 'data/incbin')
+            into new File(staging, 'incbin')
+        }
+        apkOut.delete()
+        ant.zip(destfile: apkOut.absolutePath, basedir: staging.absolutePath, compress: true)
+        ant.zip(destfile: apkOut.absolutePath, update: true) {
+            zipfileset(src: base.absolutePath)
+        }
+
+        // La signature : sans elle, aucun telephone n'installe l'APK.
+        def keystore = new File(apkWork, 'debug.keystore')
+        if (!keystore.isFile()) {
+            providers.exec {
+                commandLine "${System.getProperty('java.home')}/bin/keytool",
+                    '-genkeypair', '-v',
+                    '-keystore', keystore.absolutePath,
+                    '-storepass', 'android', '-keypass', 'android',
+                    '-alias', 'ab3d2', '-keyalg', 'RSA', '-keysize', '2048',
+                    '-validity', '10000',
+                    '-dname', 'CN=AB3D2 TKG, OU=portage, O=non commercial, C=FR'
+            }.result.get().assertNormalExitValue()
+        }
+        providers.exec {
+            commandLine new File(buildTools, 'apksigner.bat').absolutePath,
+                'sign',
+                '--ks', keystore.absolutePath,
+                '--ks-pass', 'pass:android',
+                '--key-pass', 'pass:android',
+                '--min-sdk-version', "${minApi}",
+                apkOut.absolutePath
+        }.result.get().assertNormalExitValue()
+
+        println "APK : ${apkOut.absolutePath} (${apkOut.length() / 1024} Ko)"
+        println "  sans donnees du jeu : elles se telechargent au premier lancement"
+    }
+}
+
+tasks.register('installApk') {
+    group = 'distribution'
+    description = "Pose l'APK sur l'appareil branche"
+    dependsOn 'apk'
+    doLast {
+        providers.exec {
+            commandLine new File(sdkRoot, 'platform-tools/adb.exe').absolutePath,
+                'install', '-r', apkOut.absolutePath
+        }.result.get().assertNormalExitValue()
+    }
+}

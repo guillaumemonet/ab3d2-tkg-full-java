@@ -347,8 +347,11 @@ public final class Anims {
             }
             doorRoofH[i] = roof;
             int denom = dr.bottom() - dr.top();
+            // Math.clamp n'existe qu'a partir de Java 21, et ce code doit aussi tourner sur
+            // un telephone, ou la bibliotheque s'arrete plus tot. Le resultat est le meme,
+            // valeurs non numeriques comprises.
             doorOpenRatio[i] = denom == 0 ? 0f
-                    : Math.clamp((dr.bottom() - (float) (short) d3) / denom, 0f, 1f);
+                    : Math.max(0f, Math.min(1f, (dr.bottom() - (float) (short) d3) / denom));
 
             // masque de declenchement
             int mask;

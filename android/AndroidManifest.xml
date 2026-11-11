@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Alien Breed 3D II : The Killing Grounds — conversion Java, sur Android.
+
+  INTERNET est la seule permission demandee, et pour une seule chose : aller chercher les
+  cinq disquettes chez Dream17 au premier lancement, si l'utilisateur le demande. Aucune
+  donnee du jeu n'est embarquee dans l'application, et rien n'est envoye nulle part.
+
+  L'orientation est fixee au PAYSAGE : l'ecran du jeu fait 320 sur 256, et le tourner en
+  portrait ne donnerait qu'une bande au milieu de rien.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="ab3d2.full.android"
+          android:versionCode="1"
+          android:versionName="0.1">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application android:label="@string/app_name"
+                 android:hardwareAccelerated="true"
+                 android:allowBackup="false">
+
+        <activity android:name="ab3d2.full.android.GameActivity"
+                  android:exported="true"
+                  android:screenOrientation="sensorLandscape"
+                  android:configChanges="orientation|screenSize|keyboardHidden"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

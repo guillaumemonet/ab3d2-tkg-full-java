@@ -73,7 +73,7 @@ public final class Viewer {
     private final Text police;
     private final MessageBoard board;
     private final Paula paula;
-    private final Speaker speaker;
+    private final ab3d2.full.sound.Mixer speaker;
     private final Music music;
     private final char lettre;
 
@@ -108,6 +108,13 @@ public final class Viewer {
     public int pensants;
 
     public Viewer(char lettre, Level lvl) {
+        this(lettre, lvl, ab3d2.full.sound.Sink.SILENT);
+    }
+
+    /**
+     * @param sortie ou le son part ; {@link ab3d2.full.sound.Sink#SILENT} pour un harnais
+     */
+    public Viewer(char lettre, Level lvl, ab3d2.full.sound.Sink sortie) {
         this.lettre = lettre;
         this.lvl = lvl;
         this.view = new View(Data.sinCos());
@@ -143,7 +150,7 @@ public final class Viewer {
         this.police = new Text(Data.scrollFont(), Data.glyphSpacing());
         this.board = new MessageBoard(police);
         this.paula = new Paula(Samples.load(Data.database().soundFiles(), Data::asset));
-        this.speaker = new Speaker(paula);
+        this.speaker = new ab3d2.full.sound.Mixer(paula, sortie);
         // La MUSIQUE prend les deux cases de GAUCHE que le jeu lui reserve au chargement
         // du niveau (hires.s:614). Le canal qu'elles forment — le zero — sort donc du
         // melangeur, et c'est le lecteur de module qui l'alimente.

@@ -49,10 +49,19 @@ public final class Shell {
     private boolean gouraudFlats = true;
     private boolean music = true;
 
+    /** Une coquille muette : c'est ce que veulent les harnais. */
     public Shell() {
+        this(ab3d2.full.sound.Sink.SILENT);
+    }
+
+    /** @param sortie ou le son part ; la plateforme la fournit */
+    public Shell(ab3d2.full.sound.Sink sortie) {
+        this.sortie = sortie == null ? ab3d2.full.sound.Sink.SILENT : sortie;
         this.campaign = Campaign.start();
         this.menu = new MenuShell(campaign);
     }
+
+    private final ab3d2.full.sound.Sink sortie;
 
     /** Ouvre le son. A n'appeler qu'une fois. */
     public boolean openSound() {
@@ -134,7 +143,7 @@ public final class Shell {
 
     /** {@code Game_Begin} : on quitte le menu et l'on monte le niveau courant. */
     private void lancer() {
-        session = new Session(campaign);
+        session = new Session(campaign, sortie);
         session.viewer().simpleWalls(simpleWalls);
         session.viewer().gouraudFlats(gouraudFlats);
         session.viewer().showWeapon = !options().on(Options.HIDE_WEAPON);

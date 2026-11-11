@@ -52,7 +52,7 @@ public final class Game {
         int echelle = Integer.getInteger("ab3d2.scale", 3);
         String niveau = System.getProperty("ab3d2.level", args.length > 0 ? args[0] : null);
 
-        Shell shell = new Shell();
+        Shell shell = new Shell(new Speaker());
         shell.simpleWalls(Boolean.getBoolean("ab3d2.simple"));
         shell.gouraudFlats(!Boolean.getBoolean("ab3d2.flatshade"));
         shell.music(!Boolean.getBoolean("ab3d2.nomusic"));

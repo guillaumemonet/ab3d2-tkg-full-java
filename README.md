@@ -4,7 +4,9 @@ Troisième lecture d'*Alien Breed 3D II : The Killing Grounds* (Team17, Amiga, 1
 portage fidèle et le remake 3D. Celle-ci convertit l'assembleur d'origine en **vrai Java** :
 des classes, des champs nommés, des collections. Pas de mémoire plate, pas de registres.
 
-**Le jeu tourne.** Simulation et rendu, cinquante images par seconde, avec le son.
+**Le jeu est complet.** Le menu, les seize niveaux à la suite, les sauvegardes, le rendu et
+le son — cinquante images par seconde. Il se construit en application Windows portable et en
+**APK Android**.
 
 ![Le niveau O, à ciel ouvert](docs/img/full-niveau-o.png)
 
@@ -49,6 +51,12 @@ l'assembleur d'origine.
 
 ## En images
 
+![Le menu](docs/img/full-menu.png)
+
+*Le menu, et son feu. Ce n'est pas un automate cellulaire mais **trois blits du blitter Amiga
+par image**, `D = A_décalé | (B & C)`, où `A` est un plan de la **police** : c'est pour cela que
+le texte brûle. Vérifié plan par plan contre le portage.*
+
 ![Un monstre, et il mord](docs/img/full-monstre.png)
 
 *Les monstres ne sont pas des figurants : celui-ci a marché jusqu'au joueur et l'a touché —
@@ -66,6 +74,11 @@ la texture couvre le mur entier d'un seul tenant.*
 
 *L'eau animée et ses boucles ; et un tunnel du niveau B, deux monstres au fond.*
 
+![La dématérialisation](docs/img/full-teleport.png)
+
+*La sortie du niveau. L'effet ne calcule rien : il **regarde l'image de travers**, à travers une
+table de décalages. Huit pas, du presque net à l'illisible.*
+
 ---
 
 ## Où en est-on
@@ -80,31 +93,46 @@ la texture couvre le mur entier d'un seul tenant.*
 | tableau de bord, arme en main, messages | **fait** |
 | audio : moteur Paula, bruitages, musique | **fait** |
 | boucle de jeu jouable | **fait** — `gradle game` |
-| menu et enchaînement des niveaux | à faire |
+| menu, feu, police, sous-menus | **fait** — 0 écart |
+| enchaînement des seize niveaux | **fait** |
+| sauvegardes et réglages | **fait** |
+| release Windows portable | **fait** — `gradle packageApp` |
+| release Android (APK) | **fait** — `gradle apk` |
+| texte narratif d'intro | à faire |
 | mode deux joueurs | à faire |
 
-Environ **36 500 lignes** de Java, réparties ainsi :
+Environ **41 300 lignes** de Java, réparties ainsi :
 
 | paquet | fichiers | lignes | ce qu'il fait |
 | --- | ---: | ---: | --- |
 | `level` | 11 | 2 249 | lire un niveau : secteurs, arêtes, textures, palettes, modèles |
 | `defs` | 2 | 699 | la base de liaison : armes, monstres, objets |
-| `sim` | 30 | 11 107 | la simulation : joueur, IA, tirs, collisions, portes |
-| `render` | 35 | 10 645 | le rastériseur logiciel au complet |
-| `sound` | 5 | 2 108 | le moteur audio Paula et le lecteur de musique |
-| `view` | 7 | 1 870 | la fenêtre, la boucle, la prise d'image |
-| racine | 34 | 7 814 | `M68k`, les lecteurs d'octets, et les vérificateurs |
+| `sim` | 32 | 11 551 | la simulation : joueur, IA, tirs, collisions, portes, la partie |
+| `render` | 36 | 10 753 | le rastériseur logiciel au complet |
+| `sound` | 7 | 2 355 | le moteur audio Paula, le lecteur de musique, le mélangeur |
+| `menu` | 8 | 1 502 | le menu : le feu, la police, les pages, les sauvegardes |
+| `boot` | 6 | 1 064 | les disquettes : montage, dépackage, téléchargement |
+| `view` | 10 | 2 328 | la fenêtre, la boucle, la prise d'image |
+| `android` | 3 | 705 | la surface, les doigts, l'`AudioTrack` |
+| racine | 36 | 8 090 | `M68k`, les lecteurs d'octets, et les **36 vérificateurs** |
 
 ---
 
 ## Jouer
 
 ```bash
-gradle game                   # le jeu, niveau A
-gradle game -Plevel=c         # un autre niveau (a..p)
+gradle game                   # le menu, puis le jeu
+gradle game -Plevel=c         # tout de suite un niveau, sans passer par le menu
 gradle game -Pscale=4         # une fenêtre plus grande
 gradle game -Pmute            # sans le son
 ```
+
+Au premier lancement, s'il ne trouve pas les données, le jeu **propose** d'aller chercher les
+cinq disquettes chez [Dream17](https://dream17.abime.net), le site de préservation du catalogue
+Amiga de Team17. Rien n'est téléchargé sans un oui explicite.
+
+Dans le menu : **haut** et **bas** pour choisir, **ENTRÉE** pour valider, **ÉCHAP** pour
+reculer.
 
 | touche | action |
 | --- | --- |
@@ -123,15 +151,54 @@ murs, `-Pflatshade` celui des sols.
 
 ```bash
 gradle shot -Plevel=o -Pzone=55 -Pangle=7168 -Pframes=30 -Pout=une_image.png
+gradle shot -Pshimmer=5       # la même image, en train de se dématérialiser
+gradle menuShot -Pframes=120  # une image du menu (le texte n'arrive qu'à la 35e)
 gradle play -Plevel=c         # la simulation seule, vue de dessus
+gradle unpack                 # dépaquer les disquettes à la main
 ```
+
+---
+
+## Empaqueter
+
+```bash
+gradle packageApp             # Windows : build/jpackage/AlienBreed3D2-TKG/
+gradle apk                    # Android : build/android/ab3d2-tkg.apk
+gradle installApk             # … et le poser sur l'appareil branché
+```
+
+**Ni l'une ni l'autre ne contient la moindre donnée du jeu.** L'application Windows fait 152 Mo
+— c'est le JRE embarqué — et l'APK **286 Ko**. Les deux vont chercher les disquettes au premier
+lancement, si on le leur demande.
+
+La release Android se construit **sans le plugin Android** : les outils du SDK suffisent, et ce
+dépôt n'a toujours aucune dépendance. Cinq pas, chacun lisible — `javac` contre `android.jar`,
+`d8`, `aapt2`, un zip, `apksigner`.
+
+### Ce qui rend l'Android possible
+
+Rien, dans le jeu, ne connaît sa plateforme. `render`, `sim`, `level`, `menu` et `boot`
+n'importent que `java.*`, et `view.Shell` prend une intention par image et rend un tampon
+d'octets. Il ne reste à écrire, par plateforme, que trois choses :
+
+| | Windows | Android |
+| --- | --- | --- |
+| montrer l'image | `BufferedImage` + Swing | `Bitmap` + `SurfaceView` |
+| lire les commandes | clavier | stick virtuel, glisser pour viser |
+| pousser le son | `javax.sound` | `AudioTrack` |
+
+Le `classes.dex` de l'APK contient **209 classes du jeu et pas une seule référence** à AWT, à
+Swing ou à `javax.sound`. C'est la preuve que la séparation tient.
+
+Sur Android, le pouce gauche pose un **stick qui naît là où on le pose** — on joue sans
+regarder ses pouces — et le pouce droit tourne et vise au glissement, comme une souris.
 
 ---
 
 ## Vérifier
 
 ```bash
-gradle checkAll               # les 47 tâches, d'un coup
+gradle checkAll               # les 51 tâches, d'un coup
 ```
 
 Chacune se lance seule. Elles tombent en cinq familles.
@@ -186,6 +253,9 @@ Chacune se lance seule. Elles tombent en cinq familles.
 | --- | --- |
 | `hudCheck` `gunHoldCheck` | le tableau de bord, et où l'arme se pose à chaque image |
 | `paulaCheck` `musicCheck` | le moteur audio et le lecteur de musique, registre par registre |
+| `shimmerCheck` | la dématérialisation, pixel par pixel — 1 966 080 pixels |
+| `menuCheck` | le menu : bruit, fond, police, feu et palette — 274 688 octets |
+| `campaignTest` | la partie : la sortie, la mort, et ce qu'on emporte |
 
 Les harnais de simulation acceptent `-Plevel=a` (ou `all`).
 
@@ -224,11 +294,13 @@ que le jeu fait, pas ce qu'il aurait dû faire.**
 
 Rien n'est inventé, et rien d'exécutable n'est fourni. Deux provenances, deux racines.
 
-- `medias/original/` (cherché en remontant) — ce qui vient des cinq disquettes : les niveaux et
-  `Includes/test.lnk`. **Il faut posséder le jeu.**
+- `medias/original/` — ce qui vient des cinq disquettes : les niveaux et `Includes/test.lnk`.
+  Le jeu sait les produire lui-même, en montant les images `.adf` et en dépaquant ce qui
+  l'est ; il propose de les télécharger s'il ne les trouve pas.
 - `data/incbin/` — les tables que l'assembleur incorporait à l'exécutable. La table de sinus en
   fait partie, et on la **lit** plutôt que de la recalculer : les trajectoires dépendent de ses
-  arrondis.
+  arrondis. Elles voyagent **dans l'archive**, parce qu'une application installée n'a pas de
+  dossier courant qui veuille dire quelque chose, et un téléphone pas de dossier du tout.
 
 Le corpus de référence est celui qu'extrait le remake. Si la lecture **sans mémoire plate**
 retrouve les mêmes valeurs, c'est que la conversion est juste.
@@ -237,12 +309,17 @@ retrouve les mêmes valeurs, c'est que la conversion est juste.
 
 ## Construire
 
-JDK 17 ou plus, et Gradle. Aucune autre dépendance pour le jeu.
+JDK 21 et Gradle. Aucune autre dépendance pour le jeu — Gson ne sert qu'aux vérificateurs.
 
 ```bash
 gradle build
 gradle game
 ```
+
+Pour l'APK, il faut en plus un SDK Android (trouvé par `ANDROID_HOME`, ou à son emplacement
+habituel) avec des *build-tools* et une plateforme installés. Le code vise l'**API 26**
+(Android 8) : la lecture des données passe par `java.nio.file`, que le système n'expose qu'à
+partir de là.
 
 ---
 
