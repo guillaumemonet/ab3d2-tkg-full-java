@@ -4,26 +4,29 @@ Troisième lecture d'*Alien Breed 3D II : The Killing Grounds* (Team17, Amiga, 1
 portage fidèle et le remake 3D. Celle-ci convertit l'assembleur d'origine en **vrai Java** :
 des classes, des champs nommés, des collections. Pas de mémoire plate, pas de registres.
 
-**La simulation tourne.** On peut y jouer, vu de dessus. Le rendu du jeu, lui, reste à porter.
+**Le jeu tourne.** Simulation et rendu, cinquante images par seconde, avec le son.
+
+![Le niveau O, à ciel ouvert](docs/img/full-niveau-o.png)
+
+*Le niveau O. Ciel, dégradé du sol, objets à ramasser, arme en main, tableau de bord — tout cela
+est peint par ce dépôt, pixel par pixel, en Java ordinaire.*
 
 ---
 
-## Pourquoi un troisième dépôt
+## Les trois lectures
 
-Le [portage](../java) traduit l'assembleur **instruction par instruction** : une RAM plate de
-68000 (`Mem.RAM`), des accès par offset, des registres simulés (`d0`, `a3`), la sémantique
-exacte du 68k. C'était le bon choix — il a permis de prouver la fidélité, et il tourne. Mais il
-se lit comme de l'assembleur écrit en Java, et chaque champ y est un nombre.
+| dépôt | ce que c'est |
+| --- | --- |
+| [**ab3d2-tkg-java**](https://github.com/guillaumemonet/ab3d2-tkg-java) | le **portage littéral** : l'assembleur traduit instruction par instruction, RAM plate de 68000, registres simulés. C'est l'**oracle**. |
+| [**ab3d2-tkg-rebirth**](https://github.com/guillaumemonet/ab3d2-tkg-rebirth) | le **remake** full 3D sous jMonkeyEngine, qui s'autorise à s'écarter. Il héberge aussi les extracteurs qui produisent le corpus de référence. |
+| **ab3d2-tkg-full-java** *(ici)* | la **conversion objet** : les mécaniques d'origine, exactement, mais écrites comme on les écrirait aujourd'hui. |
 
-Le [remake](../rebirth) prend l'autre extrême : une relecture moderne sous jMonkeyEngine, en
-vraie 3D, qui s'autorise à s'écarter.
+Le portage se lit comme de l'assembleur écrit en Java, et chaque champ y est un nombre. Le remake
+prend l'autre extrême. Ici, la voie du milieu : un secteur est un objet avec un sol, un plafond
+et des arêtes, pas un offset dans un bloc d'octets.
 
-Ici, la voie du milieu : **les mécaniques d'origine, exactement**, mais exprimées comme on les
-écrirait aujourd'hui. Un secteur est un objet avec un sol, un plafond et des arêtes, pas un
-offset dans un bloc d'octets.
-
-Le portage reste l'**oracle** : quand une règle est douteuse, c'est contre lui qu'on tranche —
-et au besoin contre l'assembleur (`../../ab3d2-tkg/ab3d2_source`).
+Quand une règle est douteuse, c'est contre le portage qu'on tranche — et au besoin contre
+l'assembleur d'origine.
 
 ---
 
@@ -32,15 +35,36 @@ et au besoin contre l'assembleur (`../../ab3d2-tkg/ab3d2_source`).
 1. **Aucune mémoire plate.** Pas de `Mem`, pas d'adresses globales. Chaque fichier d'origine est
    lu par un lecteur d'octets local et devient des objets.
 2. **Aucune émulation de registres.** Pas de boucle d'instructions, pas de drapeaux.
-3. **Une seule concession, assumée et isolée** : `M68k`. Les algorithmes d'origine *dépendent*
-   de la troncature à 16 bits, de l'écriture d'un mot dans un registre de 32, et du fait qu'une
+3. **Une seule concession, assumée et isolée** : `M68k`. Les algorithmes d'origine *dépendent* de
+   la troncature à 16 bits, de l'écriture d'un mot dans un registre de 32, et du fait qu'une
    division impossible laisse le registre **inchangé** au lieu de lever une exception. Changer
    cela change les trajectoires, pas seulement les arrondis.
 4. **Des noms, pas des nombres.** `zone.floor()`, pas `Mem.l(z + 2)`.
-5. **Immuable pour le niveau, mutable pour l'état de jeu.** Le fichier dit ce qui est posé et
-   où, une fois pour toutes ; ce qui change vit ailleurs.
+5. **Immuable pour le niveau, mutable pour l'état de jeu.** Le fichier dit ce qui est posé et où,
+   une fois pour toutes ; ce qui change vit ailleurs.
 6. **Aucune dépendance.** Gson ne sert qu'aux outils de validation ; le jeu lui-même n'importe
-   rien.
+   rien d'autre que le JDK.
+
+---
+
+## En images
+
+![Un monstre, et il mord](docs/img/full-monstre.png)
+
+*Les monstres ne sont pas des figurants : celui-ci a marché jusqu'au joueur et l'a touché —
+l'énergie est tombée à 185. L'IA, les trajectoires et les dégâts sont ceux de 1996, vérifiés
+image par image contre le portage.*
+
+![Une salle du niveau E](docs/img/full-salle.png)
+![Un couloir organique](docs/img/full-organique.png)
+
+*Le niveau E : murs à sous-tuiles, sol dégradé, deux caisses de munitions. Puis le niveau I, où
+la texture couvre le mur entier d'un seul tenant.*
+
+![De l'acide](docs/img/full-acide.png)
+![Un tunnel](docs/img/full-tunnel.png)
+
+*L'eau animée et ses boucles ; et un tunnel du niveau B, deux monstres au fond.*
 
 ---
 
@@ -48,65 +72,177 @@ et au besoin contre l'assembleur (`../../ab3d2-tkg/ab3d2_source`).
 
 | morceau | état |
 | --- | --- |
-| lecture des niveaux | **fait** — 16 niveaux, 0 écart |
+| lecture des 16 niveaux | **fait** — 0 écart |
 | base de liaison (`test.lnk`) | **fait** — 0 écart |
-| simulation : joueur, IA, tirs, objets, portes | **fait** — rapatriée du remake |
-| boucle de jeu | **fait** — `sim.World` |
-| vue de dessus jouable | **fait** — `view.Play` |
-| rastériseur logiciel | à faire (~10 000 lignes dans le portage) |
+| simulation : joueur, IA, tirs, objets, portes, ascenseurs | **fait** |
+| rastériseur logiciel : murs, sols, ciel, eau, sprites, modèles | **fait** |
+| éclairage : secteurs, lampes dynamiques, dégradés | **fait** |
+| tableau de bord, arme en main, messages | **fait** |
+| audio : moteur Paula, bruitages, musique | **fait** |
+| boucle de jeu jouable | **fait** — `gradle game` |
 | menu et enchaînement des niveaux | à faire |
-| audio (Paula) | à faire |
+| mode deux joueurs | à faire |
+
+Environ **36 500 lignes** de Java, réparties ainsi :
+
+| paquet | fichiers | lignes | ce qu'il fait |
+| --- | ---: | ---: | --- |
+| `level` | 11 | 2 249 | lire un niveau : secteurs, arêtes, textures, palettes, modèles |
+| `defs` | 2 | 699 | la base de liaison : armes, monstres, objets |
+| `sim` | 30 | 11 107 | la simulation : joueur, IA, tirs, collisions, portes |
+| `render` | 35 | 10 645 | le rastériseur logiciel au complet |
+| `sound` | 5 | 2 108 | le moteur audio Paula et le lecteur de musique |
+| `view` | 7 | 1 870 | la fenêtre, la boucle, la prise d'image |
+| racine | 34 | 7 814 | `M68k`, les lecteurs d'octets, et les vérificateurs |
 
 ---
 
-## Jouer, et vérifier
+## Jouer
 
 ```bash
-gradle play -Plevel=c     # une fenêtre, vue de dessus, 50 images/s
-gradle checkAll           # les six vérifications
+gradle game                   # le jeu, niveau A
+gradle game -Plevel=c         # un autre niveau (a..p)
+gradle game -Pscale=4         # une fenêtre plus grande
+gradle game -Pmute            # sans le son
 ```
 
-Dans la fenêtre : flèches ou **ZQSD** pour aller, **A**/**E** pour tourner, **ESPACE** tirer,
-**F** actionner (la touche qui ouvre les portes à serrure), **1-9** l'arme, **TAB** la caméra,
-**+/-** le zoom. Les hauteurs ne s'y voient pas : un secteur à deux étages s'y montre à plat.
+| touche | action |
+| --- | --- |
+| flèches, **ZQSD** | marcher |
+| **A** / **E**, flèches gauche et droite | tourner |
+| **MAJ** + direction | pas de côté |
+| **CTRL** | courir |
+| **ESPACE** | tirer |
+| **ALT** + **ESPACE** | sauter |
+| **C** | s'accroupir |
+| **F** | actionner — la touche qui ouvre les portes à serrure |
+| **1**–**9** | changer d'arme |
 
-Les six vérifications, chacune lançable seule :
+Deux réglages d'éclairage, pour voir ce que le dégradé apporte : `-Psimple` éteint celui des
+murs, `-Pflatshade` celui des sols.
+
+```bash
+gradle shot -Plevel=o -Pzone=55 -Pangle=7168 -Pframes=30 -Pout=une_image.png
+gradle play -Plevel=c         # la simulation seule, vue de dessus
+```
+
+---
+
+## Vérifier
+
+```bash
+gradle checkAll               # les 47 tâches, d'un coup
+```
+
+Chacune se lance seule. Elles tombent en cinq familles.
+
+**Le fichier et la simulation**
 
 | tâche | ce qu'elle éprouve |
 | --- | --- |
 | `levelCheck` | les 16 niveaux, champ par champ |
 | `defsCheck` | la base de liaison, champ par champ |
-| `moveTest` | le déplacement, les portes, le ramassage |
-| `alienTest` | l'IA des monstres |
-| `shotTest` | le tir et les projectiles |
-| `worldTest` | la boucle **entière**, 1 000 images sur chaque niveau |
+| `moveTest` `alienTest` `shotTest` | le déplacement, l'IA, le tir, sur les 16 niveaux |
+| `moveCheck` | où `MoveObject` arrête, fait glisser, change de secteur |
+| `animsCheck` | les portes et les ascenseurs, image par image |
+| `objectLifeCheck` | la vie des objets : les quatre familles |
+| `blastCheck` | le souffle d'une explosion : dégâts, reculs, flammes |
+| `hitCheck` | le coup au but : qui une balle touche, et ce qu'elle lui laisse |
+| `shootCheck` | le tir instantané : le dé de précision et le recul |
+| `bitsCheck` | la gerbe de morceaux qu'une entité laisse en mourant |
+| `worldTest` `gameTest` | la boucle **entière**, mille images sur chaque niveau |
 
-Les harnais acceptent `-Plevel=a` (ou `all`).
+**La mise en scène**
 
-### Contre quoi on valide
+| tâche | ce qu'elle éprouve |
+| --- | --- |
+| `xformCheck` | la transformation de vue, point par point |
+| `zoneOrderCheck` `zoneGraphCheck` | l'ordre de dessin des secteurs |
+| `clipCheck` `edgePvsCheck` `visEdgesCheck` | la fenêtre de dessin, le PVS par arête, les ouvertures visibles |
 
-Le corpus de référence est celui qu'extrait le remake, lui-même produit en lisant la mémoire du
-portage après chargement. Si la lecture **sans mémoire plate** retrouve les mêmes valeurs, c'est
-que la conversion est juste.
+**Les pixels**
 
-`alienTest` et `shotTest` donnent des résultats **identiques** à ceux du remake sur les seize
-niveaux — mêmes trajectoires, mêmes images, mêmes tirs, mêmes dégâts.
+| tâche | ce qu'elle éprouve |
+| --- | --- |
+| `wallCheck` `flatCheck` | la projection des murs, des sols et des plafonds |
+| `wallPaintCheck` `gourWallPaintCheck` | le placage des murs, colonne par colonne |
+| `flatPaintCheck` `gourFlatPaintCheck` | le placage des sols, tranche par tranche |
+| `waterPaintCheck` `skyCheck` | l'eau animée et le ciel |
+| `lightCheck` | l'éclairage, secteur par secteur et point par point |
 
-Trois écarts relevés tiennent à la référence et non à la lecture : son compteur d'arêtes lit
-au-delà de la table, ses messages ont subi un repli à 40 colonnes, et elle perd le dernier
-sommet de chaque sol et de chaque plafond. Les outils les signalent en « remarques ».
+**Les choses**
+
+| tâche | ce qu'elle éprouve |
+| --- | --- |
+| `objXformCheck` `spriteOrderCheck` | la rotation et le tri des objets |
+| `bitmapCheck` `bitmapPaintCheck` `bitmapLitCheck` | la pose et les pixels d'un sprite |
+| `objAnimCheck` `alienAnimCheck` | l'apparence : ce qu'un pas d'animation donne à voir |
+| `glareCheck` `brightRingsCheck` | le miroitement, et les anneaux de lumière en seize directions |
+| `modelPointsCheck` `modelFacesCheck` `modelEdgesCheck` `modelPixelsCheck` | les modèles en relief, des points aux pixels |
+
+**Le reste**
+
+| tâche | ce qu'elle éprouve |
+| --- | --- |
+| `hudCheck` `gunHoldCheck` | le tableau de bord, et où l'arme se pose à chaque image |
+| `paulaCheck` `musicCheck` | le moteur audio et le lecteur de musique, registre par registre |
+
+Les harnais de simulation acceptent `-Plevel=a` (ou `all`).
+
+---
+
+## Comment on vérifie
+
+C'est la pièce maîtresse du projet, et elle mérite un mot.
+
+Une conversion ne se prouve pas en la relisant. Elle se prouve **différentiellement**, en trois
+temps :
+
+1. une **sonde** est posée dans le portage littéral — quelques lignes qui relèvent ce que le code
+   d'origine calcule vraiment, à l'endroit exact où il le calcule ;
+2. un **extracteur**, dans le remake, fait tourner le portage et écrit le relevé en JSON ;
+3. un **vérificateur**, ici, rejoue chaque cas sans mémoire plate et compare.
+
+La comparaison n'est pas statistique : elle est **exacte**, champ par champ et pixel par pixel.
+Un seul écart fait échouer la tâche.
+
+Le corpus est construit pour mordre. On n'y met pas des valeurs commodes mais des **cas aux
+bornes** : la distance où le tir bascule, l'angle où un mur disparaît, la graine qui donne
+exactement la valeur limite. Plusieurs familles ont été soumises à une **campagne de mutation** —
+on abîme volontairement le code converti, et toute mutation qui survit signale un trou du corpus,
+qu'on bouche.
+
+C'est ce procédé qui a mis au jour, dans le code d'origine, des choses qu'on ne trouve pas en
+lisant : une multiplication de mots qui déborde dans le filtre de visée verticale, un point
+représentatif de modèle qui désigne un rang hors du modèle et lit ce que l'objet précédent a
+laissé dans la table de travail, un drapeau de vue inversé. Aucune n'est corrigée : **on porte ce
+que le jeu fait, pas ce qu'il aurait dû faire.**
 
 ---
 
 ## Les données
 
-Deux provenances, deux racines.
+Rien n'est inventé, et rien d'exécutable n'est fourni. Deux provenances, deux racines.
 
-- `medias/original/` (cherché en remontant) — ce qui vient des disquettes : les niveaux et
-  `Includes/test.lnk`.
+- `medias/original/` (cherché en remontant) — ce qui vient des cinq disquettes : les niveaux et
+  `Includes/test.lnk`. **Il faut posséder le jeu.**
 - `data/incbin/` — les tables que l'assembleur incorporait à l'exécutable. La table de sinus en
   fait partie, et on la **lit** plutôt que de la recalculer : les trajectoires dépendent de ses
   arrondis.
+
+Le corpus de référence est celui qu'extrait le remake. Si la lecture **sans mémoire plate**
+retrouve les mêmes valeurs, c'est que la conversion est juste.
+
+---
+
+## Construire
+
+JDK 17 ou plus, et Gradle. Aucune autre dépendance pour le jeu.
+
+```bash
+gradle build
+gradle game
+```
 
 ---
 
