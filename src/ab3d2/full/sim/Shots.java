@@ -38,9 +38,13 @@ import java.util.List;
  * de la distance ({@link #lesPlombs}), et {@code plr1_HitscanSucceded} pose les degats et le
  * recul ({@link #reculX}). Voir {@link ShootCheck} : 3367 coups, quatre niveaux, 0 ecart.
  *
- * <p>Pas porte : {@code ComputeBlast} appele d'ici et l'illumination des points au passage
- * ({@code anim_BrightenPoints}) ; la dispersion verticale aleatoire du rayon sans cible
- * ({@code GetRand & $fff - $800}).
+ * <p>Note PERIMEE, corrigee : {@code ComputeBlast} et l'illumination des points au passage
+ * ({@code anim_BrightenPoints}) sont portes et branches depuis longtemps — {@link #computeBlast}
+ * est appele a l'impact et verifie par {@code blastCheck} ; {@code dynLight.brighten} suit le
+ * projectile en vol. Le javadoc disait encore le contraire.
+ *
+ * <p>Reste hors portage, et c'est un choix : la dispersion verticale aleatoire du rayon sans
+ * cible — voir {@link #hitscanNoTarget}.
  */
 public final class Shots {
 
@@ -417,8 +421,23 @@ public final class Shots {
                 (double) s16(newX - oldX) * s16(newX - oldX)
                         + (double) s16(newZ - oldZ) * s16(newZ - oldZ)));
         int newY = oldY - Math.round(aimSlope * 128f * stepDist);
-        // Le jeu disperse aussi le tir verticalement (GetRand & $fff - $800) ; sans generateur
-        // commun on ne reproduit pas cette dispersion.
+        // LA DISPERSION VERTICALE N'EST PAS REPRISE, et la raison a change.
+        //
+        // Le jeu fait ici « jsr GetRand ; and.w #$fff,d0 ; sub.w #$800,d0 ; add.l d0,d1 » : le
+        // point d'arrivee du rayon monte ou descend de deux mille unites au hasard. L'ancienne
+        // note invoquait l'absence d'un generateur commun ; il y en a un depuis
+        // (voir lesPlombs), donc ce n'est plus l'obstacle.
+        //
+        // La vraie raison est que ce tirage appartient au tir A PLAT. Le jeu n'arrive ici que
+        // s'il n'a RETENU AUCUNE CIBLE, et son rayon part alors horizontalement : la dispersion
+        // est ce qui lui donne une chance de marquer un mur ailleurs qu'a hauteur d'oeil. Le
+        // portage, lui, pointe le rayon ou le joueur vise — c'est l'ecart assume ci-dessus.
+        // Ajouter la dispersion par-dessus une visee reelle ne restituerait rien : elle
+        // rendrait au hasard ce que la visee vient justement d'oter.
+        //
+        // Elle coute aussi un tirage : le jeu en consomme UN ici et AUCUN dans
+        // .fire_hitscanned_bullets, alors que le portage ne connait qu'un seul chemin. Le
+        // reprendre decalerait le generateur de shootCheck, qui compare son etat apres coup.
 
         move.oldx = s16(oldX);
         move.oldz = s16(oldZ);
