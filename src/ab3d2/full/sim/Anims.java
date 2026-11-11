@@ -125,9 +125,36 @@ public final class Anims {
     public int liftLocks;
 
     // ---- sorties vers le joueur ----
-    /** plr1_StoodOnLift_b. */
+    /**
+     * {@code plr1_StoodOnLift_b}.
+     *
+     * <p>LE JOUEUR DEUX N'EST PAS MODELISE, et ce n'est pas une approximation : c'est prouve.
+     * Le jeu tient un second drapeau, {@code plr2_StoodOnLift_b}, pose par le meme
+     * {@code seq} (newanims.s:1015) et relu quatre fois. Deux de ces lectures sont gardees par
+     * {@code tst.b Plr2_TmpSpcTap_b}, mais les deux autres — {@code lift1} (newanims.s:1203) et
+     * {@code rlift1} (1217) — ne le sont PAS : un ascenseur y part vers sa butee des que l'un
+     * OU l'autre des joueurs se tient dessus, sans qu'aucun test de mode n'intervienne.
+     *
+     * <p>Il est pourtant toujours faux en solo, et par un seul mot. Le prologue solo pointe
+     * {@code Plr2_ZonePtr_l} sur {@code BollocksRoom} (hires.s:1186), un secteur leurre dont le
+     * premier mot vaut <b>moins un</b> (hires.s:2257) ; la comparaison {@code cmp.w (a3),d5}
+     * l'oppose a l'identifiant du secteur de l'ascenseur. Mesure sur les seize niveaux :
+     * <b>2385 secteurs, aucun d'identifiant negatif, le plus petit vaut zero</b>. C'est la meme
+     * convention que {@code FREE_ENT}, qui marque un emplacement libre par un secteur negatif :
+     * moins un est le « nulle part » du jeu, et aucun ascenseur ne peut s'y trouver.
+     */
     public boolean playerStoodOnLift;
-    /** Plr1_FloorSpd_w : vitesse du sol mobile sous le joueur. */
+    /**
+     * {@code Plr1_FloorSpd_w} : vitesse du sol mobile sous le joueur.
+     *
+     * <p>PIEGE DE METHODE. Cherche par son nom absolu, ce mot semble ECRIT DEUX FOIS ET LU
+     * NULLE PART — il n'apparait qu'en newanims.s:798 et 1010. Il est pourtant bien relu, deux
+     * fois, sous sa forme RELATIVE AU BLOC JOUEUR : {@code move.w PlrT_FloorSpd_w(a0),d2}
+     * (modules/player.s:824 et 937), ou {@code a0} porte la base du joueur. Un global de ce jeu
+     * ne peut donc pas etre declare mort sur le seul grep de son nom : il faut aussi chercher
+     * la forme {@code XxxT_nom(aN)}. (Verifie apres coup : {@code Aud_ChannelPick_b} n'a, lui,
+     * aucun acces relatif — il est bien mort.)
+     */
     public int playerFloorSpd;
     /**
      * Zone_CurrentDoorState_w : un bit par porte, arme tant qu'elle n'est pas FERMEE.
@@ -541,6 +568,9 @@ public final class Anims {
             }
             return d1;
         } else if (lowerBits == 1) {                   // lift1
+            // tst.b plr1_StoodOnLift_b ; bne lift1b ; tst.b plr2_StoodOnLift_b ; bne lift1b :
+            // le jeu accepte l'UN OU L'AUTRE des joueurs, sans test de mode. Le second terme
+            // est inerte en solo — voir {@link #playerStoodOnLift} pour la preuve.
             liftSpeed = closingSpeed;
             return stoodOn ? 0x8000 : 0b100100000000;
         } else if (lowerBits < 3) {                    // lift2
@@ -564,6 +594,7 @@ public final class Anims {
             }
             return d1;
         } else if (raiseBits == 1) {                   // rlift1
+            // Meme chose qu'a lift1 : le second joueur y entre sans garde, et reste inerte.
             liftSpeed = openingSpeed;
             return stoodOn ? 0x8000 : 0b100100000000;
         } else if (raiseBits < 3) {                    // rlift2
