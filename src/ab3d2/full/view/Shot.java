@@ -93,6 +93,7 @@ public final class Shot {
         }
         World.Input intention = new World.Input();
         intention.forward = marche > 0;
+        intention.fire = Boolean.getBoolean("ab3d2.fire");
         for (int t = 0; t < Math.max(tours, marche); t++) {
             world.frame(intention);
         }
@@ -149,7 +150,7 @@ public final class Shot {
                     viewer.lights().zoneBright(quel, false),
                     viewer.lights().zoneBright(quel, true));
         }
-        System.out.printf("  %d secteurs tries%n", viewer.zones());
+        System.out.printf("  %d secteurs tries, %d projectiles%n", viewer.zones(), viewer.tirs);
         System.out.println("  " + viewer.tally());
 
         // -Pshimmer=N : regarder l'image a travers la table de dematerialisation, comme la

@@ -267,6 +267,9 @@ public final class Viewer {
     /** Les portes de ce niveau, montees a la premiere image qui en a besoin. */
     private Portes portes;
 
+    /** Combien de projectiles l'image en cours porte. */
+    public int tirs;
+
     /** Les luminosites du moment : la boucle les branche sur la simulation. */
     public Lights lights() {
         return lights;
@@ -540,6 +543,7 @@ public final class Viewer {
         vivants = 0;
         accroches = 0;
         armeVue = false;
+        tirs = 0;
         for (Level.Entity ent : lvl.entities()) {
             int rang = choses.size();
             // EntT_CurrentAngle_w est le MEME champ que l'angle du fichier : la simulation ne
@@ -563,6 +567,31 @@ public final class Viewer {
                     armeVue = true;
                     continue;
                 }
+            }
+
+            // LES PROJECTILES. Leur emplacement de pool EST un rang d'entite : le jeu les
+            // dessine avec tout le reste, dans le meme tri par profondeur. Un emplacement
+            // libre garde son secteur a -1, et le tri ne le voit pas — exactement comme une
+            // accroche de monstre liberee.
+            int balle = ab3d2.full.sim.Shots.poolSlot(lvl, rang);
+            if (balle >= 0) {
+                ab3d2.full.sim.Shots.Shot b = world.shots.shots().get(balle);
+                if (!b.active || b.zone < 0) {
+                    choses.add(new ObjectView.Thing(ent.x(), ent.z(), -1, -1,
+                            ent.upperZone(), false, ent.point()));
+                    apparences.add(new Bitmap.Thing(ent.point(), 0, 0, 0, 0, 0, 0, 0, 0, 0));
+                    continue;
+                }
+                choses.add(new ObjectView.Thing(b.x >> 16, b.z >> 16, b.zone, b.zone,
+                        b.upperZone ? 0xFF : 0, false, ent.point()));
+                // Le halo se reconnait au SIGNE du mot qui tient le rang de feuille : c'est
+                // la que ItsABullet range sa taille niee (8(a0), qui recouvre 9(a0)).
+                int feuille = b.glareSize != 0 ? b.glareSize & 0xFFFF : b.sheet & 0xFF;
+                apparences.add(new Bitmap.Thing(ent.point(), b.brightness, b.heightWord,
+                        (b.size >>> 8) & 0xFF, b.size & 0xFF, feuille,
+                        b.additive ? 6 : 0, b.frame & 0xFF, 0, 0));
+                tirs++;
+                continue;
             }
 
             Aliens.Alien monstre = monstres.get(rang);

@@ -88,6 +88,14 @@ public final class Shots {
         public int frame;                // 11(a0) : frame
         public boolean additive;         // 10(a0) = 6 : melange additif
         public int glareSize;            // 8(a0) : taille du halo (graphicType == 1)
+        /**
+         * 6(a0) : la DEMI-TAILLE du sprite, haute et basse dans le meme mot.
+         *
+         * <p>Les trois branches de {@code ItsABullet} l'ecrivent — bitmap, halo et bitmap
+         * additif — et c'est elle qui donne au projectile sa taille a l'ecran. Elle manquait
+         * ici tant que personne ne dessinait les projectiles.
+         */
+        public int size;
         public int brightness;           // anim_Brightness_w : lumiere emise (non portee)
     }
 
@@ -180,6 +188,29 @@ public final class Shots {
 
     public List<Shot> shots() {
         return pool;
+    }
+
+    /**
+     * LE RANG D'ENTITE qu'occupe un emplacement du pool, ou -1.
+     *
+     * <p>Un projectile n'est pas une chose a part : il occupe un emplacement de la MEME table
+     * d'entites que les monstres et le decor, et c'est pour cela que le jeu le dessine avec
+     * tout le reste, dans le meme tri par profondeur. Les deux pools se suivent — celui du
+     * joueur puis celui des monstres — et leurs rangs sont ecrits dans l'en-tete du niveau.
+     *
+     * @param rang un rang dans la table d'entites
+     * @return l'emplacement de pool correspondant, ou -1 si ce rang n'est pas un projectile
+     */
+    public static int poolSlot(ab3d2.full.level.Level lvl, int rang) {
+        int plr = lvl.playerShotEntity();
+        if (plr >= 0 && rang >= plr && rang < plr + PLR_POOL) {
+            return rang - plr;
+        }
+        int ali = lvl.alienShotEntity();
+        if (ali >= 0 && rang >= ali && rang < ali + ALIEN_POOL) {
+            return PLR_POOL + (rang - ali);
+        }
+        return -1;
     }
 
     /**
@@ -1745,6 +1776,7 @@ public final class Shots {
         Database.AnimStep st = data.get(index);
         s.glareSize = 0;                               // move.l #0,8(a0)
         s.additive = false;
+        s.size = st.word2();                           // move.w 2(a1,d1.w),6(a0)
         if (graphicType < 1) {                         // .bitmapgraph
             s.sheet = st.gfx();
             s.frame = st.frame();
