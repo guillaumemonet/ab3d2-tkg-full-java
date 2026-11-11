@@ -45,6 +45,7 @@ public final class Data {
     private static TextureMaps textureMaps;
     private static byte[] guff;
     private static byte[] shimmer;
+    private static final Map<String, byte[]> MENU = new HashMap<>();
     private static byte[] wellDone;
     private static byte[] gameOver;
     private static WaterFrames water;
@@ -66,6 +67,17 @@ public final class Data {
     /** La racine des donnees depackees des disquettes. */
     public static Path media() {
         return Path.of(System.getProperty("ab3d2.media", "medias/original"));
+    }
+
+    /**
+     * Ou le jeu ECRIT : les sauvegardes et les reglages.
+     *
+     * <p>Les deux autres racines sont en lecture seule — les disquettes et le depot. Celle-ci
+     * doit etre inscriptible, et ce n'est pas la meme chose selon qu'on tourne depuis les
+     * sources, depuis une application empaquetee ou sur un telephone. D'ou le reglage.
+     */
+    public static Path saveDir() {
+        return Path.of(System.getProperty("ab3d2.save", "run"));
     }
 
     /** La racine des tables livrees avec le depot. */
@@ -335,6 +347,23 @@ public final class Data {
         } catch (IOException e) {
             throw new UncheckedIOException("module introuvable : " + file, e);
         }
+    }
+
+    /**
+     * Un fichier du MENU : son fond, sa police, ses credits, ses trois palettes.
+     *
+     * <p>Ces six fichiers sont des {@code incbin} comme les autres — l'assembleur les
+     * incorporait a l'executable — et ils vivent donc avec le depot, pas avec les disquettes.
+     */
+    public static synchronized byte[] menu(String nom) {
+        return MENU.computeIfAbsent(nom, k -> {
+            Path file = local().resolve("incbin").resolve("menu").resolve(k);
+            try {
+                return java.nio.file.Files.readAllBytes(file);
+            } catch (IOException e) {
+                throw new UncheckedIOException("fichier de menu introuvable : " + file, e);
+            }
+        });
     }
 
     /** Les huit images de l'ondulation de l'eau. */

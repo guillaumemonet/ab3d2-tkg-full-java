@@ -259,6 +259,7 @@ tasks.register('game', JavaExec) {
     description = "Le jeu : la simulation et le rendu, cinquante fois par seconde"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.full.view.Game'
+    systemProperty 'ab3d2.save', new File(projectDir, 'run').absolutePath
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
     systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
@@ -439,6 +440,33 @@ tasks.register('waterPaintCheck', JavaExec) {
     systemProperty 'ab3d2.waterpaint', new File(refRoot, 'waterpaint.json').absolutePath
 }
 
+tasks.register('menuShot', JavaExec) {
+    group = 'application'
+    description = "Une image du menu, apres un nombre d'images donne"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.MenuShot'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.save', new File(projectDir, 'build/run').absolutePath
+    if (project.hasProperty('frames')) { systemProperty 'ab3d2.frames', project.property('frames') }
+    if (project.hasProperty('down')) { systemProperty 'ab3d2.down', project.property('down') }
+    if (project.hasProperty('enter')) { systemProperty 'ab3d2.enter', project.property('enter') }
+    if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
+    systemProperty 'ab3d2.out', project.hasProperty('out')
+            ? project.property('out') : new File(projectDir, 'build/menu.png').absolutePath
+}
+
+tasks.register('menuCheck', JavaExec) {
+    group = 'verification'
+    description = "Le menu : bruit, fond, police, feu et palette, confrontes au portage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.MenuCheck'
+    maxHeapSize = '2g'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.menufx', new File(refRoot, 'menufx.json').absolutePath
+}
+
 tasks.register('campaignTest', JavaExec) {
     group = 'verification'
     description = "La partie : la sortie, la mort, et ce qu'on emporte d'un niveau a l'autre"
@@ -599,5 +627,5 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest', 'menuCheck'
 }
