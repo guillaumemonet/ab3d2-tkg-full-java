@@ -626,6 +626,14 @@ public record Level(
             int zone,
             int openBits,
             int closeBits,
+            /**
+             * Ou se trouve, dans le flux graphique, la SURFACE que ce mecanisme deplace.
+             *
+             * <p>Une porte y ecrit la hauteur de son plafond — le dessous du battant — et un
+             * ascenseur celle de son plancher. C'est un enregistrement de surface ordinaire,
+             * que le jeu reecrit a chaque image pendant le mouvement.
+             */
+            int graphics,
             List<Wall> walls) {
 
         /** Vrai si la porte s'ouvre d'elle-meme, sans que le joueur ait a agir. */

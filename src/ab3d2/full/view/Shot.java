@@ -150,7 +150,8 @@ public final class Shot {
                     viewer.lights().zoneBright(quel, false),
                     viewer.lights().zoneBright(quel, true));
         }
-        System.out.printf("  %d secteurs tries, %d projectiles%n", viewer.zones(), viewer.tirs);
+        System.out.printf("  %d secteurs tries, %d projectiles, %d pans deformes sur %d%n",
+                viewer.zones(), viewer.tirs, viewer.deformes(), viewer.deformables());
         System.out.println("  " + viewer.tally());
 
         // -Pshimmer=N : regarder l'image a travers la table de dematerialisation, comme la

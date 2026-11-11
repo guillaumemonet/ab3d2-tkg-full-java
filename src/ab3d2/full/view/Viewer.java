@@ -229,6 +229,9 @@ public final class Viewer {
 
         /** Pour chaque pan deforme : ou il est dans le flux, sa base de texture, son mecanisme. */
         private final java.util.Map<Integer, int[]> parOffset = new java.util.HashMap<>();
+
+        /** Pour chaque SURFACE deplacee : son mecanisme, et s'il s'agit d'une porte. */
+        private final java.util.Map<Integer, int[]> parSurface = new java.util.HashMap<>();
         private final ab3d2.full.sim.Anims anims;
 
         Portes(Level lvl, ab3d2.full.sim.Anims anims) {
@@ -239,6 +242,7 @@ public final class Viewer {
 
         private void ranger(java.util.List<Level.Liftable> liste, boolean porte) {
             for (int i = 0; i < liste.size(); i++) {
+                parSurface.put(liste.get(i).graphics(), new int[] {i, porte ? 1 : 0});
                 for (Level.Liftable.Wall w : liste.get(i).walls()) {
                     // {offset du pan, base de sa texture, rang du mecanisme, porte ou non}
                     parOffset.put(w.graphics(),
@@ -247,25 +251,64 @@ public final class Viewer {
             }
         }
 
+        /** Combien de pans la derniere image a deformes, et combien le niveau en compte. */
+        int deformes;
+
+        @Override
+        public Level.Flat apply(Level.Flat flat) {
+            int[] d = parSurface.get(flat.offset());
+            if (d == null) {
+                return flat;                           // la plupart des surfaces ne bougent pas
+            }
+            deformes++;
+            boolean porte = d[1] != 0;
+            int position = porte ? anims.doorPosition(d[0]) : anims.liftPosition(d[0]);
+            return new Level.Flat(flat.tag(), flat.offset(), flat.kind(),
+                    ab3d2.full.sim.Anims.deformSurface(position, porte),
+                    flat.outline(), flat.scale(), flat.tile(), flat.light());
+        }
+
         @Override
         public Level.Wall apply(Level.Wall wall) {
             int[] d = parOffset.get(wall.offset());
             if (d == null) {
                 return wall;                           // la plupart des pans ne bougent pas
             }
-            int position = d[3] != 0 ? anims.doorPosition(d[2]) : anims.liftPosition(d[2]);
-            int bas = ab3d2.full.sim.Anims.deformBottom(position);
+            deformes++;
+            boolean porte = d[3] != 0;
+            int position = porte ? anims.doorPosition(d[2]) : anims.liftPosition(d[2]);
+            // LA MEME VALEUR, MAIS PAS AU MEME ENDROIT, et c'est tout l'ecart entre les deux
+            // mecanismes :
+            //
+            //   DoorRoutine : move.l d3,24(a1)   -> le BAS du pan   (un battant qui remonte)
+            //   LiftRoutine : move.l d3,20(a1)   -> le HAUT du pan  (un plancher qui monte)
+            //
+            // Ecrire le bas des deux cotes fait bouger la porte et laisse l'ascenseur sur
+            // place : son plancher monte, ses murs restent.
+            int borne = ab3d2.full.sim.Anims.deformBottom(position);
             int texture = (d[1] + ab3d2.full.sim.Anims.deformTexture(position)) & 0xFFFF;
             return new Level.Wall(wall.tag(), wall.offset(), wall.leftPoint(),
                     wall.rightPoint(), wall.leftSlot(), wall.rightSlot(), wall.length(),
                     wall.fromTile(), texture, wall.texture(), wall.heightMask(),
-                    wall.heightShift(), wall.widthMask(), wall.brightRow(), wall.top(),
-                    bas, wall.brightOffset(), wall.otherZone());
+                    wall.heightShift(), wall.widthMask(), wall.brightRow(),
+                    porte ? wall.top() : borne,
+                    porte ? borne : wall.bottom(),
+                    wall.brightOffset(), wall.otherZone());
         }
     }
 
     /** Les portes de ce niveau, montees a la premiere image qui en a besoin. */
     private Portes portes;
+
+    /** Combien de pans de porte ou d'ascenseur la derniere image a deformes. */
+    public int deformes() {
+        return portes == null ? -1 : portes.deformes;
+    }
+
+    /** Combien de pans le niveau declare comme deformables. */
+    public int deformables() {
+        return portes == null ? -1 : portes.parOffset.size();
+    }
 
     /** Combien de projectiles l'image en cours porte. */
     public int tirs;
@@ -383,6 +426,7 @@ public final class Viewer {
         if (portes == null) {
             portes = new Portes(lvl, world.anims);
         }
+        portes.deformes = 0;
         peintre.deform(portes);
         peintre.eye(x, z, eye, angle, Data.sinCos());
         things(world);

@@ -86,6 +86,24 @@ public final class Anims {
         return (-M68k.asrw(position, 2)) & 255;
     }
 
+    /**
+     * LA HAUTEUR que ce mecanisme impose a la SURFACE qu'il deplace.
+     *
+     * <p>Les deux ne l'ecrivent pas de la meme facon, et c'est l'une des asymetries les plus
+     * surprenantes du moteur :
+     *
+     * <ul>
+     *   <li>une PORTE y met la position BRUTE ({@code move.w d3,2(a1)}, avant tout decalage) ;
+     *   <li>un ASCENSEUR y met {@code (position >> 2) << 2}, c'est-a-dire la meme position
+     *       arrondie au multiple de quatre inferieur ({@code asr.w #2 ; asl.w #2}).
+     * </ul>
+     *
+     * <p>Rien ne le justifie ailleurs dans le code. On le porte tel quel.
+     */
+    public static int deformSurface(int position, boolean porte) {
+        return porte ? position : (M68k.asrw(position, 2) << 2);
+    }
+
     /** Position brute d'une porte (le mot que le jeu ecrit dans les murs qu'elle deforme). */
     public int doorPosition(int i) {
         return i >= 0 && i < doorPos.length ? doorPos[i] : 0;

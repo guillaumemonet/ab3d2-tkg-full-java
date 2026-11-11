@@ -692,6 +692,7 @@ public final class LevelReader {
                     graph.s16(at + 14), graph.s16(at + 16), graph.s16(at + 18),
                     graph.s16(at + 20), graph.s16(at + 22), graph.s16(at + 24),
                     graph.s16(at + 30), graph.u8(at + 34), graph.u8(at + 35),
+                    graph.s32(at + 26),            // la surface que le mecanisme deplace
                     List.copyOf(walls)));
             at = w + 2;                              // saute le terminateur de la liste de murs
         }

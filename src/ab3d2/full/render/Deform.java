@@ -35,6 +35,25 @@ public interface Deform {
      */
     Level.Wall apply(Level.Wall wall);
 
+    /**
+     * La surface telle qu'il faut la dessiner MAINTENANT.
+     *
+     * <p>Une porte deplace son PLAFOND — le dessous du battant, celui qu'on voit passer
+     * au-dessus de soi — et un ascenseur son PLANCHER. Sans cela, les cotes de la porte
+     * montent et sa face reste en bas.
+     */
+    Level.Flat apply(Level.Flat flat);
+
     /** Rien ne bouge : c'est ce que voient les harnais et la prise d'image statique. */
-    Deform NONE = wall -> wall;
+    Deform NONE = new Deform() {
+        @Override
+        public Level.Wall apply(Level.Wall wall) {
+            return wall;
+        }
+
+        @Override
+        public Level.Flat apply(Level.Flat flat) {
+            return flat;
+        }
+    };
 }

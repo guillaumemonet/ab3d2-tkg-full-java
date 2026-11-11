@@ -380,7 +380,10 @@ public final class ScenePainter implements Scene.Painter {
     }
 
     @Override
-    public void flat(Scene.Pass pass, Level.Flat f) {
+    public void flat(Scene.Pass pass, Level.Flat commande) {
+        // Le plafond d'une porte et le plancher d'un ascenseur bougent : on dessine la hauteur
+        // que la simulation vient d'arreter, pas celle du fichier.
+        Level.Flat f = deform.apply(commande);
         flat.room(pass.topOfRoom(), pass.bottomOfRoom(), pass.bright(), pass.leftClip(),
                 pass.rightClip(), pass.rootZone());
         flat.brights(lights.pointBrights(), Scene.flatBrightsAt(pass, f));
