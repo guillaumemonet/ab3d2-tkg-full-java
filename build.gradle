@@ -901,11 +901,25 @@ tasks.register('apk') {
             from new File(projectDir, 'data/incbin')
             into new File(staging, 'incbin')
         }
+        // Le dex et les tables se compressent ; resources.arsc, NON.
+        //
+        // Depuis Android 11, une application qui vise l'API 30 ou plus doit porter son
+        // resources.arsc STOCKE TEL QUEL et aligne sur quatre octets - le systeme le lit
+        // directement en memoire au lieu de le decompresser. aapt2 le stocke bien ainsi,
+        // mais une fusion d'archives ordinaire le RECOMPRESSE sans rien dire, et le
+        // telephone refuse alors l'installation avec un message qui ne parle que de
+        // compression. D'ou keepcompression, puis zipalign.
+        def brut = new File(apkWork, 'unsigned.apk')
+        brut.delete()
         apkOut.delete()
-        ant.zip(destfile: apkOut.absolutePath, basedir: staging.absolutePath, compress: true)
-        ant.zip(destfile: apkOut.absolutePath, update: true) {
+        ant.zip(destfile: brut.absolutePath, basedir: staging.absolutePath, compress: true)
+        ant.zip(destfile: brut.absolutePath, update: true, keepcompression: true) {
             zipfileset(src: base.absolutePath)
         }
+        providers.exec {
+            commandLine new File(buildTools, 'zipalign.exe').absolutePath,
+                '-p', '-f', '4', brut.absolutePath, apkOut.absolutePath
+        }.result.get().assertNormalExitValue()
 
         // La signature : sans elle, aucun telephone n'installe l'APK.
         def keystore = new File(apkWork, 'debug.keystore')
