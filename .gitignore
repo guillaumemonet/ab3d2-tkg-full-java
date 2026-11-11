@@ -3,3 +3,6 @@
 /bin/
 .idea/
 *.iml
+
+# un artefact de rendu avait echappe a la regle ancree sur la racine
+build/
