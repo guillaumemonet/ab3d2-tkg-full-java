@@ -358,6 +358,11 @@ public final class Viewer {
         peintre.gouraudFlats = oui;
     }
 
+    /** DIAG — le peintre, pour qui veut relever ses tranches de sol. */
+    public ab3d2.full.render.ScenePainter painter() {
+        return peintre;
+    }
+
     /**
      * Dessine une image.
      *

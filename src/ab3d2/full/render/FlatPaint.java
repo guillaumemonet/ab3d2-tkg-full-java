@@ -130,14 +130,6 @@ public final class FlatPaint {
     }
 
     /**
-     * Peint une tranche a l'ombrage INTERPOLE, et rend le nombre de pixels ecrits.
-     *
-     * <p>La rangee d'ombrage n'est plus fixe : elle part de {@link Flat.Span#leftBright} et
-     * avance de {@link Flat.Span#brightSpeed} a chaque pixel, en huit-huit. Le pointeur de
-     * table reste au debut du bloc des sols, et c'est la luminosite qui porte le deplacement —
-     * d'UNE rangee par niveau, la ou le rendu plat en saute deux.
-     */
-    /**
      * Peint une tranche d'EAU, et rend le nombre de pixels ecrits.
      *
      * <p>Aucune texture n'est lue : chaque pixel reprend celui qui est deja a l'ecran quelques
@@ -214,6 +206,17 @@ public final class FlatPaint {
      */
     public record Reflection(int glare, int lift, int pixels) { }
 
+    /**
+     * Peint une tranche a l'ombrage INTERPOLE, et rend le nombre de pixels ecrits.
+     *
+     * <p>La rangee d'ombrage n'est plus fixe : elle part de {@link Flat.Span#leftBright} et
+     * avance de {@link Flat.Span#brightSpeed} a chaque pixel, en huit-huit. Le pointeur de
+     * table reste au debut du bloc des sols, et c'est la luminosite qui porte le deplacement —
+     * d'UNE rangee par niveau, la ou le rendu plat en saute deux.
+     *
+     * <p>C'est la facon NORMALE de peindre un sol : {@code draw_GouraudFlatsSelected_b} vaut
+     * $FF des le demarrage, et seule l'eau l'eteint.
+     */
     public int paintGouraud(Flat.Span span) {
         int width = span.width();
         byte[] pixels = screen.pixels();

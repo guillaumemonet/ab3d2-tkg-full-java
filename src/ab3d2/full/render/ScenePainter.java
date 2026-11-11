@@ -134,6 +134,34 @@ public final class ScenePainter implements Scene.Painter {
     private int flatSpans;
 
     /**
+     * DIAG — les tranches de sol de l'image en cours, pour se comparer au portage.
+     *
+     * <p>Neuf nombres par tranche, dans l'ordre : la ligne, le bord gauche, la largeur, la
+     * luminosite de depart, son pas, la tuile, la rangee d'ombrage du rendu plat, puis les
+     * deux accumulateurs de texture — ou on lit, et de combien on avance.
+     *
+     * <p>C'est, aux noms pres, ce que {@code GourFloorPixels} releve de l'autre cote : la
+     * tache {@code shot -Pgourspans} et {@code levelTest -PgourSpans} s'impriment pareil, et
+     * se comparent ligne a ligne.
+     */
+    public final java.util.List<int[]> diagSpans = new java.util.ArrayList<>();
+
+    /** Arme {@link #diagSpans} et {@link #diagFlatList}. */
+    public boolean diagFlats;
+
+    /**
+     * DIAG — une ligne par SURFACE, la ou {@link #diagSpans} en donne une par tranche.
+     *
+     * <p>Dix nombres : l'offset du record, son genre, sa tuile, combien de tranches elle a
+     * rendu, combien de fois elle est sortie des tables, puis son etendue — haut, bas, si
+     * elle se dessine, sa premiere ligne balayee et leur nombre.
+     *
+     * <p>C'est ce qui dit, quand une surface manque a l'image, si elle a ete ECARTEE ou si
+     * elle a bien ete balayee sans rien produire.
+     */
+    public final java.util.List<int[]> diagFlatList = new java.util.ArrayList<>();
+
+    /**
      * @param screen le tampon ou tout se depose
      * @param view   la vue, deja tournee
      * @param lights les luminosites du moment
@@ -298,6 +326,8 @@ public final class ScenePainter implements Scene.Painter {
         wallStrips = 0;
         gourWallsDrawn = 0;
         flatSpans = 0;
+        diagSpans.clear();
+        diagFlatList.clear();
     }
 
     /** Combien de pans de l'image ont pris la voie du DEGRADE. */
@@ -402,10 +432,26 @@ public final class ScenePainter implements Scene.Painter {
         for (Flat.Span span : flat.spans()) {
             if (eau) {
                 flatPaint.paintWater(span, flat.above());
+            } else if (gouraudFlats) {
+                // draw_zone_graph.s:421 : move.b draw_GouraudFlatsSelected_b,draw_UseGouraudFlats_b
+                // pour un sol ou un plafond, et clr.b pour l'eau. La boucle texel est la meme
+                // des deux cotes ; ce qui change est D'OU vient la rangee d'ombrage — d'un
+                // pointeur fixe, ou de la luminosite qui avance a chaque pixel.
+                flatPaint.paintGouraud(span);
             } else {
                 flatPaint.paint(span);
             }
             flatSpans++;
+            if (diagFlats) {
+                diagSpans.add(new int[] {span.y(), span.left(),
+                    span.right() - span.left(), span.leftBright(), span.brightSpeed(),
+                    f.tile(), span.bright() * 512, span.texture(), span.step()});
+            }
+        }
+        if (diagFlats) {
+            diagFlatList.add(new int[] {f.offset(), f.kind().ordinal(), f.tile(),
+                flat.spans().size(), flat.offTable(), flat.diagTop(), flat.diagBottom(),
+                flat.diagDrawIt() ? 1 : 0, flat.diagFirst, flat.diagCount});
         }
         if (eau) {
             watersDrawn++;

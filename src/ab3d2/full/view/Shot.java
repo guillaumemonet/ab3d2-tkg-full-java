@@ -117,11 +117,16 @@ public final class Shot {
         // la piece d'a cote — ce qui donne des images trop claires ou trop sombres, et fait
         // soupconner le rendu a tort.
         viewer.lights().frame(zone);
+        // DIAG : -Pgourspans releve les tranches de sol, comme -PgourSpans cote portage.
+        viewer.painter().diagFlats = Boolean.getBoolean("ab3d2.gourspans");
         viewer.draw(world, x, z, zone, angle, hauteur);
         viewer.sound(world, x, z, angle);
         // L'habillage : le reticule, les messages, puis le bandeau du tableau de bord.
         viewer.overlay(world, 0);
 
+        System.out.printf("  [pose] xOff=%d zOff=%d yOff=%d ang=%d%n",
+                world.player.xOff, world.player.zOff, world.player.yOff,
+                world.player.angPos);
         System.out.printf("niveau %c, secteur %d (%d, %d), angle %d, oeil %d%n",
                 lettre, zone, x, z, angle, hauteur);
         System.out.printf("  %d choses animees, %d monstres vivants (%d qui pensent,"
@@ -149,6 +154,24 @@ public final class Shot {
             System.out.printf("  [secteur] luminosite bas=%d haut=%d%n",
                     viewer.lights().zoneBright(quel, false),
                     viewer.lights().zoneBright(quel, true));
+        }
+        if (viewer.painter().diagFlats) {
+            StringBuilder sb = new StringBuilder();
+            for (int[] t : viewer.painter().diagSpans) {
+                sb.append("[gourSpan] ").append(t[0]).append(' ').append(t[1])
+                  .append(' ').append(t[2]).append(' ').append(t[3])
+                  .append(' ').append(t[4]).append(' ').append(t[5])
+                  .append(' ').append(t[7]).append(' ').append(t[8])
+                  .append(System.lineSeparator());
+            }
+            System.out.print(sb);
+            System.out.println("[gourSpan] total " + viewer.painter().diagSpans.size());
+            for (int[] t : viewer.painter().diagFlatList) {
+                System.out.println("[gourFlat] offset=" + t[0] + " genre=" + t[1]
+                        + " tuile=" + t[2] + " tranches=" + t[3] + " horsTable=" + t[4]
+                        + " top=" + t[5] + " bottom=" + t[6] + " dessine=" + t[7]
+                        + " premiere=" + t[8] + " lignes=" + t[9]);
+            }
         }
         System.out.printf("  %d secteurs tries, %d projectiles, %d pans deformes sur %d%n",
                 viewer.zones(), viewer.tirs, viewer.deformes(), viewer.deformables());

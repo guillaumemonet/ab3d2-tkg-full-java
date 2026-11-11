@@ -303,6 +303,33 @@ public final class Flat {
         return offTable;
     }
 
+    /**
+     * DIAG — l'etendue que le contour a prise, avant tout recadrage.
+     *
+     * <p>Une surface absente de l'image l'est pour l'une de deux raisons, et ces quatre
+     * valeurs les separent : ou bien le contour ne s'est pas trace du tout, ou bien il s'est
+     * trace et le recadrage n'en a rien laisse.
+     */
+    public int diagTop() {
+        return top;
+    }
+
+    /** DIAG — voir {@link #diagTop()}. */
+    public int diagBottom() {
+        return bottom;
+    }
+
+    /** DIAG — vrai si une arete au moins s'est inscrite dans les tables. */
+    public boolean diagDrawIt() {
+        return drawIt;
+    }
+
+    /** DIAG — la premiere ligne balayee, apres recadrage. */
+    public int diagFirst;
+
+    /** DIAG — combien de lignes le balayage a parcourues. */
+    public int diagCount;
+
     /** Projette une surface horizontale et en tire ses tranches. */
     public void draw(Level.Flat flat) {
         spans.clear();
@@ -722,6 +749,8 @@ public final class Flat {
             }
         }
         int count = s16(last - first);
+        diagFirst = first;
+        diagCount = count;
         if (count <= 0) {
             return;
         }

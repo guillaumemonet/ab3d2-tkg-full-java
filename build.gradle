@@ -290,6 +290,7 @@ tasks.register('shot', JavaExec) {
     mainClass = 'ab3d2.full.view.Shot'
     systemProperty 'ab3d2.simple', project.hasProperty('simple') ? 'true' : 'false'
     systemProperty 'ab3d2.flatshade', project.hasProperty('flatshade') ? 'true' : 'false'
+    systemProperty 'ab3d2.gourspans', project.hasProperty('gourspans') ? 'true' : 'false'
     systemProperty 'ab3d2.nogun', project.hasProperty('nogun') ? 'true' : 'false'
     systemProperty 'ab3d2.nomusic', project.hasProperty('nomusic') ? 'true' : 'false'
     systemProperty 'ab3d2.mute', project.hasProperty('mute') ? 'true' : 'false'
