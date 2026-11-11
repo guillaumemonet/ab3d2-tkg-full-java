@@ -54,6 +54,10 @@ public final class Shot {
         // sait ou le joueur commence et a quelle hauteur sont ses yeux — le sol du secteur
         // moins sa taille. Pose a zero, l'oeil serait au ras du sol et l'image s'arreterait net.
         World world = World.of(lettre);
+        // -Pwalk=N : N images la touche AVANCER tenue, comme le crochet dbgWalk du portage
+        // (Hires:2361). C'est ainsi qu'on compare les deux rendus apres le meme trajet : la
+        // simulation etant verifiee identique, tout ecart restant est dans le DESSIN.
+        int marche = Integer.getInteger("ab3d2.walk", 0);
         Viewer viewer = new Viewer(lettre, lvl);
         // Les deux reglages d'eclairage du joueur : 'eclairage simple' eteint le degrade
         // des murs, et le degrade des sols est allume au demarrage.
@@ -87,8 +91,10 @@ public final class Shot {
             world.player.zone = secteur;
             world.player.yOff = depart.floor() - PlayerSim.PLR_STAND_HEIGHT;
         }
-        for (int t = 0; t < tours; t++) {
-            world.frame(new World.Input());
+        World.Input intention = new World.Input();
+        intention.forward = marche > 0;
+        for (int t = 0; t < Math.max(tours, marche); t++) {
+            world.frame(intention);
         }
 
         int x = world.player.xOff >> 16;
@@ -122,6 +128,19 @@ public final class Shot {
                 viewer.armeVue ? "en main (objet " + world.weapon.object + ", modele "
                         + (world.weapon.shown == null ? -1 : world.weapon.shown.gfx())
                         + ")" : "absente");
+        // -PdumpBrights=N : les quarante luminosites de coin d'un secteur, comme le releve
+        // du meme nom cote portage. C'est par la qu'on compare les deux eclairages.
+        int quel = Integer.getInteger("ab3d2.brights", -1);
+        if (quel >= 0) {
+            StringBuilder sb = new StringBuilder("  [brights] secteur " + quel + " : ");
+            int[] pb = viewer.lights().pointBrights();
+            for (int i = 0; i < 40; i++) {
+                int at = quel * 40 + i;
+                sb.append(at < pb.length ? pb[at] : 0).append(' ');
+            }
+            System.out.println(sb);
+        }
+        System.out.printf("  %d secteurs tries%n", viewer.zones());
         System.out.println("  " + viewer.tally());
 
         // -Pshimmer=N : regarder l'image a travers la table de dematerialisation, comme la

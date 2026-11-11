@@ -301,6 +301,8 @@ tasks.register('shot', JavaExec) {
     if (project.hasProperty('eye')) { systemProperty 'ab3d2.eye', project.property('eye') }
     if (project.hasProperty('frames')) { systemProperty 'ab3d2.frames', project.property('frames') }
     if (project.hasProperty('shimmer')) { systemProperty 'ab3d2.shimmer', project.property('shimmer') }
+    if (project.hasProperty('walk')) { systemProperty 'ab3d2.walk', project.property('walk') }
+    if (project.hasProperty('brights')) { systemProperty 'ab3d2.brights', project.property('brights') }
     if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
     systemProperty 'ab3d2.out', project.hasProperty('out')
             ? project.property('out') : new File(projectDir, 'build/shot.png').absolutePath
