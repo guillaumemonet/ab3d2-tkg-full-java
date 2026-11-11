@@ -171,15 +171,130 @@ public final class LevelReader {
      * fichier graphe qui dit où : il porte une table donnant, pour chaque secteur, son offset
      * dans le niveau. Le jeu fait exactement cela — {@code pZone = niveau[table[zoneId]]}.
      */
+    /** DEUX LIGNES de quatre-vingts colonnes : c'est la forme d'un message de niveau. */
+    private static final int MESSAGE_LINE = 80;
+
+    /** {@code Draw_IsPrintable} (draw.h) : imprimable ECMA-94 Latin-1. */
+    private static boolean imprimable(int c) {
+        c &= 0xFF;
+        return (c > 0x20 && c < 0x7F) || (c > 0xA0);
+    }
+
+    /**
+     * {@code Msg_Init} (message.c) : le jeu REECRIT ses messages de niveau, EN PLACE, au
+     * chargement. Ce n'est pas de la presentation — le texte stocke n'est pas celui qu'on lit.
+     *
+     * <p>On traite le BLOC ENTIER de mille six cents octets d'un seul tenant, et non chaque
+     * message a part : le traitement d'un message peut ecrire chez son VOISIN, et c'est tout
+     * l'interet.
+     *
+     * <p>Chaque message occupe cent soixante octets qui sont DEUX LIGNES de quatre-vingts
+     * colonnes. Deux passes :
+     * <ol>
+     *   <li>si un mot enjambe la frontiere — les caracteres 79 ET 80 tous deux imprimables — le
+     *       jeu decale la seconde ligne d'un cran vers la droite et lui met une espace en tete
+     *       ({@code msg_NudgeString}), pour que la coupure tombe entre deux mots ;</li>
+     *   <li>{@code msg_CompactString} recolle les deux lignes en une chaine, en ecrasant les
+     *       suites d'espaces, puis pose un zero terminal.</li>
+     * </ol>
+     *
+     * <h2>UN MESSAGE VIDE TRONQUE SON PREDECESSEUR</h2>
+     *
+     * <p>Quand un message ne contient RIEN d'imprimable, la compaction sort avec
+     * {@code writePtr == bufferPtr}, fait son {@code --writePtr} inconditionnel, et ecrit le
+     * zero terminal UN OCTET AVANT le message — donc sur le dernier octet du precedent. C'est un
+     * debordement amont, et il est dans le jeu d'origine.
+     *
+     * <p>Il ne se voit que si le message d'avant remplit EXACTEMENT ses cent soixante octets,
+     * sans espace de queue : sinon sa propre compaction a deja pose un zero plus tot et l'octet
+     * 159 ne porte rien. Un seul endroit du jeu reunit les deux conditions — <b>niveau e,
+     * message 3</b>, « ...between charges. », suivi du message 4 qui est tout blanc — et il y
+     * perd son point final. Le jeu d'origine l'affiche ainsi.
+     *
+     * <p>Sans ce traitement, la lecture du FICHIER ne donne pas ce que le joueur voit, et
+     * {@code levelCheck} le signalait depuis toujours comme un ecart de la reference.
+     */
+    private static List<String> prepareMessages(Blob f) {
+        int n = MESSAGE_LENGTH * MESSAGE_COUNT;
+        byte[] b = new byte[n];
+        for (int i = 0; i < n; i++) {
+            b[i] = (byte) f.u8(i);
+        }
+        int[] fins = new int[MESSAGE_COUNT];
+        for (int m = 0; m < MESSAGE_COUNT; m++) {
+            int off = m * MESSAGE_LENGTH;
+            if (imprimable(b[off + MESSAGE_LINE - 1]) && imprimable(b[off + MESSAGE_LINE])) {
+                nudge(b, off + MESSAGE_LINE, MESSAGE_LINE - 1); // msg_NudgeString(ptr+80, 79)
+            }
+            fins[m] = compact(b, off, MESSAGE_LENGTH);         // msg_CompactString(ptr, 160)
+        }
+        // Les chaines ne se lisent qu'APRES coup : le message m peut avoir ete tronque par le
+        // message m+1, qui n'etait pas encore traite quand on l'a compacte.
+        List<String> l = new ArrayList<>(MESSAGE_COUNT);
+        for (int m = 0; m < MESSAGE_COUNT; m++) {
+            int off = m * MESSAGE_LENGTH;
+            int len = 0;
+            while (len < MESSAGE_LENGTH && b[off + len] != 0) {
+                len++;
+            }
+            l.add(new String(b, off, Math.min(len, Math.max(0, fins[m])),
+                    java.nio.charset.StandardCharsets.ISO_8859_1).stripTrailing());
+        }
+        return l;
+    }
+
+    /** {@code msg_NudgeString} : decale d'un caractere vers la droite, espace en tete. */
+    private static void nudge(byte[] b, int debut, int len) {
+        int to = debut + len;                          // char* toPtr = bufferPtr + bufferLen
+        int from = to - 1;                             // char* fromPtr = toPtr - 1
+        while (from > debut) {                         // while (fromPtr > bufferPtr)
+            --to;
+            --from;
+            b[to] = b[from];                           // *--toPtr = *--fromPtr
+        }
+        b[debut] = ' ';                                // *bufferPtr = ' '
+    }
+
+    /**
+     * {@code msg_CompactString} : ecrase les suites d'espaces et pose le zero terminal.
+     *
+     * <p>Le {@code --writePtr} est INCONDITIONNEL quand la chaine finit sur du non-imprimable,
+     * et il n'est borne par rien : sur un message entierement blanc il recule AVANT le debut du
+     * tampon. Voir {@link #prepareMessages}.
+     *
+     * @return la longueur utile, qui vaut -1 quand le message est vide
+     */
+    private static int compact(byte[] b, int off, int len) {
+        int lect = off;                                // char* readPtr
+        int ecr = off;                                 // char* writePtr
+        int dernier = off + len;                       // char* lastPtr
+        boolean saute = true;                          // BOOL skip = TRUE
+        for (int n = len; n-- != 0; ) {                // while (bufferLen--)
+            int c = b[lect++] & 0xFF;                  // UBYTE charCode = *readPtr++
+            if (imprimable(c)) {
+                saute = false;
+            } else if (!saute) {
+                saute = true;
+            } else {
+                continue;
+            }
+            b[ecr++] = (byte) c;                       // *writePtr++ = charCode
+        }
+        if (saute) {                                   // if (skip) --writePtr
+            --ecr;
+        }
+        if (ecr < dernier && ecr >= 0) {               // if (writePtr < lastPtr) *writePtr = 0
+            b[ecr] = 0;                                // (ecr < 0 : le tout premier message, qui
+        }                                              //  deborderait AVANT le bloc — le jeu y
+        return ecr - off;                              //  ecrit dans ce qui precede le niveau)
+    }
+
     public static Level parse(Blob f, Blob graph, Blob clipData, Blob walkMap, Blob flyMap,
             char letter) {
         int h = HEADER;                                  // l'en-tete suit le bloc de messages
         ClipAssigner clips = new ClipAssigner(clipData);
 
-        List<String> messages = new ArrayList<>(MESSAGE_COUNT);
-        for (int i = 0; i < MESSAGE_COUNT; i++) {
-            messages.add(f.text(i * MESSAGE_LENGTH, MESSAGE_LENGTH));
-        }
+        List<String> messages = prepareMessages(f);
 
         Level.Start s1 = new Level.Start(f.s16(h + PLR1_X), f.s16(h + PLR1_Z), f.s16(h + PLR1_ZONE));
         Level.Start s2 = new Level.Start(f.s16(h + PLR2_X), f.s16(h + PLR2_Z), f.s16(h + PLR2_ZONE));
