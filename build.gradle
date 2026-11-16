@@ -460,6 +460,30 @@ tasks.register('waterPaintCheck', JavaExec) {
     systemProperty 'ab3d2.waterpaint', new File(refRoot, 'waterpaint.json').absolutePath
 }
 
+tasks.register('storyCheck', JavaExec) {
+    group = 'verification'
+    description = "Le recit qui ouvre les niveaux, confronte au portage"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.StoryCheck'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    systemProperty 'ab3d2.storyscreens', new File(refRoot, 'menu/storyscreens.json').absolutePath
+}
+
+tasks.register('storyShot', JavaExec) {
+    group = 'application'
+    description = "Une image du recit qui ouvre un niveau"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.full.view.StoryShot'
+    systemProperty 'ab3d2.media', mediaRoot.absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
+    if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
+    if (project.hasProperty('frames')) { systemProperty 'ab3d2.frames', project.property('frames') }
+    if (project.hasProperty('scale')) { systemProperty 'ab3d2.scale', project.property('scale') }
+    systemProperty 'ab3d2.out', project.hasProperty('out')
+            ? project.property('out') : new File(projectDir, 'build/story.png').absolutePath
+}
+
 tasks.register('menuShot', JavaExec) {
     group = 'application'
     description = "Une image du menu, apres un nombre d'images donne"
@@ -647,7 +671,7 @@ tasks.register('checkAll') {
             'wallCheck', 'flatCheck', 'wallPaintCheck', 'flatPaintCheck', 'lightCheck',
             'gourWallPaintCheck', 'gourFlatPaintCheck', 'waterPaintCheck', 'skyCheck', 'objXformCheck', 'spriteOrderCheck', 'bitmapCheck', 'bitmapPaintCheck', 'bitmapLitCheck',
             'zoneGraphCheck', 'objAnimCheck', 'alienAnimCheck', 'gameTest', 'glareCheck', 'brightRingsCheck', 'modelPointsCheck', 'modelFacesCheck',
-            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest', 'menuCheck'
+            'modelEdgesCheck', 'modelPixelsCheck', 'hudCheck', 'gunHoldCheck', 'paulaCheck', 'musicCheck', 'objectLifeCheck', 'blastCheck', 'moveCheck', 'bitsCheck', 'animsCheck', 'hitCheck', 'shootCheck', 'shimmerCheck', 'campaignTest', 'menuCheck', 'storyCheck'
 }
 
 // ---------------------------------------------------------------------------
@@ -811,7 +835,8 @@ def apkOut     = new File(apkWork, 'ab3d2-tkg.apk')
 def minApi = 26
 
 /** Les classes de BUREAU : elles s'appuient sur AWT, Swing ou javax.sound, absents ici. */
-def desktopOnly = ['Game.java', 'Play.java', 'Shot.java', 'MenuShot.java', 'Speaker.java']
+def desktopOnly = ['Game.java', 'Play.java', 'Shot.java', 'MenuShot.java', 'StoryShot.java',
+                   'Speaker.java']
 
 tasks.register('androidClasses') {
     group = 'distribution'

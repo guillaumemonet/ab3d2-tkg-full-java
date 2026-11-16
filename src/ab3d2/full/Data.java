@@ -336,6 +336,56 @@ public final class Data {
         return MENU.computeIfAbsent(nom, k -> incbin("menu", k));
     }
 
+    /**
+     * LE TEXTE QUI OUVRE LES NIVEAUX, ou {@code null} s'il manque.
+     *
+     * <p>Seize niveaux de seize lignes de quatre-vingt-deux octets. Il ne vit pas avec le
+     * depot mais avec les disquettes : le jeu le chargeait au demarrage et le gardait, parce
+     * qu'il devait pouvoir l'afficher pendant que la disquette suivante tournait.
+     *
+     * <p>Son absence n'est pas une erreur : on passe simplement le texte.
+     */
+    public static synchronized byte[] story() {
+        if (story == null) {
+            Path file = asset("ab3:includes/TEXT_FILE");
+            if (file == null) {
+                return null;
+            }
+            try {
+                story = Files.readAllBytes(file);
+            } catch (IOException e) {
+                return null;
+            }
+        }
+        return story;
+    }
+
+    private static byte[] story;
+
+    /**
+     * LA POLICE DU RECIT : quatre-vingt-seize glyphes, de l'espace au tilde.
+     *
+     * <p>Seize lignes d'un mot chacune par glyphe, le dessin cale a DROITE dans le mot sur sa
+     * largeur propre. Elle ne sert qu'a ce texte-la et a l'ecran de fin.
+     */
+    public static synchronized byte[] endFont() {
+        if (endFont == null) {
+            endFont = incbin("endfont0");
+        }
+        return endFont;
+    }
+
+    /** La largeur propre de chaque glyphe de {@link #endFont()}, indexee par caractere - 32. */
+    public static synchronized byte[] charWidths() {
+        if (charWidths == null) {
+            charWidths = incbin("charwidths0");
+        }
+        return charWidths;
+    }
+
+    private static byte[] endFont;
+    private static byte[] charWidths;
+
     /** Les huit images de l'ondulation de l'eau. */
     public static synchronized WaterFrames water() {
         if (water == null) {

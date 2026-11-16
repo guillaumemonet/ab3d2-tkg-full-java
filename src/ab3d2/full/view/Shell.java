@@ -31,6 +31,8 @@ public final class Shell {
     public enum Mode {
         /** Dans le menu. */
         MENU,
+        /** Le texte qui ouvre le niveau, avant d'y entrer. */
+        STORY,
         /** En train de jouer. */
         GAME,
         /** Le joueur a demande a quitter. */
@@ -41,6 +43,7 @@ public final class Shell {
     private final MenuShell menu;
 
     private Session session;
+    private final Story story = new Story();
     private Mode mode = Mode.MENU;
     private boolean son;
 
@@ -126,6 +129,14 @@ public final class Shell {
             }
             return;
         }
+        if (mode == Mode.STORY) {
+            // Le texte se passe au tir comme a la validation : sur l'Amiga c'est le bouton de
+            // la manette qui l'ecourtait, et il n'y en avait qu'un.
+            if (!story.frame(ok || (in != null && in.fire))) {
+                entrer();
+            }
+            return;
+        }
         if (mode != Mode.GAME || session == null) {
             return;
         }
@@ -141,8 +152,23 @@ public final class Shell {
         }
     }
 
-    /** {@code Game_Begin} : on quitte le menu et l'on monte le niveau courant. */
+    /**
+     * {@code Game_Begin} : on quitte le menu pour le niveau courant.
+     *
+     * <p>Le recit vient D'ABORD. Sur l'Amiga il tenait l'ecran pendant que la disquette
+     * chargeait ; ici le chargement ne prend rien, alors on le fait apres — ce qui revient au
+     * meme pour qui regarde, et evite de monter un niveau qu'on va peut-etre quitter.
+     */
     private void lancer() {
+        if (story.begin(campaign.level())) {
+            mode = Mode.STORY;
+            return;
+        }
+        entrer();
+    }
+
+    /** Le niveau lui-meme, une fois le recit passe. */
+    private void entrer() {
         session = new Session(campaign, sortie);
         session.viewer().simpleWalls(simpleWalls);
         session.viewer().gouraudFlats(gouraudFlats);
@@ -156,15 +182,26 @@ public final class Shell {
 
     /** L'ecran a montrer, un octet par pixel. */
     public byte[] pixels() {
+        if (mode == Mode.STORY) {
+            return story.pixels();
+        }
         return mode == Mode.GAME && session != null ? session.pixels() : menu.pixels();
     }
 
     /** La couleur d'un rang, dans la palette qui vaut pour le mode courant. */
     public int argb(int rang) {
+        if (mode == Mode.STORY) {
+            return story.argb(rang);
+        }
         if (mode == Mode.GAME && session != null) {
             return 0xFF000000 | session.palette().at(rang);
         }
         return 0xFF000000 | menu.palette().at(rang, menu.fade());
+    }
+
+    /** Le recit, pour qui veut le prendre en image. */
+    public Story story() {
+        return story;
     }
 
     public int width() {
