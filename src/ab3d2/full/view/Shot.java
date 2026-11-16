@@ -94,7 +94,28 @@ public final class Shot {
         World.Input intention = new World.Input();
         intention.forward = marche > 0;
         intention.fire = Boolean.getBoolean("ab3d2.fire");
+        // -Puse : bat la touche ACTIONNER une image sur deux, comme -Puse cote portage.
+        // Le jeu ne la retient qu'au FRONT MONTANT : la tenir n'ouvre qu'une porte.
+        boolean actionne = Boolean.getBoolean("ab3d2.use");
+        // -PforceDoor=N -PforcePos=P : arreter une porte a mi-course, image apres image.
+        if (Boolean.getBoolean("ab3d2.doors")) {       // -Pdoors : la liste des mecanismes
+            for (int i = 0; i < lvl.doors().size(); i++) {
+                ab3d2.full.level.Level.Liftable d = lvl.doors().get(i);
+                System.out.printf("  [porte %2d] bas=%d haut=%d secteur=%d position=%d"
+                        + " (%d, %d) murs=%d%n", i, d.bottom(), d.top(), d.zone(),
+                        d.position(), d.x(), d.z(), d.walls().size());
+            }
+            for (int i = 0; i < lvl.lifts().size(); i++) {
+                ab3d2.full.level.Level.Liftable d = lvl.lifts().get(i);
+                System.out.printf("  [ascens %2d] bas=%d haut=%d secteur=%d position=%d"
+                        + " (%d, %d) murs=%d%n", i, d.bottom(), d.top(), d.zone(),
+                        d.position(), d.x(), d.z(), d.walls().size());
+            }
+        }
+        world.anims.forceDoor = Integer.getInteger("ab3d2.forcedoor", -1);
+        world.anims.forceDoorPos = Integer.getInteger("ab3d2.forcepos", 0);
         for (int t = 0; t < Math.max(tours, marche); t++) {
+            intention.action = actionne && (t & 1) == 0;
             world.frame(intention);
         }
 
@@ -166,6 +187,11 @@ public final class Shot {
             }
             System.out.print(sb);
             System.out.println("[gourSpan] total " + viewer.painter().diagSpans.size());
+            for (int[] t : viewer.painter().diagWalls) {
+                System.out.printf("  [pan] offset=%d secteur=%d colonnes=%d..%d deforme=%d"
+                        + " haut=%d bas=%d texture=%d degrade=%d%n",
+                        t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8]);
+            }
             for (int[] t : viewer.painter().diagFlatList) {
                 System.out.println("[gourFlat] offset=" + t[0] + " genre=" + t[1]
                         + " tuile=" + t[2] + " tranches=" + t[3] + " horsTable=" + t[4]

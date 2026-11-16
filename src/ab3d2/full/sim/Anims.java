@@ -320,9 +320,25 @@ public final class Anims {
 
     // --------------------------------------------------------------- portes
 
+    /**
+     * DIAG — le rang d'une porte a POSER DE FORCE a chaque image, ou {@code -1}.
+     *
+     * <p>Une porte ne s'ouvre qu'a portee et face a elle : pour comparer son DESSIN en cours
+     * de course, il faut pouvoir l'arreter a mi-chemin sans dependre du chemin parcouru. Le
+     * portage a la meme commande, au meme endroit.
+     */
+    public int forceDoor = -1;
+
+    /** La position imposee a {@link #forceDoor}. */
+    public int forceDoorPos;
+
     /** DoorRoutine (Newanims.java:1039). */
     private void doorRoutine() {
         for (int i = 0; i < doors.size(); i++) {
+            if (i == forceDoor) {                      // DIAG
+                doorPos[i] = forceDoorPos;
+                doorSpd[i] = 0;
+            }
             Level.Liftable dr = doors.get(i);
             int d0 = dr.bottom();                        // bottom of movement
             int d1 = dr.top();                           // top of movement

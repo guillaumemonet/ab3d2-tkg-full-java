@@ -427,7 +427,11 @@ public final class Viewer {
         // oublier un suffit a faire glisser les objets sur le decor.
         int roulis = world.player.wobble;
         view.update(lvl, x, z, angle, roulis);
-        edges.update(lvl, Data.edgePvs(lettre), zone, x, z, angle, roulis);
+        // CE QUE LES PORTES OUVRENT A LA VUE. La table de visibilite porte des entrees
+        // CONDITIONNELLES : une piece qu'on ne voit QUE si telle porte est ouverte. Le mot
+        // d'etat dit lesquelles le sont, et sans lui aucune de ces entrees n'est retenue --
+        // on voit la porte se lever, et un TROU NOIR derriere elle.
+        edges.update(lvl, Data.edgePvs(lettre), zone, x, z, angle, world.anims.doorState);
         edges.span(view);
         order.update(lvl, from, x, z);
 

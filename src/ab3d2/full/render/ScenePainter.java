@@ -162,6 +162,12 @@ public final class ScenePainter implements Scene.Painter {
     public final java.util.List<int[]> diagFlatList = new java.util.ArrayList<>();
 
     /**
+     * DIAG — une ligne par PAN : {@code offset, secteur, premiere colonne, derniere,
+     * deforme, haut, bas, origine de texture, degrade}.
+     */
+    public final java.util.List<int[]> diagWalls = new java.util.ArrayList<>();
+
+    /**
      * @param screen le tampon ou tout se depose
      * @param view   la vue, deja tournee
      * @param lights les luminosites du moment
@@ -339,6 +345,7 @@ public final class ScenePainter implements Scene.Painter {
         flatSpans = 0;
         diagSpans.clear();
         diagFlatList.clear();
+        diagWalls.clear();
     }
 
     /** Combien de pans de l'image ont pris la voie du DEGRADE. */
@@ -398,6 +405,19 @@ public final class ScenePainter implements Scene.Painter {
                 wallStrips++;
             }
             gourWallsDrawn++;
+            if (diagFlats) {
+                int a = -1;
+                int b = -1;
+                for (GouraudWall.Strip st : gourWall.strips()) {
+                    if (a < 0) {
+                        a = st.x();
+                    }
+                    b = st.x();
+                }
+                diagWalls.add(new int[] {w.offset(), pass.zone(), a, b,
+                    w.bottom() != commande.bottom() ? 1 : 0,
+                    w.top(), w.bottom(), w.textureY(), 1});
+            }
             wallsDrawn++;
             return;
         }
@@ -413,9 +433,20 @@ public final class ScenePainter implements Scene.Painter {
             offTable++;
         }
         wallPaint.wall(w, peau, wallYOffset);
+        int premiere = -1;
+        int derniere = -1;
         for (Wall.Strip s : wall.strips()) {
             wallPaint.paint(s);
+            if (premiere < 0) {
+                premiere = s.x();
+            }
+            derniere = s.x();
             wallStrips++;
+        }
+        if (diagFlats) {
+            diagWalls.add(new int[] {w.offset(), pass.zone(), premiere, derniere,
+                w.offset() != commande.offset() || w.bottom() != commande.bottom() ? 1 : 0,
+                w.top(), w.bottom(), w.textureY(), 0});
         }
         wallsDrawn++;
     }
