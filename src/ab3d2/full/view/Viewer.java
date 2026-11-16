@@ -421,8 +421,13 @@ public final class Viewer {
 
     public void draw(World world, int x, int z, int zone, int angle, int eye) {
         Level.Zone from = lvl.zones().get(zone);
-        view.update(lvl, x, z, angle, 0);
-        edges.update(lvl, Data.edgePvs(lettre), zone, x, z, angle, 0);
+        // Le BALANCEMENT DU PAS deplace le point de vue lateralement, et il s'ajoute a
+        // l'abscisse de tout ce qui tourne — le decor (pointrotlop2), la visibilite
+        // (xform_pvs_subset) et les objets (RotateObjectPts). Les trois, ou aucun : n'en
+        // oublier un suffit a faire glisser les objets sur le decor.
+        int roulis = world.player.wobble;
+        view.update(lvl, x, z, angle, roulis);
+        edges.update(lvl, Data.edgePvs(lettre), zone, x, z, angle, roulis);
         edges.span(view);
         order.update(lvl, from, x, z);
 
@@ -433,9 +438,10 @@ public final class Viewer {
         }
         portes.deformes = 0;
         peintre.deform(portes);
-        peintre.eye(x, z, eye, angle, Data.sinCos());
+        peintre.eye(x, z, eye, angle, Data.sinCos(),
+                world.player.wobbleX, world.player.wobbleZ);
         things(world);
-        objectView.update(choses, lvl.objectPoints(), x, z, angle, 0, true);
+        objectView.update(choses, lvl.objectPoints(), x, z, angle, roulis, true);
 
         // tst.b (a0)+ ; beq nobackgraphics : c'est l'octet du secteur du joueur qui decide.
         if (from.drawBackdrop()) {

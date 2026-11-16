@@ -51,6 +51,32 @@ public final class PlayerSim {
     public int height = PLR_STAND_HEIGHT;
     public int bobble, walkSfxTime, addToBobble;
     public int bobbleY;
+
+    /**
+     * LE BALANCEMENT LATERAL DU PAS (xwobble, hires.s:2869).
+     *
+     * <p>Le meme sinus qui fait monter et descendre la tete la fait aussi aller de gauche a
+     * droite. La partie verticale ({@link #bobbleY}) en prend la VALEUR ABSOLUE — la tete ne
+     * descend jamais sous sa hauteur de repos — tandis que celle-ci garde le SIGNE : c'est ce
+     * qui fait de l'une un rebond et de l'autre un roulis.
+     *
+     * <p>Elle s'ajoute a l'abscisse de CHAQUE point tourne, decor comme objets, et deplace
+     * donc toute la vue lateralement. Sans elle, la marche est raide et l'image glisse de
+     * quinze pixels par rapport au jeu d'origine.
+     */
+    public int wobble;
+
+    /**
+     * Le meme balancement, mais porte dans le PLAN DU SOL, pour les surfaces horizontales.
+     *
+     * <p>Les sols ne tournent pas leurs points : ils lisent leur texture sous les pieds du
+     * joueur. Il faut donc deplacer ce point-la, et le deplacement se decompose selon le
+     * regard — d'ou ces deux valeurs, qui s'ajoutent EN CROIX (voir {@code Flat.sweep}).
+     */
+    public int wobbleX;
+
+    /** Voir {@link #wobbleX}. */
+    public int wobbleZ;
     public int zone;
     public boolean stoodInTop;
     public boolean decelerate = true;   // Plr_Decelerate_b (controle possible)
@@ -393,8 +419,11 @@ public final class PlayerSim {
         xOff = snapXOff;
         zOff = snapZOff;
 
-        // bobble (mouvement de tete) : Plr1_Control calcule bobbleY et thingheight
-        int d1 = sinCos.value(bobble);                 // (d3 = xwobble : balancement lateral, non porte)
+        // bobble (mouvement de tete) : Plr1_Control calcule bobbleY, thingheight et le
+        // balancement lateral. UNE SEULE lecture de la table pour les deux : d3 garde la
+        // valeur signee, d1 en prend la valeur absolue.
+        int d1 = sinCos.value(bobble);                 // move.w (a1,d1.w),d1
+        int d3 = d1;                                   // move.w d1,d3
         if (d1 > 0) {
             d1 = -d1;
         }
@@ -406,6 +435,15 @@ public final class PlayerSim {
         bobbleY = (short) d1;
         int thingHeight = height - bobbleY;
         yOff = snapYOff + bobbleY;
+
+        //   asr.w #6,d3 ; ext.l d3 ; move.l d3,xwobble
+        //   move.w Plr1_SinVal_w,d1 ; muls d3,d1 ; swap d1 ; asr.w #6,d1 ; move.w d1,xwobxoff
+        //   move.w Plr1_CosVal_w,d2 ; muls d3,d2 ; swap d2 ; asr.w #6,d2 ; neg.w d2 ...
+        // Le signe ne se prend qu'APRES le decalage, et seulement sur l'un des deux : c'est
+        // ce qui met le deplacement PERPENDICULAIRE au regard.
+        wobble = s16(asrw(d3, 6));
+        wobbleX = s16(asrw(muls(sinCos.sin(angPos), wobble) >> 16, 6));
+        wobbleZ = s16(-asrw(muls(sinCos.cos(angPos), wobble) >> 16, 6));
 
         int oldxw = s16(oldx >> 16);
         int oldzw = s16(oldz >> 16);

@@ -266,6 +266,17 @@ public final class ScenePainter implements Scene.Painter {
      * @param sinCos  la table de sinus
      */
     public void eye(int playerX, int playerZ, int playerY, int angle, SinCos sinCos) {
+        eye(playerX, playerZ, playerY, angle, sinCos, 0, 0);
+    }
+
+    /**
+     * Le point de vue, le BALANCEMENT DU PAS compris.
+     *
+     * @param wobbleX de combien le pas deporte le point de vue, porte dans le plan du sol
+     * @param wobbleZ idem, selon l'autre axe ; les deux s'ajoutent EN CROIX
+     */
+    public void eye(int playerX, int playerZ, int playerY, int angle, SinCos sinCos,
+            int wobbleX, int wobbleZ) {
         this.playerY = playerY;
         // draw_WallYOffset_w (DrawDisplay, hires.s) : le calage VERTICAL de la texture des
         // murs sur la hauteur d oeil.
@@ -281,8 +292,8 @@ public final class ScenePainter implements Scene.Painter {
         this.centreY = view.height() / 2;
         wallPaint.eye(0, view.height(), 0, view.fullScreen());
         gourWallPaint.eye(0, view.height(), 0, view.fullScreen());
-        flat.eye(view, playerX, playerZ, playerY, 0, 0, sinCos.sin(angle), sinCos.cos(angle),
-                centreY, 0);
+        flat.eye(view, playerX, playerZ, playerY, wobbleX, wobbleZ,
+                sinCos.sin(angle), sinCos.cos(angle), centreY, 0);
         flat.water(true);
         flat.clearWaterTint();
         flat.gouraud(gouraudFlats);
