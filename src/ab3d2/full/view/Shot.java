@@ -91,6 +91,22 @@ public final class Shot {
             world.player.zone = secteur;
             world.player.yOff = depart.floor() - PlayerSim.PLR_STAND_HEIGHT;
         }
+        // -Pat=x,z,secteur : le point de vue EXACT, et non le point de controle du secteur.
+        //
+        // Un point de controle est un jalon de navigation : rien ne le met au milieu de sa
+        // piece, et plusieurs tombent carrement ailleurs. Pour mettre cette image a cote de
+        // celle du remake, il faut pouvoir poser l'oeil au MEME endroit des deux cotes — c'est
+        // la meme ecriture que son -Pspawn.
+        String ou = System.getProperty("ab3d2.at");
+        if (ou != null) {
+            String[] p = ou.split(",");
+            world.player.xOff = world.player.snapXOff = Integer.parseInt(p[0].trim()) << 16;
+            world.player.zOff = world.player.snapZOff = Integer.parseInt(p[1].trim()) << 16;
+            world.player.zone = Integer.parseInt(p[2].trim());
+            world.player.yOff = lvl.zones().get(world.player.zone).floor()
+                    - PlayerSim.PLR_STAND_HEIGHT;
+            secteur = -1;                             // le secteur impose vient de la, desormais
+        }
         World.Input intention = new World.Input();
         intention.forward = marche > 0;
         intention.fire = Boolean.getBoolean("ab3d2.fire");

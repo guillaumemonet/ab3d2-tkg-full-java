@@ -298,6 +298,8 @@ tasks.register('shot', JavaExec) {
     systemProperty 'ab3d2.data', new File(projectDir, 'data').absolutePath
     if (project.hasProperty('level')) { systemProperty 'ab3d2.level', project.property('level') }
     if (project.hasProperty('zone')) { systemProperty 'ab3d2.zone', project.property('zone') }
+    if (project.hasProperty('at')) { systemProperty 'ab3d2.at', project.property('at') }
+    if (project.hasProperty('wallBrightLog')) { systemProperty 'ab3d2.wallBrightLog', '1' }
     if (project.hasProperty('angle')) { systemProperty 'ab3d2.angle', project.property('angle') }
     if (project.hasProperty('eye')) { systemProperty 'ab3d2.eye', project.property('eye') }
     if (project.hasProperty('frames')) { systemProperty 'ab3d2.frames', project.property('frames') }

@@ -383,6 +383,12 @@ public final class ScenePainter implements Scene.Painter {
         // .check_corners (Hireswall.cantTell, fin) : un ecart de PLUS DE DEUX entre le bas et le
         // haut, a l'un ou l'autre bout, et le pan se peint en degrade. Le reglage « eclairage
         // simple » court-circuite le tri et MOYENNE les deux luminosites de chaque bout.
+        if (System.getProperty("ab3d2.wallBrightLog") != null) {
+            System.out.printf("[murB] zone=%d offset=%d tex=%d bl=%d br=%d tl=%d tr=%d%n",
+                    pass.zone(), w.offset(), w.texture(),
+                    s16(gauche - 300) * 2, s16(droite - 300) * 2,
+                    s16(gaucheHaut - 300) * 2, s16(droiteHaut - 300) * 2);
+        }
         boolean simple;
         if (forceSimpleWalls) {
             gauche = s16(s16(gauche + gaucheHaut) >> 1);     // add.w ; asr.w #1
