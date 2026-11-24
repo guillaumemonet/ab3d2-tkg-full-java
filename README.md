@@ -1,376 +1,339 @@
-# AB3D2 Full Java — la conversion, pas la traduction
+# AB3D2 Full Java — the conversion, not the translation
 
-Troisième lecture d'*Alien Breed 3D II : The Killing Grounds* (Team17, Amiga, 1996), après le
-portage fidèle et le remake 3D. Celle-ci convertit l'assembleur d'origine en **vrai Java** :
-des classes, des champs nommés, des collections. Pas de mémoire plate, pas de registres.
+*[Version française](README_fr.md)*
 
-**Le jeu est complet.** Le menu, les seize niveaux à la suite, les sauvegardes, le rendu et
-le son — cinquante images par seconde. Il se construit en application Windows portable et en
-**APK Android**.
+The third reading of *Alien Breed 3D II: The Killing Grounds* (Team17, Amiga, 1996), after the
+faithful port and the 3D remake. This one converts the original assembly into **real Java**:
+classes, named fields, collections. No flat memory, no registers.
 
-![Le niveau O, à ciel ouvert](docs/img/full-niveau-o.png)
+**The game is complete.** The menu, the sixteen levels in sequence, the saves, the rendering and
+the sound — fifty frames per second. It builds into a portable Windows application and an
+**Android APK**.
 
-*Le niveau O. Ciel, dégradé du sol, objets à ramasser, arme en main, tableau de bord — tout cela
-est peint par ce dépôt, pixel par pixel, en Java ordinaire.*
+![Level O, open to the sky](docs/img/full-niveau-o.png)
+
+*Level O. Sky, floor shading, pickups, weapon in hand, status panel — all of it
+is painted by this repository, pixel by pixel, in plain Java.*
 
 ---
 
-## Les trois lectures
+## The three readings
 
-| dépôt | ce que c'est |
+| repository | what it is |
 | --- | --- |
-| [**ab3d2-tkg-java**](https://github.com/guillaumemonet/ab3d2-tkg-java) | le **portage littéral** : l'assembleur traduit instruction par instruction, RAM plate de 68000, registres simulés. C'est l'**oracle**. |
-| [**ab3d2-tkg-rebirth**](https://github.com/guillaumemonet/ab3d2-tkg-rebirth) | le **remake** full 3D sous jMonkeyEngine, qui s'autorise à s'écarter. Il héberge aussi les extracteurs qui produisent le corpus de référence. |
-| **ab3d2-tkg-full-java** *(ici)* | la **conversion objet** : les mécaniques d'origine, exactement, mais écrites comme on les écrirait aujourd'hui. |
+| [**ab3d2-tkg-java**](https://github.com/guillaumemonet/ab3d2-tkg-java) | the **literal port**: the assembly translated instruction by instruction, flat 68000 RAM, simulated registers. It is the **oracle**. |
+| [**ab3d2-tkg-rebirth**](https://github.com/guillaumemonet/ab3d2-tkg-rebirth) | the full 3D **remake** on jMonkeyEngine, which allows itself to diverge. It also hosts the extractors that produce the reference corpus. |
+| **ab3d2-tkg-full-java** *(here)* | the **object conversion**: the original mechanics, exactly, but written the way one would write them today. |
 
-Le portage se lit comme de l'assembleur écrit en Java, et chaque champ y est un nombre. Le remake
-prend l'autre extrême. Ici, la voie du milieu : un secteur est un objet avec un sol, un plafond
-et des arêtes, pas un offset dans un bloc d'octets.
+The port reads like assembly written in Java, and every field in it is a number. The remake
+goes to the other extreme. Here, the middle way: a sector is an object with a floor, a ceiling
+and edges, not an offset into a block of bytes.
 
-Quand une règle est douteuse, c'est contre le portage qu'on tranche — et au besoin contre
-l'assembleur d'origine.
-
----
-
-## Les règles
-
-1. **Aucune mémoire plate.** Pas de `Mem`, pas d'adresses globales. Chaque fichier d'origine est
-   lu par un lecteur d'octets local et devient des objets.
-2. **Aucune émulation de registres.** Pas de boucle d'instructions, pas de drapeaux.
-3. **Une seule concession, assumée et isolée** : `M68k`. Les algorithmes d'origine *dépendent* de
-   la troncature à 16 bits, de l'écriture d'un mot dans un registre de 32, et du fait qu'une
-   division impossible laisse le registre **inchangé** au lieu de lever une exception. Changer
-   cela change les trajectoires, pas seulement les arrondis.
-4. **Des noms, pas des nombres.** `zone.floor()`, pas `Mem.l(z + 2)`.
-5. **Immuable pour le niveau, mutable pour l'état de jeu.** Le fichier dit ce qui est posé et où,
-   une fois pour toutes ; ce qui change vit ailleurs.
-6. **Aucune dépendance.** Gson ne sert qu'aux outils de validation ; le jeu lui-même n'importe
-   rien d'autre que le JDK.
+When a rule is in doubt, it is settled against the port — and if need be against the
+original assembly.
 
 ---
 
-## En images
+## The rules
 
-![Le menu](docs/img/full-menu.png)
-
-*Le menu, et son feu. Ce n'est pas un automate cellulaire mais **trois blits du blitter Amiga
-par image**, `D = A_décalé | (B & C)`, où `A` est un plan de la **police** : c'est pour cela que
-le texte brûle. Vérifié plan par plan contre le portage.*
-
-![Un monstre, et il mord](docs/img/full-monstre.png)
-
-*Les monstres ne sont pas des figurants : celui-ci a marché jusqu'au joueur et l'a touché —
-l'énergie est tombée à 185. L'IA, les trajectoires et les dégâts sont ceux de 1996, vérifiés
-image par image contre le portage.*
-
-![Une salle du niveau E](docs/img/full-salle.png)
-![Un couloir organique](docs/img/full-organique.png)
-
-*Le niveau E : murs à sous-tuiles, sol dégradé, deux caisses de munitions. Puis le niveau I, où
-la texture couvre le mur entier d'un seul tenant.*
-
-![De l'acide](docs/img/full-acide.png)
-![Un tunnel](docs/img/full-tunnel.png)
-
-*L'eau animée et ses boucles ; et un tunnel du niveau B, deux monstres au fond.*
-
-![La dématérialisation](docs/img/full-teleport.png)
-
-*La sortie du niveau. L'effet ne calcule rien : il **regarde l'image de travers**, à travers une
-table de décalages. Huit pas, du presque net à l'illisible.*
+1. **No flat memory.** No `Mem`, no global addresses. Each original file is
+   read by a local byte reader and becomes objects.
+2. **No register emulation.** No instruction loop, no flags.
+3. **A single concession, deliberate and isolated**: `M68k`. The original algorithms *depend* on
+   16-bit truncation, on writing a word into a 32-bit register, and on the fact that an
+   impossible division leaves the register **unchanged** instead of throwing an exception. Changing
+   that changes the trajectories, not just the rounding.
+4. **Names, not numbers.** `zone.floor()`, not `Mem.l(z + 2)`.
+5. **Immutable for the level, mutable for the game state.** The file says what is placed and where,
+   once and for all; what changes lives elsewhere.
+6. **No dependencies.** Gson is only used by the validation tools; the game itself imports
+   nothing but the JDK.
 
 ---
 
-## Où en est-on
+## In pictures
 
-| morceau | état |
+![The menu](docs/img/full-menu.png)
+
+*The menu, and its fire. It is not a cellular automaton but **three Amiga blitter blits
+per frame**, `D = A_décalé | (B & C)`, where `A` is a plane of the **font**: that is why
+the text burns. Checked plane by plane against the port.*
+
+![A monster, and it bites](docs/img/full-monstre.png)
+
+*The monsters are not extras: this one walked up to the player and hit him —
+energy dropped to 185. The AI, the trajectories and the damage are those of 1996, checked
+frame by frame against the port.*
+
+![A room in level E](docs/img/full-salle.png)
+![An organic corridor](docs/img/full-organique.png)
+
+*Level E: sub-tiled walls, shaded floor, two ammo crates. Then level I, where
+the texture covers the whole wall in a single piece.*
+
+![Acid](docs/img/full-acide.png)
+![A tunnel](docs/img/full-tunnel.png)
+
+*Animated water and its loops; and a tunnel in level B, two monsters at the far end.*
+
+![The dematerialisation](docs/img/full-teleport.png)
+
+*The level exit. The effect computes nothing: it **looks at the image askew**, through a
+table of offsets. Eight steps, from almost sharp to unreadable.*
+
+---
+
+## Where things stand
+
+| piece | status |
 | --- | --- |
-| lecture des 16 niveaux | **fait** — 0 écart |
-| base de liaison (`test.lnk`) | **fait** — 0 écart |
-| simulation : joueur, IA, tirs, objets, portes, ascenseurs | **fait** |
-| rastériseur logiciel : murs, sols, ciel, eau, sprites, modèles | **fait** |
-| éclairage : secteurs, lampes dynamiques, dégradés | **fait** |
-| tableau de bord, arme en main, messages | **fait** |
-| audio : moteur Paula, bruitages, musique | **fait** |
-| boucle de jeu jouable | **fait** — `gradle game` |
-| menu, feu, police, sous-menus | **fait** — 0 écart |
-| enchaînement des seize niveaux | **fait** |
-| sauvegardes et réglages | **fait** |
-| release Windows portable | **fait** — `gradle packageApp` |
-| release Android (APK) | **fait** — `gradle apk` |
-| texte narratif d'intro | à faire |
-| mode deux joueurs | à faire |
+| reading the 16 levels | **done** — 0 mismatches |
+| link database (`test.lnk`) | **done** — 0 mismatches |
+| simulation: player, AI, shots, objects, doors, lifts | **done** |
+| software rasteriser: walls, floors, sky, water, sprites, models | **done** |
+| lighting: sectors, dynamic lamps, shading | **done** |
+| status panel, weapon in hand, messages | **done** |
+| audio: Paula engine, sound effects, music | **done** |
+| playable game loop | **done** — `gradle game` |
+| menu, fire, font, submenus | **done** — 0 mismatches |
+| sequence of the sixteen levels | **done** |
+| saves and settings | **done** |
+| portable Windows release | **done** — `gradle packageApp` |
+| Android release (APK) | **done** — `gradle apk` |
+| intro story text | to do |
+| two-player mode | to do |
 
-Environ **41 300 lignes** de Java, réparties ainsi :
+About **41,300 lines** of Java, split as follows:
 
-| paquet | fichiers | lignes | ce qu'il fait |
+| package | files | lines | what it does |
 | --- | ---: | ---: | --- |
-| `level` | 11 | 2 249 | lire un niveau : secteurs, arêtes, textures, palettes, modèles |
-| `defs` | 2 | 699 | la base de liaison : armes, monstres, objets |
-| `sim` | 32 | 11 551 | la simulation : joueur, IA, tirs, collisions, portes, la partie |
-| `render` | 36 | 10 753 | le rastériseur logiciel au complet |
-| `sound` | 7 | 2 355 | le moteur audio Paula, le lecteur de musique, le mélangeur |
-| `menu` | 8 | 1 502 | le menu : le feu, la police, les pages, les sauvegardes |
-| `boot` | 6 | 1 064 | les disquettes : montage, dépackage, téléchargement |
-| `view` | 10 | 2 328 | la fenêtre, la boucle, la prise d'image |
-| `android` | 3 | 705 | la surface, les doigts, l'`AudioTrack` |
-| racine | 36 | 8 090 | `M68k`, les lecteurs d'octets, et les **36 vérificateurs** |
+| `level` | 11 | 2,249 | read a level: sectors, edges, textures, palettes, models |
+| `defs` | 2 | 699 | the link database: weapons, monsters, objects |
+| `sim` | 32 | 11,551 | the simulation: player, AI, shots, collisions, doors, the game session |
+| `render` | 36 | 10,753 | the complete software rasteriser |
+| `sound` | 7 | 2,355 | the Paula audio engine, the music player, the mixer |
+| `menu` | 8 | 1,502 | the menu: the fire, the font, the pages, the saves |
+| `boot` | 6 | 1,064 | the disks: mounting, unpacking, downloading |
+| `view` | 10 | 2,328 | the window, the loop, the screenshot |
+| `android` | 3 | 705 | the surface, the fingers, the `AudioTrack` |
+| root | 36 | 8,090 | `M68k`, the byte readers, and the **36 checkers** |
 
 ---
 
-## Jouer
+## Playing
 
 ```bash
-gradle game                   # le menu, puis le jeu
-gradle game -Plevel=c         # tout de suite un niveau, sans passer par le menu
-gradle game -Pscale=4         # une fenêtre plus grande
-gradle game -Pmute            # sans le son
+gradle game                   # the menu, then the game
+gradle game -Plevel=c         # straight into a level, skipping the menu
+gradle game -Pscale=4         # a bigger window
+gradle game -Pmute            # without sound
 ```
 
-Au premier lancement, s'il ne trouve pas les données, le jeu **propose** d'aller chercher les
-cinq disquettes chez [Dream17](https://dream17.abime.net), le site de préservation du catalogue
-Amiga de Team17. Rien n'est téléchargé sans un oui explicite.
+On first launch, if it cannot find the data, the game **offers** to fetch the
+five disks from [Dream17](https://dream17.abime.net), the preservation site for Team17's Amiga
+catalogue. Nothing is downloaded without an explicit yes.
 
-Dans le menu : **haut** et **bas** pour choisir, **ENTRÉE** pour valider, **ÉCHAP** pour
-reculer.
+In the menu: **up** and **down** to choose, **ENTER** to confirm, **ESC** to
+go back.
 
-| touche | action |
+| key | action |
 | --- | --- |
-| flèches, **ZQSD** | marcher |
-| **A** / **E**, flèches gauche et droite | tourner |
-| **MAJ** + direction | pas de côté |
-| **CTRL** | courir |
-| **ESPACE** | tirer |
-| **ALT** + **ESPACE** | sauter |
-| **C** | s'accroupir |
-| **F** | actionner — la touche qui ouvre les portes à serrure |
-| **1**–**9** | changer d'arme |
+| arrows, **ZQSD** | walk |
+| **A** / **E**, left and right arrows | turn |
+| **SHIFT** + direction | sidestep |
+| **CTRL** | run |
+| **SPACE** | fire |
+| **ALT** + **SPACE** | jump |
+| **C** | crouch |
+| **F** | operate — the key that opens locked doors |
+| **1**–**9** | change weapon |
 
-Deux réglages d'éclairage, pour voir ce que le dégradé apporte : `-Psimple` éteint celui des
-murs, `-Pflatshade` celui des sols.
+Two lighting settings, to see what the shading brings: `-Psimple` turns off the one on
+walls, `-Pflatshade` the one on floors.
 
 ```bash
 gradle shot -Plevel=o -Pzone=55 -Pangle=7168 -Pframes=30 -Pout=une_image.png
-gradle shot -Pshimmer=5       # la même image, en train de se dématérialiser
-gradle menuShot -Pframes=120  # une image du menu (le texte n'arrive qu'à la 35e)
-gradle play -Plevel=c         # la simulation seule, vue de dessus
-gradle unpack                 # dépaquer les disquettes à la main
+gradle shot -Pshimmer=5       # the same image, dematerialising
+gradle menuShot -Pframes=120  # a frame of the menu (the text only arrives at the 35th)
+gradle play -Plevel=c         # the simulation alone, seen from above
+gradle unpack                 # unpack the disks by hand
 ```
 
 ---
 
-## Empaqueter
+## Packaging
 
 ```bash
-gradle packageApp             # Windows : build/jpackage/AlienBreed3D2-TKG/
-gradle apk                    # Android : build/android/ab3d2-tkg.apk
-gradle installApk             # … et le poser sur l'appareil branché
+gradle packageApp             # Windows: build/jpackage/AlienBreed3D2-TKG/
+gradle apk                    # Android: build/android/ab3d2-tkg.apk
+gradle installApk             # … and install it on the connected device
 ```
 
-**Ni l'une ni l'autre ne contient la moindre donnée du jeu.** L'application Windows fait 152 Mo
-— c'est le JRE embarqué — et l'APK **286 Ko**. Les deux vont chercher les disquettes au premier
-lancement, si on le leur demande.
+**Neither one contains any game data at all.** The Windows application is 152 MB
+— that is the embedded JRE — and the APK **286 KB**. Both fetch the disks on first
+launch, if asked to.
 
-La release Android se construit **sans le plugin Android** : les outils du SDK suffisent, et ce
-dépôt n'a toujours aucune dépendance. Cinq pas, chacun lisible — `javac` contre `android.jar`,
-`d8`, `aapt2`, un zip, `apksigner`.
+The Android release is built **without the Android plugin**: the SDK tools are enough, and this
+repository still has no dependencies. Five steps, each one readable — `javac` against `android.jar`,
+`d8`, `aapt2`, a zip, `apksigner`.
 
-### Ce qui rend l'Android possible
+### What makes Android possible
 
-Rien, dans le jeu, ne connaît sa plateforme. `render`, `sim`, `level`, `menu` et `boot`
-n'importent que `java.*`, et `view.Shell` prend une intention par image et rend un tampon
-d'octets. Il ne reste à écrire, par plateforme, que trois choses :
+Nothing in the game knows its platform. `render`, `sim`, `level`, `menu` and `boot`
+import only `java.*`, and `view.Shell` takes one intent per frame and returns a byte
+buffer. All that is left to write, per platform, is three things:
 
 | | Windows | Android |
 | --- | --- | --- |
-| montrer l'image | `BufferedImage` + Swing | `Bitmap` + `SurfaceView` |
-| lire les commandes | clavier | stick virtuel, glisser pour viser |
-| pousser le son | `javax.sound` | `AudioTrack` |
+| show the image | `BufferedImage` + Swing | `Bitmap` + `SurfaceView` |
+| read the controls | keyboard | virtual stick, drag to aim |
+| push the sound | `javax.sound` | `AudioTrack` |
 
-Le `classes.dex` de l'APK contient **209 classes du jeu et pas une seule référence** à AWT, à
-Swing ou à `javax.sound`. C'est la preuve que la séparation tient.
+The APK's `classes.dex` contains **209 game classes and not a single reference** to AWT,
+Swing or `javax.sound`. That is the proof that the separation holds.
 
-Sur Android, le pouce gauche pose un **stick qui naît là où on le pose** — on joue sans
-regarder ses pouces — et le pouce droit tourne et vise au glissement, comme une souris.
+On Android, the left thumb places a **stick that appears wherever you put it down** — you play without
+looking at your thumbs — and the right thumb turns and aims by dragging, like a mouse.
 
 ---
 
-## Vérifier
+## Checking
 
 ```bash
-gradle checkAll               # les 51 tâches, d'un coup
+gradle checkAll               # all 51 tasks, in one go
 ```
 
-Chacune se lance seule. Elles tombent en cinq familles.
+Each one can be run on its own. They fall into five families.
 
-**Le fichier et la simulation**
+**The file and the simulation**
 
-| tâche | ce qu'elle éprouve |
+| task | what it tests |
 | --- | --- |
-| `levelCheck` | les 16 niveaux, champ par champ |
-| `defsCheck` | la base de liaison, champ par champ |
-| `moveTest` `alienTest` `shotTest` | le déplacement, l'IA, le tir, sur les 16 niveaux |
-| `moveCheck` | où `MoveObject` arrête, fait glisser, change de secteur |
-| `animsCheck` | les portes et les ascenseurs, image par image |
-| `objectLifeCheck` | la vie des objets : les quatre familles |
-| `blastCheck` | le souffle d'une explosion : dégâts, reculs, flammes |
-| `hitCheck` | le coup au but : qui une balle touche, et ce qu'elle lui laisse |
-| `shootCheck` | le tir instantané : le dé de précision et le recul |
-| `bitsCheck` | la gerbe de morceaux qu'une entité laisse en mourant |
-| `worldTest` `gameTest` | la boucle **entière**, mille images sur chaque niveau |
+| `levelCheck` | the 16 levels, field by field |
+| `defsCheck` | the link database, field by field |
+| `moveTest` `alienTest` `shotTest` | movement, AI, shooting, on the 16 levels |
+| `moveCheck` | where `MoveObject` stops, slides, changes sector |
+| `animsCheck` | doors and lifts, frame by frame |
+| `objectLifeCheck` | the life of objects: the four families |
+| `blastCheck` | the blast of an explosion: damage, knockback, flames |
+| `hitCheck` | the hit: who a bullet strikes, and what it leaves them |
+| `shootCheck` | instant-hit fire: the accuracy roll and the recoil |
+| `bitsCheck` | the spray of bits an entity leaves when it dies |
+| `worldTest` `gameTest` | the **whole** loop, a thousand frames on each level |
 
-**La mise en scène**
+**The staging**
 
-| tâche | ce qu'elle éprouve |
+| task | what it tests |
 | --- | --- |
-| `xformCheck` | la transformation de vue, point par point |
-| `zoneOrderCheck` `zoneGraphCheck` | l'ordre de dessin des secteurs |
-| `clipCheck` `edgePvsCheck` `visEdgesCheck` | la fenêtre de dessin, le PVS par arête, les ouvertures visibles |
+| `xformCheck` | the view transform, point by point |
+| `zoneOrderCheck` `zoneGraphCheck` | the drawing order of sectors |
+| `clipCheck` `edgePvsCheck` `visEdgesCheck` | the drawing window, the per-edge PVS, the visible openings |
 
-**Les pixels**
+**The pixels**
 
-| tâche | ce qu'elle éprouve |
+| task | what it tests |
 | --- | --- |
-| `wallCheck` `flatCheck` | la projection des murs, des sols et des plafonds |
-| `wallPaintCheck` `gourWallPaintCheck` | le placage des murs, colonne par colonne |
-| `flatPaintCheck` `gourFlatPaintCheck` | le placage des sols, tranche par tranche |
-| `waterPaintCheck` `skyCheck` | l'eau animée et le ciel |
-| `lightCheck` | l'éclairage, secteur par secteur et point par point |
+| `wallCheck` `flatCheck` | the projection of walls, floors and ceilings |
+| `wallPaintCheck` `gourWallPaintCheck` | wall texture mapping, column by column |
+| `flatPaintCheck` `gourFlatPaintCheck` | floor texture mapping, span by span |
+| `waterPaintCheck` `skyCheck` | animated water and the sky |
+| `lightCheck` | lighting, sector by sector and point by point |
 
-**Les choses**
+**The things**
 
-| tâche | ce qu'elle éprouve |
+| task | what it tests |
 | --- | --- |
-| `objXformCheck` `spriteOrderCheck` | la rotation et le tri des objets |
-| `bitmapCheck` `bitmapPaintCheck` `bitmapLitCheck` | la pose et les pixels d'un sprite |
-| `objAnimCheck` `alienAnimCheck` | l'apparence : ce qu'un pas d'animation donne à voir |
-| `glareCheck` `brightRingsCheck` | le miroitement, et les anneaux de lumière en seize directions |
-| `modelPointsCheck` `modelFacesCheck` `modelEdgesCheck` `modelPixelsCheck` | les modèles en relief, des points aux pixels |
+| `objXformCheck` `spriteOrderCheck` | the rotation and sorting of objects |
+| `bitmapCheck` `bitmapPaintCheck` `bitmapLitCheck` | the placement and the pixels of a sprite |
+| `objAnimCheck` `alienAnimCheck` | the appearance: what an animation step shows |
+| `glareCheck` `brightRingsCheck` | the shimmer, and the rings of light in sixteen directions |
+| `modelPointsCheck` `modelFacesCheck` `modelEdgesCheck` `modelPixelsCheck` | the 3D models, from points to pixels |
 
-**Le reste**
+**The rest**
 
-| tâche | ce qu'elle éprouve |
+| task | what it tests |
 | --- | --- |
-| `hudCheck` `gunHoldCheck` | le tableau de bord, et où l'arme se pose à chaque image |
-| `paulaCheck` `musicCheck` | le moteur audio et le lecteur de musique, registre par registre |
-| `shimmerCheck` | la dématérialisation, pixel par pixel — 1 966 080 pixels |
-| `menuCheck` | le menu : bruit, fond, police, feu et palette — 274 688 octets |
-| `campaignTest` | la partie : la sortie, la mort, et ce qu'on emporte |
+| `hudCheck` `gunHoldCheck` | the status panel, and where the weapon sits on each frame |
+| `paulaCheck` `musicCheck` | the audio engine and the music player, register by register |
+| `shimmerCheck` | the dematerialisation, pixel by pixel — 1,966,080 pixels |
+| `menuCheck` | the menu: noise, background, font, fire and palette — 274,688 bytes |
+| `campaignTest` | the game session: the exit, death, and what you carry over |
 
-Les harnais de simulation acceptent `-Plevel=a` (ou `all`).
+The simulation harnesses accept `-Plevel=a` (or `all`).
 
 ---
 
-## Comment on vérifie
+## How the checking works
 
-C'est la pièce maîtresse du projet, et elle mérite un mot.
+This is the centrepiece of the project, and it deserves a word.
 
-Une conversion ne se prouve pas en la relisant. Elle se prouve **différentiellement**, en trois
-temps :
+A conversion is not proven by rereading it. It is proven **differentially**, in three
+steps:
 
-1. une **sonde** est posée dans le portage littéral — quelques lignes qui relèvent ce que le code
-   d'origine calcule vraiment, à l'endroit exact où il le calcule ;
-2. un **extracteur**, dans le remake, fait tourner le portage et écrit le relevé en JSON ;
-3. un **vérificateur**, ici, rejoue chaque cas sans mémoire plate et compare.
+1. a **probe** is placed in the literal port — a few lines that record what the original code
+   actually computes, at the exact place where it computes it;
+2. an **extractor**, in the remake, runs the port and writes the record out as JSON;
+3. a **checker**, here, replays each case without flat memory and compares.
 
-La comparaison n'est pas statistique : elle est **exacte**, champ par champ et pixel par pixel.
-Un seul écart fait échouer la tâche.
+The comparison is not statistical: it is **exact**, field by field and pixel by pixel.
+A single mismatch fails the task.
 
-Le corpus est construit pour mordre. On n'y met pas des valeurs commodes mais des **cas aux
-bornes** : la distance où le tir bascule, l'angle où un mur disparaît, la graine qui donne
-exactement la valeur limite. Plusieurs familles ont été soumises à une **campagne de mutation** —
-on abîme volontairement le code converti, et toute mutation qui survit signale un trou du corpus,
-qu'on bouche.
+The corpus is built to bite. It does not hold convenient values but **edge
+cases**: the distance at which a shot tips over, the angle at which a wall disappears, the seed that gives
+exactly the limit value. Several families have been put through a **mutation campaign** —
+the converted code is deliberately damaged, and any mutation that survives points to a hole in the corpus,
+which then gets plugged.
 
-C'est ce procédé qui a mis au jour, dans le code d'origine, des choses qu'on ne trouve pas en
-lisant : une multiplication de mots qui déborde dans le filtre de visée verticale, un point
-représentatif de modèle qui désigne un rang hors du modèle et lit ce que l'objet précédent a
-laissé dans la table de travail, un drapeau de vue inversé. Aucune n'est corrigée : **on porte ce
-que le jeu fait, pas ce qu'il aurait dû faire.**
-
----
-
-## Les données
-
-Rien n'est inventé, et rien d'exécutable n'est fourni. Deux provenances, deux racines.
-
-- `medias/original/` — ce qui vient des cinq disquettes : les niveaux et `Includes/test.lnk`.
-  Le jeu sait les produire lui-même, en montant les images `.adf` et en dépaquant ce qui
-  l'est ; il propose de les télécharger s'il ne les trouve pas.
-- `data/incbin/` — les tables que l'assembleur incorporait à l'exécutable. La table de sinus en
-  fait partie, et on la **lit** plutôt que de la recalculer : les trajectoires dépendent de ses
-  arrondis. Elles voyagent **dans l'archive**, parce qu'une application installée n'a pas de
-  dossier courant qui veuille dire quelque chose, et un téléphone pas de dossier du tout.
-
-Le corpus de référence est celui qu'extrait le remake. Si la lecture **sans mémoire plate**
-retrouve les mêmes valeurs, c'est que la conversion est juste.
+It is this process that brought to light, in the original code, things you do not find by
+reading: a word multiplication that overflows in the vertical aiming filter, a model's
+representative point that refers to an index outside the model and reads what the previous object
+left in the work table, an inverted view flag. None of them is fixed: **we port what
+the game does, not what it should have done.**
 
 ---
 
-## Construire
+## The data
 
-JDK 21 et Gradle. Aucune autre dépendance pour le jeu — Gson ne sert qu'aux vérificateurs.
+Nothing is invented, and nothing executable is supplied. Two origins, two roots.
+
+- `medias/original/` — what comes from the five disks: the levels and `Includes/test.lnk`.
+  The game can produce them itself, by mounting the `.adf` images and unpacking what is
+  packed; it offers to download them if it cannot find them.
+- `data/incbin/` — the tables the assembly built into the executable. The sine table is
+  one of them, and it is **read** rather than recomputed: the trajectories depend on its
+  rounding. They travel **inside the archive**, because an installed application has no
+  current directory that means anything, and a phone has no directory at all.
+
+The reference corpus is the one the remake extracts. If the reading **without flat memory**
+finds the same values, the conversion is right.
+
+---
+
+## Building
+
+JDK 21 and Gradle. No other dependency for the game — Gson is only used by the checkers.
 
 ```bash
 gradle build
 gradle game
 ```
 
-Pour l'APK, il faut en plus un SDK Android (trouvé par `ANDROID_HOME`, ou à son emplacement
-habituel) avec des *build-tools* et une plateforme installés. Le code vise l'**API 26**
-(Android 8) : la lecture des données passe par `java.nio.file`, que le système n'expose qu'à
-partir de là.
+For the APK, you also need an Android SDK (found through `ANDROID_HOME`, or at its usual
+location) with *build-tools* and a platform installed. The code targets **API 26**
+(Android 8): data reading goes through `java.nio.file`, which the system only exposes from
+that version on.
 
 ---
 
-## Mentions légales et données du jeu
+## Legal Notice & Game Assets
 
-### Implémentation indépendante du moteur
-
-Ce projet est une réimplémentation indépendante du moteur d'*Alien Breed 3D II : The Killing Grounds*, conçue pour reproduire le comportement du jeu d'origine sur les plateformes modernes.
-
-Le moteur a été développé à partir du code source d'origine (assembleur 68000 et C), tel qu'il est publié dans [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), par analyse technique et tests de compatibilité. Ce code source n'est pas inclus dans ce dépôt : il est converti en Java.
-
-### Fichiers du jeu d'origine
-
-Ce projet nécessite des fichiers du jeu d'origine, comme les cinq disquettes du jeu (images ADF), pour fonctionner.
-
-**Les fichiers du jeu d'origine ne sont pas inclus dans ce projet.**
-
-Chaque utilisateur doit se procurer et fournir ses propres fichiers de jeu auprès d'une source légalement autorisée. Avant de télécharger ou d'utiliser ce moteur, l'utilisateur doit confirmer qu'il possède une copie du jeu d'origine obtenue légalement.
-
-Le jeu propose de les télécharger s'il ne les trouve pas. Seules les tables que l'assembleur incorporait à l'exécutable (`data/incbin/`) voyagent avec le code.
-
-Eloane Studio n'héberge, ne distribue ni ne fournit de copies non autorisées de données de jeu protégées par le droit d'auteur.
-
-### Droits d'auteur et marques
-
-Les noms, marques, graphismes, musiques et autres éléments propriétaires d'*Alien Breed 3D II : The Killing Grounds* restent la propriété de leurs titulaires respectifs (Team17).
-
-Ce projet est une implémentation indépendante et non officielle ; il n'est ni affilié, ni approuvé, ni soutenu par les développeurs ou les éditeurs du jeu d'origine.
-
-### Préservation
-
-Ce projet a pour but de préserver le comportement technique et l'expérience de jeu des jeux vidéo classiques, tout en les rendant accessibles sur les systèmes modernes.
-
-Le moteur est fourni à des fins de compatibilité, de préservation et d'éducation.
-
-### Crédits
-
-Moteur d'origine : Team17 (Andy Clitheroe et al.). Sources ASM/C de référence : [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). Conversion Java : **Guillaume Monet**.
-
-<details>
-<summary>English version</summary>
-
-### Legal Notice & Game Assets
-
-#### Independent Engine Implementation
+### Independent Engine Implementation
 
 This project is an independent reimplementation of the *Alien Breed 3D II: The Killing Grounds* engine, designed to reproduce the original game's behavior on modern platforms.
 
 The engine has been developed from the original source code (68000 assembly and C), as published in [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), through technical analysis and compatibility testing. That source code is not included in this repository: it is converted to Java.
 
-#### Original Game Files
+### Original Game Files
 
 This project requires original game files, such as the game's five Amiga ADF disk images, to run.
 
@@ -382,20 +345,18 @@ The game offers to download them when it cannot find them. Only the tables the a
 
 Eloane Studio does not host, distribute, or provide unauthorized copies of copyrighted game assets.
 
-#### Copyright & Trademarks
+### Copyright & Trademarks
 
 All original game names, trademarks, graphics, music, and other proprietary assets of *Alien Breed 3D II: The Killing Grounds* remain the property of their respective copyright holders (Team17).
 
 This project is an independent, unofficial implementation and is not affiliated with, endorsed by, or sponsored by the original game's developers or publishers.
 
-#### Preservation
+### Preservation
 
 The purpose of this project is to preserve the technical behavior and gameplay experience of classic video games while making them accessible on modern systems.
 
 The engine is provided for compatibility, preservation, and educational purposes.
 
-#### Credits
+### Credits
 
 Original engine: Team17 (Andy Clitheroe et al.). Reference ASM/C sources: [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). Java conversion: **Guillaume Monet**.
-
-</details>
